@@ -30,3 +30,6 @@ Thumbs.db
 # Local editor / build artifacts
 .claude/settings.local.json
 *.tsbuildinfo
+
+.vercel
+.env*.local

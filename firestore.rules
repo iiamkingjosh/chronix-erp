@@ -122,7 +122,7 @@ service cloud.firestore {
     /** Employee roster lives on users docs — HR modules + staffing dropdowns + exec KPIs */
     function canReadUserDirectory() {
       return hasViewAll() || canManageHR() || canManageStaff() ||
-        canManageTickets() || hasViewHr();
+        canManageTickets() || hasViewHr() || hasViewTickets();
     }
 
     /** src/types/roles.ts — canDeleteUnpaidInvoice */
@@ -185,7 +185,7 @@ service cloud.firestore {
         resource.data.client.name != null &&
         userPortalBillingMatches(resource.data.client.name)
       );
-      allow create: if canManageTickets() || (
+      allow create: if (isAuth() && !isClientRole() && hasViewTickets()) || (
         isClientRole() &&
         request.resource.data.status == 'open' &&
         request.resource.data.client != null &&

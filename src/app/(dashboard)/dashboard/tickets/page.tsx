@@ -24,8 +24,9 @@ export default function TicketsPage() {
   const [priorityFilter, setPriority]   = useState<PriorityFilter>("all");
   const [statusFilter, setStatus]       = useState<StatusFilter>("all");
 
-  const canManage  = profile ? hasPermission(profile.role, "manage:tickets") : false;
-  const canSeeAll  = profile ? hasPermission(profile.role, "view:all") || canManage : false;
+  const canManage      = profile ? hasPermission(profile.role, "manage:tickets") : false;
+  const canViewTickets = profile ? hasPermission(profile.role, "view:tickets") : false;
+  const canSeeAll      = profile ? hasPermission(profile.role, "view:all") || canManage || canViewTickets : false;
 
   useEffect(() => {
     getTickets()

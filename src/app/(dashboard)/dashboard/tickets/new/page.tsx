@@ -42,6 +42,7 @@ export default function NewTicketPage() {
   const [serverError, setServerError] = useState<string | null>(null);
 
   const canManage = profile ? hasPermission(profile.role, "manage:tickets") : false;
+  const canCreate = profile ? hasPermission(profile.role, "view:tickets") || canManage : false;
 
   const {
     register,
@@ -67,12 +68,27 @@ export default function NewTicketPage() {
 
   // Fetch staff list
   useEffect(() => {
-    getStaffList().then(setStaff).catch(() => {});
-  }, []);
+    if (!canCreate) return;
+    getStaffList()
+      .then((all) => {
+        // Assignable internal users only (exclude Client accounts).
+        const internal = all.filter((s) => s.role !== "Client");
+        setStaff(internal);
+      })
+      .catch(() => {
+        setServerError("Unable to load staff list. You can still assign this ticket to yourself.");
+      });
+  }, [canCreate]);
+
+  useEffect(() => {
+    if (!profile) return;
+    if (staff.length > 0) return;
+    setValue("assignedTo", profile.uid);
+  }, [profile, staff.length, setValue]);
 
   async function onSubmit(data: FormData) {
     if (!profile) return;
-    if (!canManage) return;
+    if (!canCreate) return;
     setServerError(null);
     try {
       const selectedStaff = staff.find((s) => s.uid === data.assignedTo);
@@ -104,7 +120,7 @@ export default function NewTicketPage() {
     }
   }
 
-  if (!canManage) {
+  if (!canCreate) {
     return (
       <div className="py-16 text-center">
         <p className="text-white/40 font-helvetica">You do not have permission to create tickets.</p>
@@ -195,6 +211,11 @@ export default function NewTicketPage() {
                 <label className="field-label">Assign To</label>
                 <select {...register("assignedTo")} className="input-field">
                   <option value="">Select staff member…</option>
+                  {profile && (
+                    <option value={profile.uid} className="bg-primary-dark">
+                      {profile.displayName ?? profile.email} (Me)
+                    </option>
+                  )}
                   {staff.map((s) => (
                     <option key={s.uid} value={s.uid} className="bg-primary-dark">
                       {s.displayName} ({s.role})
