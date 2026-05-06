@@ -1,0 +1,280 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /** Canonical role string on users/{uid}. Keep aliases aligned with src/types/roles.ts ROLE_ALIASES */
+    function role() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isAuth() {
+      return request.auth != null;
+    }
+    function tokenEmail() {
+      return request.auth.token.email;
+    }
+
+    function isCEO() {
+      return role() == 'CEO' || role() == 'Manager';
+    }
+    function isCFO() {
+      return role() == 'CFO' || role() == 'Finance' || role() == 'Accountant';
+    }
+    function isSystemAdmin() {
+      return role() == 'System Admin' || role() == 'Admin' || role() == 'Super Admin';
+    }
+    function isBrandLead() {
+      return role() == 'Brand Lead';
+    }
+    function isSocialLead() {
+      return role() == 'Social Media Lead';
+    }
+    function isHR() {
+      return role() == 'HR';
+    }
+    function isStaffLike() {
+      return role() == 'Staff' || role() == 'Support' || role() == 'Employee' || role() == 'User';
+    }
+    function isClientRole() {
+      return role() == 'Client';
+    }
+
+    /** App: CEO + System Admin have view:all (read-most dashboards). */
+    function hasViewAll() {
+      return isCEO() || isSystemAdmin();
+    }
+
+    /** ROLE_PERMISSIONS — manage:finance */
+    function canManageFinance() {
+      return isCFO() || isSystemAdmin();
+    }
+
+    /** ROLE_PERMISSIONS — manage:tickets (CEO does NOT manage tickets in app) */
+    function canManageTickets() {
+      return isCFO() || isSystemAdmin();
+    }
+
+    /** ROLE_PERMISSIONS — manage:crm */
+    function canManageCRM() {
+      return isSystemAdmin() || isBrandLead() || isSocialLead();
+    }
+
+    /** ROLE_PERMISSIONS — manage:hr */
+    function canManageHR() {
+      return isSystemAdmin() || isHR();
+    }
+
+    /** ROLE_PERMISSIONS — manage:procurement — System Admin only */
+    function canManageProcurement() {
+      return isSystemAdmin();
+    }
+
+    /** ROLE_PERMISSIONS — manage:subscriptions */
+    function canManageSubscriptions() {
+      return isCFO() || isSystemAdmin();
+    }
+
+    /** ROLE_PERMISSIONS — manage:projects */
+    function canManageProjects() {
+      return isSystemAdmin() || isBrandLead();
+    }
+
+    /** ROLE_PERMISSIONS — manage:staff */
+    function canManageStaff() {
+      return isSystemAdmin();
+    }
+
+    function hasViewFinance() {
+      return hasViewAll() || isCFO();
+    }
+
+    function hasViewTickets() {
+      return hasViewAll() || isCFO() || canManageTickets() ||
+        isBrandLead() || isSocialLead() || isHR() || isStaffLike();
+    }
+
+    function hasViewCrm() {
+      return hasViewAll() || isCFO() || canManageCRM() ||
+        isHR() || isStaffLike();
+    }
+
+    function hasViewProjects() {
+      return hasViewAll() || isCFO() || isBrandLead() || isSocialLead() ||
+        isHR() || isStaffLike();
+    }
+
+    function hasViewProcurement() {
+      return hasViewAll() || isCFO();
+    }
+
+    function hasViewSubscriptions() {
+      return hasViewAll() || isCFO();
+    }
+
+    function hasViewHr() {
+      return hasViewAll() || isCFO() || isHR() || isStaffLike();
+    }
+
+    /** Matches dashboard CRM reads + CEO KPI safeDocs — broad listing queries require broad reads */
+    function canReadClientsDirectory() {
+      return hasViewCrm();
+    }
+
+    /** Employee roster lives on users docs — HR modules + staffing dropdowns + exec KPIs */
+    function canReadUserDirectory() {
+      return hasViewAll() || canManageHR() || canManageStaff() ||
+        canManageTickets() || hasViewHr();
+    }
+
+    /** src/types/roles.ts — canDeleteUnpaidInvoice */
+    function canDeleteUnpaidInvoice() {
+      return isCFO() || isSystemAdmin();
+    }
+
+    /** Optional portal fields on users/{uid}: portalBillingCompany, portalBillingName, portalBillingEmail — must match invoices.client.name / subscriptions.clientName when not using Auth email */
+    function userPortalBillingMatches(resourceBillingKey) {
+      let me = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return (tokenEmail() != null && resourceBillingKey == tokenEmail()) ||
+        (me.get('portalBillingCompany', '') != '' &&
+          me.get('portalBillingCompany', '') == resourceBillingKey) ||
+        (me.get('portalBillingName', '') != '' &&
+          me.get('portalBillingName', '') == resourceBillingKey) ||
+        (me.get('portalBillingEmail', '') != '' &&
+          me.get('portalBillingEmail', '') == resourceBillingKey);
+    }
+
+    /* ── Users (profiles + merged HR fields — see src/lib/hr-service.ts) ── */
+    match /users/{userId} {
+      allow read:   if isAuth() && (
+        request.auth.uid == userId ||
+        canReadUserDirectory()
+      );
+      allow create: if isAuth() && request.auth.uid == userId;
+      allow update: if isAuth() && (
+        request.auth.uid == userId ||
+        canManageHR() ||
+        isCFO() ||
+        canManageStaff()
+      );
+      allow delete: if false;
+    }
+
+    /* ── Invoices ─────────────────────────────────────────── */
+    match /invoices/{invoiceId} {
+      allow read: if hasViewFinance() || (
+        isClientRole() &&
+        resource.data.client != null &&
+        resource.data.client.name != null &&
+        userPortalBillingMatches(resource.data.client.name)
+      );
+      allow create, update: if canManageFinance();
+      allow delete: if canDeleteUnpaidInvoice() && resource.data.status != 'paid';
+    }
+
+    /* ── Payments ──────────────────────────────────────────── */
+    match /payments/{paymentId} {
+      allow read: if hasViewFinance();
+      allow create: if canManageFinance();
+      allow update, delete: if false;
+    }
+
+    /* ── Tickets — listing queries pull whole collection then filter in UI ── */
+    match /tickets/{ticketId} {
+      allow read: if hasViewTickets() || (
+        isClientRole() &&
+        resource.data.client != null &&
+        resource.data.client.name != null &&
+        userPortalBillingMatches(resource.data.client.name)
+      );
+      allow create: if canManageTickets() || (
+        isClientRole() &&
+        request.resource.data.status == 'open' &&
+        request.resource.data.client != null &&
+        request.resource.data.client.name != null &&
+        userPortalBillingMatches(request.resource.data.client.name)
+      );
+      allow update: if canManageTickets() || (
+        isAuth() && resource.data.assignedTo == request.auth.uid
+      );
+      allow delete: if false;
+    }
+
+    /* ── CRM — Leads ──────────────────────────────────────── */
+    match /leads/{leadId} {
+      allow read: if hasViewCrm();
+      allow create: if canManageCRM();
+      allow update: if canManageCRM() || resource.data.assignedTo == request.auth.uid;
+      allow delete: if false;
+    }
+
+    /* ── CRM — Clients ────────────────────────────────────── */
+    match /clients/{clientId} {
+      allow read: if canReadClientsDirectory() || (
+        isClientRole() &&
+        resource.data.email != null &&
+        tokenEmail() != null &&
+        resource.data.email == tokenEmail()
+      );
+      allow create, update: if canManageCRM();
+      allow delete: if false;
+    }
+
+    /* ── Projects ─────────────────────────────────────────── */
+    match /projects/{projectId} {
+      allow read: if hasViewProjects();
+      allow create: if canManageProjects();
+      allow update: if canManageProjects() || resource.data.createdBy == request.auth.uid;
+      allow delete: if false;
+    }
+
+    /* ── Vendors ──────────────────────────────────────────── */
+    match /vendors/{vendorId} {
+      allow read: if hasViewProcurement();
+      allow create, update: if canManageProcurement();
+      allow delete: if false;
+    }
+
+    /* ── Purchase Orders ──────────────────────────────────── */
+    match /purchase_orders/{poId} {
+      allow read: if hasViewProcurement();
+      allow create, update: if canManageProcurement();
+      allow delete: if false;
+    }
+
+    /* ── Legacy employees — unused by client HR paths; Admin SDK may delete on user purge ── */
+    match /employees/{employeeId} {
+      allow read: if request.auth.uid == employeeId || hasViewHr() || canManageHR() || isCFO();
+      allow create, update: if canManageHR();
+      allow delete: if false;
+    }
+
+    /* ── Payroll Runs ─────────────────────────────────────── */
+    match /payroll_runs/{runId} {
+      allow read: if canManageHR() || isCFO() || isSystemAdmin();
+      allow create, update: if canManageHR() || isSystemAdmin();
+      allow delete: if false;
+    }
+
+    /* ── Subscriptions (ROLE_PERMISSIONS: CFO/System Admin manage) ──── */
+    match /subscriptions/{subId} {
+      allow read: if hasViewSubscriptions() || (
+        isClientRole() &&
+        resource.data.clientName != null &&
+        userPortalBillingMatches(resource.data.clientName)
+      );
+      allow create, update: if canManageSubscriptions();
+      allow delete: if false;
+    }
+
+    /* ── Notifications — UI loads collection then filters by targetRoles ──── */
+    match /notifications/{notifId} {
+      allow read: if isAuth() && !isClientRole();
+      allow create: if isAuth() && !isClientRole();
+      allow update: if isAuth() && !isClientRole();
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

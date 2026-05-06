@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Background -->
+  <rect width="100" height="100" rx="20" fill="#003366"/>
+
+  <!-- C arc -->
+  <path d="M 52 28 A 27 27 0 1 0 52 72" stroke="white" stroke-width="7" stroke-linecap="round" fill="none"/>
+
+  <!-- Clock: 12 o'clock hand -->
+  <line x1="36" y1="50" x2="36" y2="33" stroke="#FF761B" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Clock: 3 o'clock hand -->
+  <line x1="36" y1="50" x2="54" y2="50" stroke="#FF761B" stroke-width="3.5" stroke-linecap="round"/>
+
+  <!-- Pivot -->
+  <circle cx="36" cy="50" r="3.2" fill="#FF761B"/>
+  <circle cx="36" cy="50" r="1.5" fill="#001833"/>
+
+  <!-- Circuit branch 1: arrow -->
+  <line x1="54" y1="37" x2="75" y2="37" stroke="#2472B4" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 70 32 L 77 37 L 70 42" stroke="#2472B4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Circuit branch 2: circle -->
+  <path d="M 54 50 L 63 50 L 68 56 L 79 56" stroke="#2472B4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="82" cy="56" r="2.5" stroke="#2472B4" stroke-width="2.5" fill="none"/>
+
+  <!-- Circuit branch 3: circle -->
+  <path d="M 54 63 L 61 63 L 61 72 L 76 72" stroke="#2472B4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="79" cy="72" r="2.5" stroke="#2472B4" stroke-width="2.5" fill="none"/>
+</svg>
