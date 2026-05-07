@@ -49,10 +49,9 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
       Uses view:all which expands only to view:* checks — see hasPermission(). */
   [ROLES.CEO]: [
     "view:all",
-    "view:analytics",
-    "view:notifications",
-    "view:reports",
-    "view:subscriptions",
+    "view:analytics",    "view:notifications",
+    "view:reports",      "view:subscriptions",
+    "view:tax",          "view:settings",
   ],
 
   /* ── CFO ─────────────────────────────────────────────── */
@@ -63,6 +62,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:hr",            "view:subscriptions",
     "manage:subscriptions",
     "view:analytics",     "view:notifications",
+    "view:tax",           "manage:tax",
   ],
 
   /* ── System Admin — full platform access ─────────────── */
@@ -73,6 +73,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "manage:projects",    "manage:procurement",
     "manage:subscriptions",
     "view:analytics",     "view:notifications",
+    "view:tax",
   ],
 
   /* ── Brand Lead ──────────────────────────────────────── */
@@ -97,6 +98,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:tickets",       "view:crm",           "view:projects",
     "view:hr",
     "view:analytics",     "view:notifications",
+    "view:tax",           "view:paye",
   ],
 
   /* ── Staff ───────────────────────────────────────────── */

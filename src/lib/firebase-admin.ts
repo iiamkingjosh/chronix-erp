@@ -2,6 +2,7 @@ import { getApps, cert, initializeApp, applicationDefault } from "firebase-admin
 import type { App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getMessaging, type Messaging } from "firebase-admin/messaging";
 
 function initAdminApp(): App {
   const existing = getApps()[0];
@@ -29,6 +30,7 @@ function initAdminApp(): App {
 let cachedApp: App | undefined;
 let cachedAuth: Auth | undefined;
 let cachedDb: Firestore | undefined;
+let cachedMessaging: Messaging | undefined;
 
 function getAdminApp(): App {
   if (!cachedApp) cachedApp = initAdminApp();
@@ -45,4 +47,10 @@ export function getAdminAuth(): Auth {
 export function getAdminDb(): Firestore {
   if (!cachedDb) cachedDb = getFirestore(getAdminApp());
   return cachedDb;
+}
+
+/** Lazily initializes Firebase Messaging for server-side push notifications. */
+export function getAdminMessaging(): Messaging {
+  if (!cachedMessaging) cachedMessaging = getMessaging(getAdminApp());
+  return cachedMessaging;
 }

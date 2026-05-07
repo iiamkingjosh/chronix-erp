@@ -1,14 +1,69 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import { COMPANY } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/types/roles";
+import { auth } from "@/lib/firebase";
+import { enablePushNotifications, getPushPermission, registerToken, type PermissionStatus } from "@/lib/fcm-client";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 export default function SettingsPage() {
-  const { profile } = useAuth();
+  const { profile }    = useAuth();
   const canManageStaff = profile ? hasPermission(profile.role, "manage:staff") : false;
+
+  const [pushStatus, setPushStatus]   = useState<PermissionStatus>("default");
+  const [enabling, setEnabling]       = useState(false);
+  const [testing, setTesting]         = useState(false);
+  const [pushMsg, setPushMsg]         = useState<string | null>(null);
+
+  useEffect(() => { setPushStatus(getPushPermission()); }, []);
+
+  async function handleTestNotification() {
+    setTesting(true);
+    setPushMsg(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) { setPushMsg("Not authenticated."); return; }
+      const res  = await fetch("/api/notifications/test", {
+        method:  "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = await res.json() as { success?: boolean; results?: Record<string, string>; error?: string };
+      if (json.success) {
+        const r = json.results ?? {};
+        setPushMsg(`Test sent — in-app: ${r.inApp} · push: ${r.push} · email: ${r.email}`);
+      } else {
+        setPushMsg(`Error: ${json.error}`);
+      }
+    } catch (e) {
+      setPushMsg(`Failed: ${String(e)}`);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function handleEnablePush() {
+    setEnabling(true);
+    setPushMsg(null);
+    try {
+      const token = await enablePushNotifications();
+      if (!token) {
+        setPushMsg("Permission denied or browser not supported.");
+        setPushStatus(getPushPermission());
+        return;
+      }
+      const idToken = await auth.currentUser?.getIdToken();
+      if (idToken) await registerToken(token, idToken);
+      setPushStatus("granted");
+      setPushMsg("Push notifications enabled! You'll receive alerts even when the app is closed.");
+    } catch {
+      setPushMsg("Something went wrong. Please try again.");
+    } finally {
+      setEnabling(false);
+    }
+  }
 
   return (
     <ProtectedRoute requiredAnyPermission={["manage:settings", "view:settings"]}>
@@ -94,6 +149,56 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+
+          {/* Push Notifications */}
+          <div className="surface-card p-6">
+            <h2 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">Push Notifications</h2>
+            <div className="flex items-start gap-5">
+              <div className="flex-1">
+                <p className="text-sm text-white font-helvetica mb-1">Browser Push Notifications</p>
+                <p className="text-xs text-white/40 font-helvetica leading-relaxed">
+                  Receive tax filing reminders, subscription alerts, and activity notifications directly in your browser — even when the app is closed.
+                </p>
+                {pushMsg && (
+                  <p className={`mt-2 text-xs font-helvetica ${pushStatus === "granted" ? "text-emerald-400" : "text-red-400"}`}>
+                    {pushMsg}
+                  </p>
+                )}
+              </div>
+              <div className="shrink-0 text-right">
+                {pushStatus === "unsupported" && (
+                  <span className="text-xs text-white/20 font-helvetica">Not supported in this browser</span>
+                )}
+                {pushStatus === "denied" && (
+                  <span className="text-xs text-red-400/70 font-helvetica">Blocked — enable in browser settings</span>
+                )}
+                {pushStatus === "granted" && (
+                  <span className="flex items-center gap-2 text-xs text-emerald-400 font-helvetica">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                    Active
+                  </span>
+                )}
+                {pushStatus === "default" && (
+                  <button
+                    onClick={handleEnablePush}
+                    disabled={enabling}
+                    className="btn-primary text-xs px-4 py-2 disabled:opacity-50"
+                  >
+                    {enabling ? "Enabling…" : "Enable Push"}
+                  </button>
+                )}
+                {pushStatus === "granted" && (
+                  <button
+                    onClick={handleTestNotification}
+                    disabled={testing}
+                    className="text-xs border border-secondary/30 text-secondary hover:bg-secondary/10 px-4 py-2 rounded-lg font-helvetica transition-colors disabled:opacity-50"
+                  >
+                    {testing ? "Sending…" : "Send Test"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* VAT & Finance */}
           <div className="surface-card p-6">

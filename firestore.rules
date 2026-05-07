@@ -83,6 +83,11 @@ service cloud.firestore {
       return isSystemAdmin();
     }
 
+    /** ROLE_PERMISSIONS — manage:tax (CFO only — CEO views but does not manage) */
+    function canManageTax() {
+      return isCFO();
+    }
+
     function hasViewFinance() {
       return hasViewAll() || isCFO();
     }
@@ -114,6 +119,16 @@ service cloud.firestore {
       return hasViewAll() || isCFO() || isHR() || isStaffLike();
     }
 
+    /** view:tax — CEO (view only), CFO (view + manage), System Admin (view only) */
+    function hasViewTax() {
+      return isCEO() || isCFO() || isSystemAdmin();
+    }
+
+    /** view:paye — CEO, CFO, HR */
+    function hasViewPAYE() {
+      return isCEO() || isCFO() || isHR();
+    }
+
     /** Matches dashboard CRM reads + CEO KPI safeDocs — broad listing queries require broad reads */
     function canReadClientsDirectory() {
       return hasViewCrm();
@@ -122,7 +137,7 @@ service cloud.firestore {
     /** Employee roster lives on users docs — HR modules + staffing dropdowns + exec KPIs */
     function canReadUserDirectory() {
       return hasViewAll() || canManageHR() || canManageStaff() ||
-        canManageTickets() || hasViewHr() || hasViewTickets();
+        canManageTickets() || hasViewHr();
     }
 
     /** src/types/roles.ts — canDeleteUnpaidInvoice */
@@ -130,7 +145,6 @@ service cloud.firestore {
       return isCFO() || isSystemAdmin();
     }
 
-    /** Optional portal fields on users/{uid}: portalBillingCompany, portalBillingName, portalBillingEmail — must match invoices.client.name / subscriptions.clientName when not using Auth email */
     function userPortalBillingMatches(resourceBillingKey) {
       let me = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return (tokenEmail() != null && resourceBillingKey == tokenEmail()) ||
@@ -142,7 +156,7 @@ service cloud.firestore {
           me.get('portalBillingEmail', '') == resourceBillingKey);
     }
 
-    /* ── Users (profiles + merged HR fields — see src/lib/hr-service.ts) ── */
+    /* ── Users ────────────────────────────────────────────── */
     match /users/{userId} {
       allow read:   if isAuth() && (
         request.auth.uid == userId ||
@@ -170,14 +184,14 @@ service cloud.firestore {
       allow delete: if canDeleteUnpaidInvoice() && resource.data.status != 'paid';
     }
 
-    /* ── Payments ──────────────────────────────────────────── */
+    /* ── Payments ─────────────────────────────────────────── */
     match /payments/{paymentId} {
       allow read: if hasViewFinance();
       allow create: if canManageFinance();
       allow update, delete: if false;
     }
 
-    /* ── Tickets — listing queries pull whole collection then filter in UI ── */
+    /* ── Tickets ──────────────────────────────────────────── */
     match /tickets/{ticketId} {
       allow read: if hasViewTickets() || (
         isClientRole() &&
@@ -185,7 +199,7 @@ service cloud.firestore {
         resource.data.client.name != null &&
         userPortalBillingMatches(resource.data.client.name)
       );
-      allow create: if (isAuth() && !isClientRole() && hasViewTickets()) || (
+      allow create: if canManageTickets() || (
         isClientRole() &&
         request.resource.data.status == 'open' &&
         request.resource.data.client != null &&
@@ -240,7 +254,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    /* ── Legacy employees — unused by client HR paths; Admin SDK may delete on user purge ── */
+    /* ── Employees ────────────────────────────────────────── */
     match /employees/{employeeId} {
       allow read: if request.auth.uid == employeeId || hasViewHr() || canManageHR() || isCFO();
       allow create, update: if canManageHR();
@@ -254,7 +268,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    /* ── Subscriptions (ROLE_PERMISSIONS: CFO/System Admin manage) ──── */
+    /* ── Subscriptions ────────────────────────────────────── */
     match /subscriptions/{subId} {
       allow read: if hasViewSubscriptions() || (
         isClientRole() &&
@@ -265,11 +279,45 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    /* ── Notifications — UI loads collection then filters by targetRoles ──── */
+    /* ── Notifications ────────────────────────────────────── */
     match /notifications/{notifId} {
       allow read: if isAuth() && !isClientRole();
       allow create: if isAuth() && !isClientRole();
       allow update: if isAuth() && !isClientRole();
+      allow delete: if false;
+    }
+
+    /* ── Tax Rules (managed directly in Firestore Console) ── */
+    match /tax_rules/{ruleId} {
+      allow read: if isAuth() && hasViewTax();
+      allow create, update, delete: if isAuth() && canManageTax();
+    }
+
+    /* ── VAT Records ──────────────────────────────────────── */
+    match /vat_records/{recordId} {
+      allow read: if isAuth() && hasViewTax();
+      allow create, update: if isAuth() && canManageTax();
+      allow delete: if false;
+    }
+
+    /* ── Withholding Tax ──────────────────────────────────── */
+    match /withholding_tax/{recordId} {
+      allow read: if isAuth() && hasViewTax();
+      allow create, update: if isAuth() && canManageTax();
+      allow delete: if false;
+    }
+
+    /* ── PAYE / Payroll Tax ───────────────────────────────── */
+    match /payroll_tax/{recordId} {
+      allow read: if isAuth() && hasViewPAYE();
+      allow create, update: if isAuth() && canManageTax();
+      allow delete: if false;
+    }
+
+    /* ── Tax Reports ──────────────────────────────────────── */
+    match /tax_reports/{reportId} {
+      allow read: if isAuth() && hasViewTax();
+      allow create, update: if isAuth() && canManageTax();
       allow delete: if false;
     }
 
@@ -278,3 +326,4 @@ service cloud.firestore {
     }
   }
 }
+

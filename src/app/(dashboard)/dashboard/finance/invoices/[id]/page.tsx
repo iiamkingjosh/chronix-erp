@@ -48,12 +48,12 @@ export default function InvoiceViewPage() {
 
   function handlePrint() {
     if (!invoice) return;
-    const win = window.open("", "_blank", "width=900,height=1100");
+    const win = window.open("", "_blank", "width=860,height=1200");
     if (!win) return;
-    win.document.write(buildPrintHtml(invoice));
+    win.document.write(buildPrintHtml(invoice, window.location.origin));
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); }, 500);
+    setTimeout(() => { win.print(); }, 800);
   }
 
   if (loading) {
@@ -277,295 +277,364 @@ export default function InvoiceViewPage() {
 }
 
 /* ── Print HTML generator ── */
-function buildPrintHtml(inv: Invoice): string {
+function buildPrintHtml(inv: Invoice, origin: string): string {
+  const logoUrl      = `${origin}/invoice-logo.png`;
+  const watermarkUrl = `${origin}/watermark-logo.png`;
+
+  const fmt = (n: number) =>
+    n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   const rows = inv.items
-    .map(
-      (item) => `
+    .map((item) => `
       <tr>
-        <td style="padding:10px 14px;font-size:13px;">${item.name}</td>
-        <td style="padding:10px 14px;font-size:13px;text-align:right;">${item.unitPrice.toLocaleString("en-NG")}</td>
-        <td style="padding:10px 14px;font-size:13px;text-align:center;">${item.quantity}</td>
-        <td style="padding:10px 14px;font-size:13px;text-align:right;font-weight:600;">${item.lineTotal.toLocaleString("en-NG")}</td>
-      </tr>`
-    )
+        <td>${item.name}</td>
+        <td>${fmt(item.unitPrice)}</td>
+        <td>${item.quantity}</td>
+        <td>${fmt(item.lineTotal)}</td>
+      </tr>`)
     .join("");
 
   return `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>${inv.invoiceNumber}</title>
+  <title>Invoice ${inv.invoiceNumber}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{
-      font-family:Arial,Helvetica,sans-serif;
-      color:#0f172a;
-      background:#fff;
-      padding:28px 30px;
-      font-size:12px;
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Barlow', Arial, sans-serif;
+      background: #e8e8e8;
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px;
+      min-height: 100vh;
     }
-    .page{
-      border:1px solid #d8e0eb;
-      border-radius:8px;
-      overflow:hidden;
+
+    /* ── PAGE ── */
+    .page {
+      width: 794px;
+      min-height: 1123px;
+      background: #fff;
+      position: relative;
+      overflow: visible;
+      flex-shrink: 0;
+      padding: 28px 40px 0 40px;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.12);
+      display: flex;
+      flex-direction: column;
     }
-    .top-strip{height:6px;background:#ff761b;}
-    .content{padding:22px 24px 20px;}
-    .header{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:20px;
-      margin-bottom:18px;
+
+    /* ── HEADER ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 6px;
+      position: relative;
+      z-index: 1;
     }
-    .brand-mark{
-      font-family:'Orbitron',Arial,sans-serif;
-      font-size:22px;
-      font-weight:900;
-      letter-spacing:0.8px;
-      line-height:1;
-      color:#0b2f5e;
+    .header-left h1 {
+      font-family: 'Barlow Condensed', 'Arial Black', Arial, sans-serif;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #111;
+      text-transform: uppercase;
     }
-    .brand-sub{
-      font-size:9.5px;
-      color:#6b7280;
-      letter-spacing:1px;
-      text-transform:uppercase;
-      margin-top:1px;
+    .header-right { text-align: left; max-width: 300px; }
+    .company-logo-wrap { margin-bottom: 4px; }
+    .company-logo-wrap img { height: 40px; width: auto; }
+    .company-name {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      color: #111;
+      text-transform: uppercase;
+      margin-bottom: 3px;
     }
-    .company-text{
-      margin-top:9px;
-      font-size:11px;
-      color:#334155;
-      line-height:1.45;
+    .company-address { font-size: 10.5px; color: #222; line-height: 1.6; }
+
+    /* ── INVOICE NO + DATE ── */
+    .invoice-meta {
+      display: flex;
+      align-items: flex-end;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 1;
     }
-    .invoice-pane{
-      text-align:right;
-      min-width:220px;
+    .invoice-date { font-size: 12px; font-weight: 700; color: #1a5fb4; flex: 0 0 auto; padding-left: 4px; }
+    .invoice-number-block {
+      text-align: center;
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
     }
-    .invoice-title{
-      font-family:'Orbitron',Arial,sans-serif;
-      font-size:30px;
-      font-weight:900;
-      color:#0b2f5e;
-      letter-spacing:2px;
-      line-height:1;
+    .invoice-number-block .lbl {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #111;
     }
-    .invoice-meta{
-      margin-top:10px;
-      font-size:11px;
-      color:#334155;
-      line-height:1.6;
+    .invoice-number-block .val { font-size: 12px; font-weight: 700; color: #1a5fb4; }
+
+    /* ── INVOICE TO ── */
+    .invoice-to { margin-bottom: 14px; position: relative; z-index: 1; }
+    .invoice-to .section-title {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #111;
+      margin-bottom: 3px;
     }
-    .invoice-meta b{color:#0f172a;}
-    .meta-row{
-      display:grid;
-      grid-template-columns:1.2fr 0.8fr;
-      gap:20px;
-      margin-bottom:14px;
+    .invoice-to p { font-size: 11px; color: #222; line-height: 1.6; }
+
+    /* ── META BAR ── */
+    .meta-bar {
+      display: grid;
+      grid-template-columns: 200px 1fr 150px;
+      border: 2px solid #aaa;
+      margin-bottom: 14px;
+      position: relative;
+      z-index: 1;
     }
-    .label{
-      font-size:9.5px;
-      color:#64748b;
-      font-weight:700;
-      text-transform:uppercase;
-      letter-spacing:0.8px;
-      margin-bottom:4px;
+    .meta-bar .cell { padding: 5px 10px; }
+    .meta-bar .cell-left { border-right: 2px solid #aaa; }
+    .meta-bar .cell-right { text-align: right; border-left: 2px solid #aaa; }
+    .meta-bar .cell-label {
+      font-size: 9.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #1a5fb4;
+      margin-bottom: 2px;
     }
-    .value{font-size:12px;color:#0f172a;line-height:1.45}
-    .value .name{font-size:13px;font-weight:700;color:#0b2f5e}
-    table{width:100%;border-collapse:collapse}
-    .items{
-      border:1px solid #d8e0eb;
-      border-radius:6px;
-      overflow:hidden;
+    .meta-bar .cell-value { font-size: 11.5px; font-weight: 600; color: #222; }
+
+    /* ── TABLE COLUMN HEADERS ── */
+    .table-header-row {
+      display: grid;
+      grid-template-columns: 1fr 140px 85px 125px;
+      padding: 6px 10px;
+      position: relative;
+      z-index: 1;
+      border-bottom: 2.5px solid #111;
+      margin-bottom: 6px;
     }
-    .items thead tr{background:#0b2f5e;color:#fff}
-    .items th{
-      padding:8px 10px;
-      font-size:9.5px;
-      font-weight:700;
-      text-transform:uppercase;
-      letter-spacing:0.8px;
-      text-align:left;
+    .table-header-row span {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #111;
     }
-    .items th:nth-child(2), .items th:nth-child(4){text-align:right}
-    .items th:nth-child(3){text-align:center}
-    .items td{
-      padding:7px 10px;
-      border-bottom:1px solid #e7edf6;
-      font-size:11.5px;
-      line-height:1.35;
+    .table-header-row span:not(:first-child) { text-align: right; }
+
+    /* ── ITEMS TABLE ── */
+    .items-wrapper { border: 2px solid #999; margin-bottom: 0; position: relative; z-index: 1; }
+    .items-table { width: 100%; border-collapse: collapse; }
+    .items-table tbody tr td { font-size: 11px; font-weight: 700; padding: 5px 10px; color: #111; }
+    .items-table tbody tr td:first-child { text-align: left; }
+    .items-table tbody tr td:not(:first-child) { text-align: right; }
+
+    /* ── TOTALS ── */
+    .totals-section { display: flex; justify-content: flex-end; margin-bottom: 12px; position: relative; z-index: 1; }
+    .totals-box { width: 270px; border: 2px solid #999; border-top: none; }
+    .totals-box .t-line {
+      display: grid;
+      grid-template-columns: 1fr 2px 1fr;
+      align-items: stretch;
+      font-size: 11.5px;
+      color: #111;
+      border-bottom: 1px solid #ddd;
     }
-    .items td:nth-child(2), .items td:nth-child(4){text-align:right}
-    .items td:nth-child(3){text-align:center}
-    .items tbody tr:last-child td{border-bottom:none}
-    .summary{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-end;
-      gap:14px;
-      margin-top:14px;
+    .totals-box .t-line .t-lbl { padding: 5px 12px; font-weight: 600; color: #111; }
+    .totals-box .t-line .t-amt { padding: 5px 12px; text-align: right; font-weight: 700; }
+    .totals-box .t-line:last-child { border-bottom: none; font-weight: 800; }
+    .totals-box .t-divider { width: 2px; background: #999; align-self: stretch; }
+
+    /* ── BANK TABLE ── */
+    .bank-table { width: 100%; border-collapse: collapse; margin-bottom: 0; position: relative; z-index: 1; }
+    .bank-table th {
+      font-size: 10px;
+      font-weight: 800;
+      color: #1a5fb4;
+      padding: 5px 10px;
+      border: 2px solid #999;
+      background: #f5f5f5;
+      text-align: left;
     }
-    .bank{
-      flex:1;
-      border:1px solid #d8e0eb;
-      border-radius:6px;
-      overflow:hidden;
+    .bank-table td { font-size: 11px; font-weight: 600; padding: 5px 10px; border: 2px solid #999; color: #222; }
+
+    /* ── NOTES ── */
+    .notes { margin-bottom: 6px; padding: 6px 10px; font-size: 10.5px; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; position: relative; z-index: 1; }
+
+    /* ── THANK YOU ── */
+    .thank-you-text { padding: 12px 0 8px 0; position: relative; z-index: 1; }
+    .thank-you-text span {
+      font-family: 'Barlow Condensed', 'Arial Black', Arial, sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #111;
     }
-    .bank thead tr{background:#0b2f5e;color:#fff}
-    .bank th{
-      padding:7px 8px;
-      font-size:9px;
-      font-weight:700;
-      text-transform:uppercase;
-      letter-spacing:0.6px;
-      text-align:left;
+
+    /* ── WATERMARK LOGO ── */
+    .bottom-logo {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 320px;
+      z-index: 2;
+      opacity: 0.18;
+      pointer-events: none;
     }
-    .bank td{
-      padding:9px 8px;
-      font-size:10.5px;
-      color:#1f2937;
+    .bottom-logo img { width: 100%; height: auto; display: block; }
+
+    /* ── FOOTER ── */
+    .footer {
+      background: #e85d04;
+      margin: 0 -40px 0 -40px;
+      height: 20px;
+      position: relative;
+      z-index: 3;
+      margin-top: auto;
     }
-    .totals{width:250px}
-    .t-row{
-      display:flex;
-      justify-content:space-between;
-      padding:3px 0;
-      font-size:12px;
-      color:#0f172a;
+
+    @media print {
+      body { background: white; padding: 0; }
+      .page { box-shadow: none; }
     }
-    .t-total{
-      display:flex;
-      justify-content:space-between;
-      margin-top:5px;
-      padding-top:6px;
-      border-top:1.5px solid #cdd8e6;
-      font-size:15px;
-      font-weight:700;
-      color:#0b2f5e;
-    }
-    .t-total span:last-child{color:#ff761b}
-    .notes{
-      margin-top:10px;
-      padding:8px 10px;
-      font-size:11px;
-      color:#334155;
-      background:#f8fafc;
-      border:1px solid #e2e8f0;
-      border-radius:6px;
-    }
-    .footer{
-      margin-top:14px;
-      padding-top:10px;
-      border-top:1px solid #d8e0eb;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      font-size:10px;
-      color:#64748b;
-    }
-    .thanks{
-      font-family:'Orbitron',Arial,sans-serif;
-      font-weight:700;
-      letter-spacing:1.3px;
-      text-transform:uppercase;
-      margin:0 auto;
-      color:#475569;
-    }
-    @media print{body{padding:0}.page{border:none;border-radius:0}}
   </style>
 </head>
 <body>
-  <div class="page">
-    <div class="top-strip"></div>
-    <div class="content">
-      <div class="header">
-        <div>
-          <div class="brand-mark">Chronix Tech</div>
-          <div class="brand-sub">Chronix Technology Limited</div>
-          <div class="company-text">
-            ${COMPANY.address}<br/>
-            ${COMPANY.phone}<br/>
-            ${COMPANY.website}<br/>
-            ${COMPANY.email}
-          </div>
-        </div>
-        <div class="invoice-pane">
-          <div class="invoice-title">INVOICE</div>
-          <div class="invoice-meta">
-            <div><b>INVOICE NO</b> ${inv.invoiceNumber}</div>
-            <div><b>INVOICE DATE</b> ${formatDate(inv.invoiceDate)}</div>
-            <div><b>DUE DATE</b> ${formatDate(inv.dueDate)}</div>
-          </div>
-        </div>
+<div class="page">
+
+  <!-- HEADER: "INVOICE" left, logo + company right -->
+  <div class="header">
+    <div class="header-left"><h1>Invoice</h1></div>
+    <div class="header-right">
+      <div class="company-logo-wrap">
+        <img src="${logoUrl}" alt="${COMPANY.name}"/>
       </div>
-
-      <div class="meta-row">
-        <div>
-          <div class="label">Invoice To</div>
-          <div class="value">
-            <div class="name">${inv.client.name}</div>
-            <div>Address: ${inv.client.address}</div>
-            <div>Phone: ${inv.client.phone}</div>
-          </div>
-        </div>
-        <div>
-          <div class="label">Salesperson</div>
-          <div class="value">${inv.salesperson}</div>
-          <div class="label" style="margin-top:8px;">Status</div>
-          <div class="value" style="text-transform:capitalize">${inv.status}</div>
-        </div>
-      </div>
-
-      <table class="items">
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th>Unit Price (₦)</th>
-            <th>Quantity</th>
-            <th>Line Total (₦)</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-
-      <div class="summary">
-        <table class="bank">
-          <thead>
-            <tr>
-              <th>Account Name</th>
-              <th>Account Number</th>
-              <th>TIN Number</th>
-              <th>Bank Name</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>${COMPANY.bank.accountName}</td>
-              <td>${COMPANY.bank.account}</td>
-              <td>${COMPANY.bank.tin}</td>
-              <td>${COMPANY.bank.name}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="totals">
-          <div class="t-row"><span>Subtotal</span><span>₦${inv.subtotal.toLocaleString("en-NG", { minimumFractionDigits: 2 })}</span></div>
-          <div class="t-row"><span>VAT (7.5)</span><span>₦${inv.vatAmount.toLocaleString("en-NG", { minimumFractionDigits: 2 })}</span></div>
-          <div class="t-total"><span>Total</span><span>₦${inv.total.toLocaleString("en-NG", { minimumFractionDigits: 2 })}</span></div>
-        </div>
-      </div>
-
-      ${inv.notes ? `<div class="notes"><strong>Notes:</strong> ${inv.notes}</div>` : ""}
-
-      <div class="footer">
-        <span>${new Date().toLocaleDateString("en-GB")}</span>
-        <span class="thanks">THANK YOU FOR YOUR BUSINESS!</span>
-        <span></span>
+      <div class="company-name">${COMPANY.name}</div>
+      <div class="company-address">
+        ${COMPANY.address}<br>
+        ${COMPANY.phone}<br>
+        ${COMPANY.website}<br>
+        ${COMPANY.email}
       </div>
     </div>
   </div>
+
+  <!-- DATE (left) · INVOICE NO (centre) -->
+  <div class="invoice-meta">
+    <div class="invoice-date">${formatDate(inv.invoiceDate)}</div>
+    <div class="invoice-number-block">
+      <div class="lbl">Invoice No</div>
+      <div class="val">${inv.invoiceNumber}</div>
+    </div>
+  </div>
+
+  <!-- INVOICE TO -->
+  <div class="invoice-to">
+    <div class="section-title">Invoice To</div>
+    <p>
+      ${inv.client.name}<br>
+      ${inv.client.address ? "Address: " + inv.client.address + "<br>" : ""}${inv.client.phone ? "Phone: " + inv.client.phone : ""}
+    </p>
+  </div>
+
+  <!-- META BAR: Salesperson | (centre empty) | Due Date -->
+  <div class="meta-bar">
+    <div class="cell cell-left">
+      <div class="cell-label">Salesperson</div>
+      <div class="cell-value">${inv.salesperson}</div>
+    </div>
+    <div class="cell"></div>
+    <div class="cell cell-right">
+      <div class="cell-label">Due Date</div>
+      <div class="cell-value">${formatDate(inv.dueDate)}</div>
+    </div>
+  </div>
+
+  <!-- TABLE COLUMN HEADERS (separate from the items wrapper) -->
+  <div class="table-header-row">
+    <span>Item</span>
+    <span>Unit Price (₦)</span>
+    <span>Quantity</span>
+    <span>Line Total (₦)</span>
+  </div>
+
+  <!-- ITEMS TABLE inside bordered wrapper -->
+  <div class="items-wrapper">
+    <table class="items-table">
+      <tbody>${rows}</tbody>
+    </table>
+  </div>
+
+  <!-- TOTALS (right-aligned box with vertical divider line) -->
+  <div class="totals-section">
+    <div class="totals-box">
+      <div class="t-line">
+        <span class="t-lbl">Subtotal</span>
+        <span class="t-divider"></span>
+        <span class="t-amt">₦ ${fmt(inv.subtotal)}</span>
+      </div>
+      <div class="t-line">
+        <span class="t-lbl">VAT (${(inv.vatRate * 100).toFixed(1)}%)</span>
+        <span class="t-divider"></span>
+        <span class="t-amt">₦ ${fmt(inv.vatAmount)}</span>
+      </div>
+      <div class="t-line">
+        <span class="t-lbl">Total</span>
+        <span class="t-divider"></span>
+        <span class="t-amt">₦ ${fmt(inv.total)}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BANK DETAILS (full width, blue headers) -->
+  <table class="bank-table">
+    <thead>
+      <tr>
+        <th>Account Name</th>
+        <th>Account Number</th>
+        <th>TIN Number</th>
+        <th>Bank Name</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>${COMPANY.bank.accountName}</td>
+        <td>${COMPANY.bank.account}</td>
+        <td>${COMPANY.bank.tin}</td>
+        <td>${COMPANY.bank.name}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  ${inv.notes ? `<div class="notes"><strong>Notes:</strong> ${inv.notes}</div>` : ""}
+
+  <!-- THANK YOU -->
+  <div class="thank-you-text">
+    <span>Thank You For Your Business!</span>
+  </div>
+
+  <!-- WATERMARK (bottom-right, 18% opacity) -->
+  <div class="bottom-logo">
+    <img src="${watermarkUrl}" alt=""/>
+  </div>
+
+  <!-- ORANGE FOOTER BAR -->
+  <div class="footer"></div>
+
+</div>
 </body>
 </html>`;
 }

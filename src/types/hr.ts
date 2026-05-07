@@ -46,6 +46,7 @@ export interface PayrollEntry {
   department:  string;
   baseSalary:  number;
   deductions:  number;
+  payeAmount?: number;   // monthly PAYE computed at run time
   netPay:      number;
   status:      PayrollEntryStatus;
   paidAt?:     string;
