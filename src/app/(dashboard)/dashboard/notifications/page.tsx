@@ -33,10 +33,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (!profile) return;
-    getNotifications(profile.role)
-      .then(setNotifs)
-      .catch(() => setNotifs([]))
-      .finally(() => setLoading(false));
+    getNotifications(profile.role).then(setNotifs).finally(() => setLoading(false));
   }, [profile]);
 
   const filtered = notifs.filter((n) => {
