@@ -67,7 +67,7 @@ export async function notifyInvoiceOverdue(
     message:     `Invoice ${inv.invoiceNumber} for ${inv.clientName} is past its due date.`,
     link:        `/dashboard/finance/invoices/${inv.id}`,
     read:        false,
-    targetRoles: ["CEO", "CFO"],
+    targetRoles: ["CEO", "CFO", "System Admin"],
     createdAt:   new Date().toISOString(),
     dedupeKey:   `inv-overdue-${inv.id}`,
   });
@@ -82,7 +82,7 @@ export async function notifyNewLead(
     message:     `${lead.fullName}${lead.company ? ` (${lead.company})` : ""} has been added as a lead.`,
     link:        `/dashboard/crm/leads/${lead.id}`,
     read:        false,
-    targetRoles: ["CEO", "Brand Lead", "Social Media Lead"],
+    targetRoles: ["CEO", "System Admin", "Brand Lead", "Social Media Lead"],
     createdAt:   new Date().toISOString(),
   });
 }

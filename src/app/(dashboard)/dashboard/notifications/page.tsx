@@ -69,7 +69,7 @@ export default function NotificationsPage() {
 
   return (
     <ProtectedRoute requiredPermission="view:notifications">
-      <div className="p-8 max-w-4xl mx-auto animate-fade-in">
+      <div className="p-8 max-w-7xl mx-auto animate-fade-in">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="font-orbitron text-2xl font-bold text-white">Notification Centre</h1>

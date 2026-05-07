@@ -138,7 +138,7 @@ export default function WHTPage() {
             title:       "WHT Record Logged",
             message:     `WHT of ${formatNaira(rec.whtAmount)} deducted from ${rec.vendorName} has been recorded.`,
             link:        "/dashboard/tax/wht",
-            targetRoles: ["CEO", "CFO"],
+            targetRoles: ["CEO", "CFO", "System Admin"],
             sendEmail:   true,
             sendPush:    true,
           }),
