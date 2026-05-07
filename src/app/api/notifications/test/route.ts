@@ -48,8 +48,10 @@ export async function POST(req: NextRequest) {
 
     /* Email */
     if (email) {
-      await sendEmail([email], title, taxReminderEmail(title, message, link));
-      results.email = `sent to ${email}`;
+      const emailResult = await sendEmail([email], title, taxReminderEmail(title, message, link));
+      if (emailResult.sent)          results.email = `sent to ${email}`;
+      else if (emailResult.skipped)  results.email = `skipped — ${emailResult.skipped}`;
+      else                           results.email = `failed — ${emailResult.error}`;
     } else {
       results.email = "skipped — no email on profile";
     }

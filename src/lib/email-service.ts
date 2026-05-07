@@ -13,11 +13,29 @@ function getResend(): Resend | null {
   return _resend;
 }
 
-export async function sendEmail(to: string[], subject: string, html: string): Promise<void> {
-  if (!to.length) return;
+export interface EmailResult {
+  sent:     boolean;
+  skipped?: string;   // reason if not sent
+  error?:   string;   // Resend API error message
+}
+
+export async function sendEmail(
+  to: string[],
+  subject: string,
+  html: string,
+): Promise<EmailResult> {
+  if (!to.length)   return { sent: false, skipped: "no recipients" };
+
   const client = getResend();
-  if (!client) return;
-  await client.emails.send({ from: FROM, to, subject, html });
+  if (!client)      return { sent: false, skipped: "RESEND_API_KEY not configured — check env vars and restart the dev server" };
+
+  try {
+    const { error } = await client.emails.send({ from: FROM, to, subject, html });
+    if (error) return { sent: false, error: `Resend: ${error.message}` };
+    return { sent: true };
+  } catch (err) {
+    return { sent: false, error: String(err) };
+  }
 }
 
 /* ── Email templates ─────────────────────────────────────────── */
