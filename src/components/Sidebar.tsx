@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { ROLE_COLORS, resolveRole } from "@/types/roles";
 import ChronixLogo from "./ChronixLogo";
@@ -66,7 +69,21 @@ const FALLBACK_NAV = ["/dashboard", "/dashboard/notifications"];
 
 export default function Sidebar() {
   const { profile, signOut } = useAuth();
-  const pathname = usePathname();
+  const pathname             = usePathname();
+  const [unread, setUnread]  = useState(0);
+
+  /* Real-time unread count — updates instantly when any notification arrives */
+  useEffect(() => {
+    if (!profile) return;
+    const q = query(
+      collection(db, "notifications"),
+      where("targetRoles", "array-contains", profile.role),
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setUnread(snap.docs.filter((d) => d.data().read === false).length);
+    }, () => { /* silent — non-critical */ });
+    return unsub;
+  }, [profile?.role]);
 
   if (!profile) return null;
 
@@ -96,6 +113,7 @@ export default function Sidebar() {
             item.href === "/dashboard"
               ? pathname === "/dashboard"
               : pathname.startsWith(item.href);
+          const isNotif = item.href === "/dashboard/notifications";
           return (
             <Link
               key={item.href}
@@ -107,8 +125,18 @@ export default function Sidebar() {
                   : "text-white/40 hover:text-white hover:bg-white/5 border border-transparent"
               )}
             >
-              <span className="w-4 h-4 shrink-0">{item.icon}</span>
-              {item.label}
+              <span className="w-4 h-4 shrink-0 relative">
+                {item.icon}
+                {isNotif && unread > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-accent rounded-full border border-primary-dark" />
+                )}
+              </span>
+              <span className="flex-1">{item.label}</span>
+              {isNotif && unread > 0 && (
+                <span className="ml-auto bg-accent/20 text-accent text-[9px] font-orbitron font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center tabular-nums">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
             </Link>
           );
         })}
