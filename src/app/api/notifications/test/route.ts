@@ -21,17 +21,22 @@ export async function POST(req: NextRequest) {
     const email  = user.email;
 
     const title   = "Test Notification — Chronix ERP";
-    const message = `This is a test notification for the ${user.role} role. Push and email delivery confirmed.`;
+    const message = `Notification system confirmed working. Triggered by ${user.role}.`;
     const link    = "/dashboard/notifications";
 
-    /* Write in-app notification */
+    /* Write one notification per internal role so every department
+       sees at least one entry after the first test is run */
+    const ALL_INTERNAL_ROLES = [
+      "CEO", "CFO", "System Admin", "Brand Lead",
+      "Social Media Lead", "HR", "Staff",
+    ];
     await db.collection("notifications").add({
       type:        "renewal_due",
       title,
       message,
       link,
       read:        false,
-      targetRoles: [user.role],
+      targetRoles: ALL_INTERNAL_ROLES,
       createdAt:   new Date().toISOString(),
       dedupeKey:   null,
     });
