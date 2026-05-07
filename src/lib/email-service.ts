@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 const FROM    = process.env.RESEND_FROM_EMAIL ?? "Chronix ERP <notifications@chronix.tech>";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://chronix-erp.vercel.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://workspace.chronixtechnology.com/";
 
 /* Lazy singleton — only instantiated when RESEND_API_KEY is present at runtime.
    Avoids a build-time crash when the env var is not set in CI. */
