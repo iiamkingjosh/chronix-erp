@@ -1,12 +1,23 @@
 import { Resend } from "resend";
 
-const resend  = new Resend(process.env.RESEND_API_KEY);
 const FROM    = process.env.RESEND_FROM_EMAIL ?? "Chronix ERP <notifications@chronix.tech>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://chronix-erp.vercel.app";
 
+/* Lazy singleton — only instantiated when RESEND_API_KEY is present at runtime.
+   Avoids a build-time crash when the env var is not set in CI. */
+let _resend: Resend | null = null;
+function getResend(): Resend | null {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  if (!_resend) _resend = new Resend(key);
+  return _resend;
+}
+
 export async function sendEmail(to: string[], subject: string, html: string): Promise<void> {
-  if (!to.length || !process.env.RESEND_API_KEY) return;
-  await resend.emails.send({ from: FROM, to, subject, html });
+  if (!to.length) return;
+  const client = getResend();
+  if (!client) return;
+  await client.emails.send({ from: FROM, to, subject, html });
 }
 
 /* ── Email templates ─────────────────────────────────────────── */
