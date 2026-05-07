@@ -33,3 +33,7 @@ Thumbs.db
 
 .vercel
 .env*.local
+
+# Firebase Admin Credentials
+config/chronix-erp-firebase-adminsdk-fbsvc-3ba562100b.json
+
