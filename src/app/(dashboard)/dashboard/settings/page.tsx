@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { COMPANY } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/types/roles";
@@ -13,12 +13,12 @@ export default function SettingsPage() {
   const { profile }    = useAuth();
   const canManageStaff = profile ? hasPermission(profile.role, "manage:staff") : false;
 
-  const [pushStatus, setPushStatus]   = useState<PermissionStatus>("default");
+  const [pushStatus, setPushStatus]   = useState<PermissionStatus>(
+    () => (typeof window !== "undefined" ? getPushPermission() : "default"),
+  );
   const [enabling, setEnabling]       = useState(false);
   const [testing, setTesting]         = useState(false);
   const [pushMsg, setPushMsg]         = useState<string | null>(null);
-
-  useEffect(() => { setPushStatus(getPushPermission()); }, []);
 
   async function handleTestNotification() {
     setTesting(true);

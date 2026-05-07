@@ -65,7 +65,7 @@ export default function PushPrompt() {
             <span className="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">✓</span>
             <div>
               <p className="text-sm font-semibold text-emerald-400 font-helvetica">Notifications enabled</p>
-              <p className="text-xs text-white/30 font-helvetica mt-0.5">You'll receive alerts even when the app is closed.</p>
+              <p className="text-xs text-white/30 font-helvetica mt-0.5">You will receive alerts even when the app is closed.</p>
             </div>
           </div>
         ) : (

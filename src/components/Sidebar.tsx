@@ -83,7 +83,7 @@ export default function Sidebar() {
       setUnread(snap.docs.filter((d) => d.data().read === false).length);
     }, () => { /* silent — non-critical */ });
     return unsub;
-  }, [profile?.role]);
+  }, [profile]);
 
   if (!profile) return null;
 

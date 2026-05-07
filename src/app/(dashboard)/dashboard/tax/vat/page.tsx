@@ -74,6 +74,7 @@ export default function VATPage() {
     } finally { setLoading(false); }
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(period); }, [period]);
 
   async function handleLogVAT() {
