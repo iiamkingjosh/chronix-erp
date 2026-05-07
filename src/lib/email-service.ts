@@ -1,6 +1,9 @@
 import { Resend } from "resend";
 
-const FROM    = process.env.RESEND_FROM_EMAIL ?? "Chronix ERP <notifications@chronix.tech>";
+/* Use configured FROM address, fall back to Resend's verified test address.
+   Until chronixtechnology.com is verified in Resend, emails will only reach
+   the Resend account owner email. Verify at resend.com/domains to send to all. */
+const FROM    = process.env.RESEND_FROM_EMAIL ?? "Chronix ERP <onboarding@resend.dev>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://workspace.chronixtechnology.com/";
 
 /* Lazy singleton — only instantiated when RESEND_API_KEY is present at runtime.
