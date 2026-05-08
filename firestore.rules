@@ -321,6 +321,121 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /* ── Expenses ────────────────────────────────────────── */
+    match /expenses/{expenseId} {
+      allow read: if isAuth() && (
+        hasViewAll() || isCFO() || isSystemAdmin() ||
+        resource.data.submittedByUid == request.auth.uid
+      );
+      allow create: if isAuth() && !isClientRole();
+      allow update: if isAuth() && (isCFO() || isSystemAdmin() || isCEO());
+      allow delete: if false;
+    }
+
+    /* ── Leave Requests ──────────────────────────────────── */
+    match /leave_requests/{leaveId} {
+      allow read: if isAuth() && (
+        canManageHR() || isCEO() ||
+        resource.data.employeeUid == request.auth.uid
+      );
+      allow create: if isAuth() && !isClientRole();
+      allow update: if isAuth() && (
+        canManageHR() || isCEO() ||
+        resource.data.employeeUid == request.auth.uid
+      );
+      allow delete: if false;
+    }
+
+    /* ── Disciplinary Records ────────────────────────────── */
+    match /disciplinary_records/{discId} {
+      allow read:   if isAuth() && (canManageHR() || isCEO());
+      allow create: if isAuth() && (canManageHR() || isCEO());
+      allow update: if isAuth() && (canManageHR() || isCEO());
+      allow delete: if false;
+    }
+
+    /* ── Assets ──────────────────────────────────────────── */
+    match /assets/{assetId} {
+      allow read: if isAuth() && !isClientRole();
+      allow create, update: if isAuth() && (isSystemAdmin() || isCEO() || canManageHR());
+      allow delete: if false;
+    }
+
+    /* ── Time Entries ────────────────────────────────────── */
+    match /time_entries/{entryId} {
+      allow read: if isAuth() && (
+        hasViewAll() || isCFO() || isSystemAdmin() ||
+        resource.data.employeeUid == request.auth.uid
+      );
+      allow create: if isAuth() && !isClientRole();
+      allow update, delete: if false;
+    }
+
+    /* ── Audit Logs ──────────────────────────────────────── */
+    match /audit_logs/{logId} {
+      allow read:   if isAuth() && (isCEO() || isSystemAdmin());
+      allow create: if isAuth() && !isClientRole();
+      allow update, delete: if false;
+    }
+
+    /* ── Knowledge Base ──────────────────────────────────── */
+    match /knowledge_base/{articleId} {
+      allow read: if isAuth() && !isClientRole();
+      allow create, update: if isAuth() && (isSystemAdmin() || isCEO());
+      allow delete: if false;
+    }
+
+    /* ── Change Log ──────────────────────────────────────── */
+    match /change_log/{changeId} {
+      allow read: if isAuth() && !isClientRole();
+      allow create: if isAuth() && !isClientRole();
+      allow update: if isAuth() && (isSystemAdmin() || isCEO() || isCFO());
+      allow delete: if false;
+    }
+
+    /* ── Incidents ───────────────────────────────────────── */
+    match /incidents/{incidentId} {
+      allow read: if isAuth() && !isClientRole();
+      allow create: if isAuth() && !isClientRole();
+      allow update: if isAuth() && !isClientRole();
+      allow delete: if false;
+    }
+
+    /* ── On-Call Schedule ────────────────────────────────── */
+    match /oncall_schedule/{slotId} {
+      allow read: if isAuth() && !isClientRole();
+      allow create, delete: if isAuth() && (isSystemAdmin() || canManageHR() || isCEO());
+      allow update: if false;
+    }
+
+    /* ── Brand Assets ────────────────────────────────────── */
+    match /brand_assets/{assetId} {
+      allow read: if isAuth() && !isClientRole();
+      allow create, update: if isAuth() && (isBrandLead() || isSystemAdmin() || isCEO());
+      allow delete: if isAuth() && (isBrandLead() || isSystemAdmin() || isCEO());
+    }
+
+    /* ── Content Posts ───────────────────────────────────── */
+    match /content_posts/{postId} {
+      allow read: if isAuth() && !isClientRole();
+      allow create, update: if isAuth() && (isBrandLead() || isSocialLead() || isSystemAdmin() || isCEO());
+      allow delete: if false;
+    }
+
+    /* ── Campaigns ───────────────────────────────────────── */
+    match /campaigns/{campaignId} {
+      allow read: if isAuth() && !isClientRole();
+      allow create, update: if isAuth() && (isBrandLead() || isSystemAdmin() || isCEO());
+      allow delete: if false;
+    }
+
+    /* ── Email Campaigns ─────────────────────────────────── */
+    match /email_campaigns/{campaignId} {
+      allow read: if isAuth() && (isBrandLead() || isSystemAdmin() || isCEO() || isCFO());
+      allow create, update: if isAuth() && (isBrandLead() || isSystemAdmin() || isCEO());
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
