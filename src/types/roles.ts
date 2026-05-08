@@ -7,6 +7,10 @@ export const ROLES = {
   HR:                "HR",
   STAFF:             "Staff",
   CLIENT:            "Client",
+  SALES_REP:         "Sales Rep",
+  PROJECT_MANAGER:   "Project Manager",
+  FINANCE_OFFICER:   "Finance Officer",
+  IT_MANAGER:        "IT Manager",
 } as const;
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
@@ -125,6 +129,45 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
   [ROLES.CLIENT]: [
     "view:portal",
   ],
+
+  /* ── Sales Rep — CRM + invoice creation ──────────────── */
+  [ROLES.SALES_REP]: [
+    "view:crm",           "manage:crm",
+    "view:finance",       "create:invoices",
+    "view:projects",      "view:subscriptions",
+    "submit:expenses",    "view:expenses",
+    "view:notifications", "view:knowledge",
+  ],
+
+  /* ── Project Manager — full project ops ──────────────── */
+  [ROLES.PROJECT_MANAGER]: [
+    "view:projects",      "manage:projects",
+    "view:tickets",       "manage:tickets",
+    "view:crm",           "manage:time",
+    "view:time",          "view:hr",
+    "view:analytics",     "view:notifications",
+    "view:knowledge",
+  ],
+
+  /* ── Finance Officer — invoice/payment/expense ops ───── */
+  [ROLES.FINANCE_OFFICER]: [
+    "view:finance",       "manage:finance",
+    "view:reports",       "view:tax",
+    "view:procurement",   "view:subscriptions",
+    "view:expenses",      "submit:expenses",
+    "create:invoices",    "view:notifications",
+  ],
+
+  /* ── IT Manager — assets, incidents, changes, oncall ─── */
+  [ROLES.IT_MANAGER]: [
+    "view:tickets",       "manage:tickets",
+    "manage:assets",      "view:assets",
+    "manage:knowledge",   "view:knowledge",
+    "manage:incidents",   "manage:changes",
+    "manage:oncall",      "view:time",
+    "view:projects",      "view:subscriptions",
+    "view:analytics",     "view:notifications",
+  ],
 };
 
 /**
@@ -157,6 +200,10 @@ export const ROLE_REDIRECTS: Record<Role, string> = {
   [ROLES.HR]:                "/dashboard/hr",
   [ROLES.STAFF]:             "/dashboard",
   [ROLES.CLIENT]:            "/portal",
+  [ROLES.SALES_REP]:         "/dashboard",
+  [ROLES.PROJECT_MANAGER]:   "/dashboard",
+  [ROLES.FINANCE_OFFICER]:   "/dashboard/finance",
+  [ROLES.IT_MANAGER]:        "/dashboard",
 };
 
 export const ROLE_COLORS: Record<Role, string> = {
@@ -168,4 +215,8 @@ export const ROLE_COLORS: Record<Role, string> = {
   [ROLES.HR]:                "bg-teal-900/30 text-teal-300 border-teal-700",
   [ROLES.STAFF]:             "bg-slate-700/30 text-slate-300 border-slate-600",
   [ROLES.CLIENT]:            "bg-secondary/20 text-secondary border-secondary/40",
+  [ROLES.SALES_REP]:         "bg-cyan-900/30 text-cyan-300 border-cyan-700",
+  [ROLES.PROJECT_MANAGER]:   "bg-indigo-900/30 text-indigo-300 border-indigo-700",
+  [ROLES.FINANCE_OFFICER]:   "bg-lime-900/30 text-lime-300 border-lime-700",
+  [ROLES.IT_MANAGER]:        "bg-rose-900/30 text-rose-300 border-rose-700",
 };

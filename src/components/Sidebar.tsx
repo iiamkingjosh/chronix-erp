@@ -70,6 +70,25 @@ const ROLE_NAV: Record<string, string[]> = {
     "/dashboard", "/dashboard/tickets", "/dashboard/projects",
     "/dashboard/time", "/dashboard/knowledge", "/dashboard/notifications",
   ],
+  "Sales Rep": [
+    "/dashboard", "/dashboard/crm", "/dashboard/finance",
+    "/dashboard/subscriptions", "/dashboard/notifications",
+  ],
+  "Project Manager": [
+    "/dashboard", "/dashboard/projects", "/dashboard/tickets",
+    "/dashboard/time", "/dashboard/crm", "/dashboard/knowledge",
+    "/dashboard/analytics", "/dashboard/notifications",
+  ],
+  "Finance Officer": [
+    "/dashboard", "/dashboard/finance", "/dashboard/tax",
+    "/dashboard/procurement", "/dashboard/subscriptions", "/dashboard/notifications",
+  ],
+  "IT Manager": [
+    "/dashboard", "/dashboard/tickets", "/dashboard/assets",
+    "/dashboard/time", "/dashboard/knowledge", "/dashboard/incidents",
+    "/dashboard/changes", "/dashboard/oncall", "/dashboard/projects",
+    "/dashboard/subscriptions", "/dashboard/analytics", "/dashboard/notifications",
+  ],
   "Admin":   ["/dashboard", "/dashboard/staff", "/dashboard/tickets", "/dashboard/projects", "/dashboard/procurement", "/dashboard/subscriptions", "/dashboard/hr", "/dashboard/settings", "/dashboard/notifications"],
   "Manager": ["/dashboard", "/dashboard/crm", "/dashboard/finance", "/dashboard/tickets", "/dashboard/projects", "/dashboard/notifications"],
   "Finance": ["/dashboard", "/dashboard/finance", "/dashboard/procurement", "/dashboard/subscriptions", "/dashboard/notifications"],

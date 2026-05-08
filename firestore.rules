@@ -37,20 +37,25 @@ service cloud.firestore {
     function isClientRole() {
       return role() == 'Client';
     }
+    function isSalesRep() {
+      return role() == 'Sales Rep';
+    }
+    function isProjectManager() {
+      return role() == 'Project Manager';
+    }
+    function isFinanceOfficer() {
+      return role() == 'Finance Officer';
+    }
+    function isITManager() {
+      return role() == 'IT Manager';
+    }
+    function isInternalStaff() {
+      return !isClientRole();
+    }
 
     /** App: CEO + System Admin have view:all (read-most dashboards). */
     function hasViewAll() {
       return isCEO() || isSystemAdmin();
-    }
-
-    /** ROLE_PERMISSIONS — manage:finance */
-    function canManageFinance() {
-      return isCFO() || isSystemAdmin();
-    }
-
-    /** ROLE_PERMISSIONS — manage:tickets (CEO does NOT manage tickets in app) */
-    function canManageTickets() {
-      return isCFO() || isSystemAdmin();
     }
 
     /** ROLE_PERMISSIONS — manage:crm */
@@ -73,11 +78,6 @@ service cloud.firestore {
       return isCFO() || isSystemAdmin();
     }
 
-    /** ROLE_PERMISSIONS — manage:projects */
-    function canManageProjects() {
-      return isSystemAdmin() || isBrandLead();
-    }
-
     /** ROLE_PERMISSIONS — manage:staff */
     function canManageStaff() {
       return isSystemAdmin();
@@ -88,35 +88,46 @@ service cloud.firestore {
       return isCFO();
     }
 
+    function canManageFinance() {
+      return isCFO() || isSystemAdmin() || isFinanceOfficer();
+    }
+    function canManageTickets() {
+      return isCFO() || isSystemAdmin() || isProjectManager() || isITManager();
+    }
+    function canManageProjects() {
+      return isSystemAdmin() || isBrandLead() || isProjectManager();
+    }
+
     function hasViewFinance() {
-      return hasViewAll() || isCFO();
+      return hasViewAll() || isCFO() || isFinanceOfficer() || isSalesRep();
     }
 
     function hasViewTickets() {
       return hasViewAll() || isCFO() || canManageTickets() ||
-        isBrandLead() || isSocialLead() || isHR() || isStaffLike();
+        isBrandLead() || isSocialLead() || isHR() || isStaffLike() ||
+        isProjectManager() || isITManager();
     }
 
     function hasViewCrm() {
       return hasViewAll() || isCFO() || canManageCRM() ||
-        isHR() || isStaffLike();
+        isHR() || isStaffLike() || isSalesRep() || isProjectManager();
     }
 
     function hasViewProjects() {
       return hasViewAll() || isCFO() || isBrandLead() || isSocialLead() ||
-        isHR() || isStaffLike();
+        isHR() || isStaffLike() || isProjectManager() || isITManager() || isSalesRep();
     }
 
     function hasViewProcurement() {
-      return hasViewAll() || isCFO();
+      return hasViewAll() || isCFO() || isFinanceOfficer();
     }
 
     function hasViewSubscriptions() {
-      return hasViewAll() || isCFO();
+      return hasViewAll() || isCFO() || isFinanceOfficer() || isITManager() || isSalesRep();
     }
 
     function hasViewHr() {
-      return hasViewAll() || isCFO() || isHR() || isStaffLike();
+      return hasViewAll() || isCFO() || isHR() || isStaffLike() || isProjectManager();
     }
 
     /** view:tax — CEO (view only), CFO (view + manage), System Admin (view only) */
@@ -137,7 +148,7 @@ service cloud.firestore {
     /** Employee roster lives on users docs — HR modules + staffing dropdowns + exec KPIs */
     function canReadUserDirectory() {
       return hasViewAll() || canManageHR() || canManageStaff() ||
-        canManageTickets() || hasViewHr();
+        canManageTickets() || hasViewHr() || isITManager() || isProjectManager();
     }
 
     /** src/types/roles.ts — canDeleteUnpaidInvoice */
@@ -180,7 +191,8 @@ service cloud.firestore {
         resource.data.client.name != null &&
         userPortalBillingMatches(resource.data.client.name)
       );
-      allow create, update: if canManageFinance();
+      allow create: if canManageFinance() || isSalesRep();
+      allow update: if canManageFinance();
       allow delete: if canDeleteUnpaidInvoice() && resource.data.status != 'paid';
     }
 
@@ -357,7 +369,7 @@ service cloud.firestore {
     /* ── Assets ──────────────────────────────────────────── */
     match /assets/{assetId} {
       allow read: if isAuth() && !isClientRole();
-      allow create, update: if isAuth() && (isSystemAdmin() || isCEO() || canManageHR());
+      allow create, update: if isAuth() && (isSystemAdmin() || isCEO() || canManageHR() || isITManager());
       allow delete: if false;
     }
 
@@ -381,7 +393,7 @@ service cloud.firestore {
     /* ── Knowledge Base ──────────────────────────────────── */
     match /knowledge_base/{articleId} {
       allow read: if isAuth() && !isClientRole();
-      allow create, update: if isAuth() && (isSystemAdmin() || isCEO());
+      allow create, update: if isAuth() && (isSystemAdmin() || isCEO() || isITManager());
       allow delete: if false;
     }
 
@@ -389,7 +401,7 @@ service cloud.firestore {
     match /change_log/{changeId} {
       allow read: if isAuth() && !isClientRole();
       allow create: if isAuth() && !isClientRole();
-      allow update: if isAuth() && (isSystemAdmin() || isCEO() || isCFO());
+      allow update: if isAuth() && (isSystemAdmin() || isCEO() || isCFO() || isITManager());
       allow delete: if false;
     }
 
@@ -404,7 +416,7 @@ service cloud.firestore {
     /* ── On-Call Schedule ────────────────────────────────── */
     match /oncall_schedule/{slotId} {
       allow read: if isAuth() && !isClientRole();
-      allow create, delete: if isAuth() && (isSystemAdmin() || canManageHR() || isCEO());
+      allow create, delete: if isAuth() && (isSystemAdmin() || canManageHR() || isCEO() || isITManager());
       allow update: if false;
     }
 
