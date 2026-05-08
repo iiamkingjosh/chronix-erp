@@ -11,7 +11,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Invoice, Payment, InvoiceStatus } from "@/types/finance";
+import type { Invoice, Payment, InvoiceStatus, ApprovalStatus } from "@/types/finance";
 
 const INV = "invoices";
 const PAY = "payments";
@@ -56,4 +56,18 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
 export async function getPayments(): Promise<Payment[]> {
   const snap = await getDocs(query(collection(db, PAY), orderBy("createdAt", "desc")));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Payment));
+}
+
+export async function updateInvoiceApproval(
+  id: string,
+  approvalStatus: ApprovalStatus,
+  actorName: string,
+  extra?: { rejectionReason?: string }
+): Promise<void> {
+  const now = new Date().toISOString();
+  const update: Record<string, unknown> = { approvalStatus };
+  if (approvalStatus === "pending_approval") { update.submittedBy = actorName; update.submittedAt = now; }
+  if (approvalStatus === "approved")  { update.approvedBy = actorName; update.approvedAt = now; }
+  if (approvalStatus === "rejected")  { update.rejectedBy = actorName; update.rejectedAt = now; update.rejectionReason = extra?.rejectionReason ?? ""; }
+  await updateDoc(doc(db, INV, id), update);
 }

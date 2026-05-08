@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getInvoices, updateInvoiceStatus, deleteInvoice } from "@/lib/finance-service";
 import { checkInvoiceOverdue } from "@/lib/notifications-service";
-import { formatNaira, formatDate } from "@/types/finance";
-import type { Invoice } from "@/types/finance";
+import { formatNaira, formatDate, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS } from "@/types/finance";
+import type { Invoice, ApprovalStatus } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission, canDeleteUnpaidInvoice } from "@/types/roles";
@@ -25,7 +25,7 @@ function StatusBadge({ status }: { status: Invoice["status"] }) {
   );
 }
 
-type FilterValue = "all" | Invoice["status"];
+type FilterValue = "all" | Invoice["status"] | "draft" | "pending_approval";
 
 export default function InvoicesPage() {
   const { profile } = useAuth();
@@ -61,7 +61,10 @@ export default function InvoicesPage() {
     }
   }
 
-  const filtered = filter === "all" ? invoices : invoices.filter((i) => i.status === filter);
+  const filtered = filter === "all" ? invoices
+    : filter === "draft"            ? invoices.filter((i) => i.approvalStatus === "draft")
+    : filter === "pending_approval" ? invoices.filter((i) => i.approvalStatus === "pending_approval")
+    : invoices.filter((i) => i.status === filter);
 
   if (loading) {
     return (
@@ -75,23 +78,31 @@ export default function InvoicesPage() {
     <div className="animate-fade-in">
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <div className="flex gap-2">
-          {(["all", "pending", "paid", "overdue"] as FilterValue[]).map((f) => (
+        <div className="flex gap-2 flex-wrap">
+          {([
+            { v: "all",             label: "All" },
+            { v: "draft",           label: "Draft" },
+            { v: "pending_approval",label: "Awaiting Approval" },
+            { v: "pending",         label: "Pending" },
+            { v: "paid",            label: "Paid" },
+            { v: "overdue",         label: "Overdue" },
+          ] as { v: FilterValue; label: string }[]).map(({ v, label }) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              key={v}
+              onClick={() => setFilter(v)}
               className={cn(
-                "px-3 py-1.5 text-xs rounded-lg font-helvetica transition-colors border capitalize",
-                filter === f
+                "px-3 py-1.5 text-xs rounded-lg font-helvetica transition-colors border",
+                filter === v
                   ? "bg-accent/15 text-accent border-accent/30"
                   : "text-white/40 border-white/10 hover:text-white hover:border-white/20"
               )}
             >
-              {f}
+              {label}
               <span className="ml-1.5 text-[10px] opacity-60">
-                {f === "all"
-                  ? invoices.length
-                  : invoices.filter((i) => i.status === f).length}
+                {v === "all"             ? invoices.length
+                 : v === "draft"         ? invoices.filter((i) => i.approvalStatus === "draft").length
+                 : v === "pending_approval" ? invoices.filter((i) => i.approvalStatus === "pending_approval").length
+                 : invoices.filter((i) => i.status === (v as Invoice["status"])).length}
               </span>
             </button>
           ))}
@@ -130,7 +141,8 @@ export default function InvoicesPage() {
                   <th className="px-6 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Invoice Date</th>
                   <th className="px-6 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Due Date</th>
                   <th className="px-6 py-4 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Amount</th>
-                  <th className="px-6 py-4 text-center text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Status</th>
+                  <th className="px-6 py-4 text-center text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Payment</th>
+                  <th className="px-6 py-4 text-center text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Approval</th>
                   <th className="px-6 py-4 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Actions</th>
                 </tr>
               </thead>
@@ -160,6 +172,15 @@ export default function InvoicesPage() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <StatusBadge status={inv.status} />
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {inv.approvalStatus ? (
+                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica", APPROVAL_STATUS_STYLES[inv.approvalStatus as ApprovalStatus])}>
+                          {APPROVAL_STATUS_LABELS[inv.approvalStatus as ApprovalStatus]}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-white/20 font-helvetica">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">

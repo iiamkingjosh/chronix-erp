@@ -29,6 +29,11 @@ export interface Ticket {
   clientFeedback?: string;
   resolvedAt?: string;
   closedAt?: string;
+  escalatedAt?: string;
+  escalatedTo?: string;
+  escalationLevel?: 1 | 2 | 3;
+  escalationReason?: string;
+  onCallAssigned?: boolean;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getInvoice, updateInvoiceStatus, deleteInvoice } from "@/lib/finance-service";
-import { formatNaira, formatDate, COMPANY } from "@/types/finance";
+import { getInvoice, updateInvoiceStatus, deleteInvoice, updateInvoiceApproval } from "@/lib/finance-service";
+import { formatNaira, formatDate, COMPANY, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS } from "@/types/finance";
 import type { Invoice } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission, canDeleteUnpaidInvoice } from "@/types/roles";
@@ -19,14 +19,38 @@ export default function InvoiceViewPage() {
   const [loading, setLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [rejectModal, setRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [approving, setApproving] = useState(false);
 
-  const canManage = profile ? hasPermission(profile.role, "manage:finance") : false;
-  const canDelete   = profile ? canDeleteUnpaidInvoice(profile.role) : false;
+  const canManage  = profile ? hasPermission(profile.role, "manage:finance") : false;
+  const canDelete  = profile ? canDeleteUnpaidInvoice(profile.role) : false;
+  const canApprove = profile ? (profile.role === "CFO" || profile.role === "CEO") : false;
 
   useEffect(() => {
     if (!id) return;
     getInvoice(id).then(setInvoice).finally(() => setLoading(false));
   }, [id]);
+
+  async function handleApprove() {
+    if (!invoice || !profile) return;
+    setApproving(true);
+    try {
+      await updateInvoiceApproval(invoice.id, "approved", profile.displayName ?? profile.email);
+      setInvoice((prev) => prev ? { ...prev, approvalStatus: "approved", approvedBy: profile.displayName ?? profile.email, approvedAt: new Date().toISOString() } : prev);
+    } finally { setApproving(false); }
+  }
+
+  async function handleReject() {
+    if (!invoice || !profile || !rejectReason.trim()) return;
+    setApproving(true);
+    try {
+      await updateInvoiceApproval(invoice.id, "rejected", profile.displayName ?? profile.email, { rejectionReason: rejectReason });
+      setInvoice((prev) => prev ? { ...prev, approvalStatus: "rejected", rejectedBy: profile.displayName ?? profile.email, rejectionReason: rejectReason } : prev);
+      setRejectModal(false);
+      setRejectReason("");
+    } finally { setApproving(false); }
+  }
 
   async function handleMarkPaid() {
     if (!invoice) return;
@@ -83,6 +107,28 @@ export default function InvoiceViewPage() {
 
   return (
     <div className="animate-fade-in max-w-4xl">
+      {/* Reject modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="surface-card w-full max-w-md p-6 mx-4">
+            <h3 className="font-orbitron text-sm font-bold text-white mb-4">Reject Invoice</h3>
+            <label className="field-label">Reason for rejection</label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              placeholder="Explain why this invoice is being rejected…"
+              className="input-field resize-none mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => { setRejectModal(false); setRejectReason(""); }} className="text-xs text-white/40 hover:text-white font-helvetica px-3 py-2">Cancel</button>
+              <button onClick={handleReject} disabled={!rejectReason.trim() || approving} className="btn-primary text-xs px-5">
+                {approving ? "Rejecting…" : "Confirm Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <button
@@ -92,7 +138,26 @@ export default function InvoiceViewPage() {
           <BackIcon /> Back to Invoices
         </button>
         <div className="flex gap-3 flex-wrap justify-end">
-          {canManage && invoice.status !== "paid" && (
+          {/* Approval actions */}
+          {canApprove && invoice.approvalStatus === "pending_approval" && (
+            <>
+              <button
+                onClick={handleApprove}
+                disabled={approving}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-emerald-400 border border-emerald-500/30 rounded-xl hover:bg-emerald-500/10 font-helvetica transition-colors disabled:opacity-50"
+              >
+                <CheckIcon /> Approve
+              </button>
+              <button
+                onClick={() => setRejectModal(true)}
+                disabled={approving}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/10 font-helvetica transition-colors disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </>
+          )}
+          {canManage && invoice.status !== "paid" && invoice.approvalStatus !== "draft" && (
             <button
               onClick={handleMarkPaid}
               className="flex items-center gap-2 px-4 py-2 text-sm text-emerald-400 border border-emerald-500/30 rounded-xl hover:bg-emerald-500/10 font-helvetica transition-colors"
@@ -168,11 +233,22 @@ export default function InvoiceViewPage() {
               <p className="text-sm text-white font-helvetica">{invoice.salesperson}</p>
             </div>
             <div>
-              <p className="text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica mb-1">Status</p>
+              <p className="text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica mb-1">Payment Status</p>
               <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize font-helvetica", statusStyle)}>
                 {invoice.status}
               </span>
             </div>
+            {invoice.approvalStatus && (
+              <div>
+                <p className="text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica mb-1">Approval</p>
+                <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica", APPROVAL_STATUS_STYLES[invoice.approvalStatus])}>
+                  {APPROVAL_STATUS_LABELS[invoice.approvalStatus]}
+                </span>
+                {invoice.approvalStatus === "rejected" && invoice.rejectionReason && (
+                  <p className="text-[10px] text-red-300/70 font-helvetica mt-1">{invoice.rejectionReason}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Bill to */}

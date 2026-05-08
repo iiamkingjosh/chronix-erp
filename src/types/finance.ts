@@ -14,8 +14,9 @@ export const COMPANY = {
   },
 } as const;
 
-export type InvoiceStatus = "pending" | "paid" | "overdue";
-export type PaymentMethod = "bank_transfer" | "cash" | "cheque" | "other";
+export type InvoiceStatus   = "pending" | "paid" | "overdue";
+export type ApprovalStatus  = "draft" | "pending_approval" | "approved" | "rejected";
+export type PaymentMethod   = "bank_transfer" | "cash" | "cheque" | "other";
 
 export interface InvoiceItem {
   id: string;
@@ -31,6 +32,14 @@ export interface Invoice {
   invoiceDate: string;
   dueDate: string;
   status: InvoiceStatus;
+  approvalStatus?: ApprovalStatus;
+  submittedBy?: string;
+  submittedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
   client: {
     name: string;
     address: string;
@@ -46,6 +55,20 @@ export interface Invoice {
   createdAt: string;
   createdBy: string;
 }
+
+export const APPROVAL_STATUS_STYLES: Record<ApprovalStatus, string> = {
+  draft:            "bg-white/8 text-white/40 border-white/15",
+  pending_approval: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  approved:         "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  rejected:         "bg-red-500/15 text-red-400 border-red-500/30",
+};
+
+export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
+  draft:            "Draft",
+  pending_approval: "Pending Approval",
+  approved:         "Approved",
+  rejected:         "Rejected",
+};
 
 export interface Payment {
   id: string;

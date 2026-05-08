@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createInvoice } from "@/lib/finance-service";
 import { generateInvoiceNumber, today, addDays, formatNaira, VAT_RATE, COMPANY } from "@/types/finance";
+import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 const lineItemSchema = z.object({
@@ -47,6 +48,8 @@ function NewInvoiceForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [submitMode, setSubmitMode] = useState<"draft" | "submit">("submit");
+  const canApprove = profile ? hasPermission(profile.role, "manage:finance") && (profile.role === "CFO" || profile.role === "CEO") : false;
 
   /* Pre-fill from URL params — used by subscription renewal + CRM links */
   const prefillClient      = searchParams.get("client") ?? "";
@@ -95,11 +98,16 @@ function NewInvoiceForm() {
         lineTotal: calcLineTotal(item.unitPrice, item.quantity),
       }));
 
+      const isDraft     = submitMode === "draft";
+      const approvalStatus = canApprove ? "approved" : isDraft ? "draft" : "pending_approval";
       const inv = await createInvoice({
         invoiceNumber: data.invoiceNumber,
         invoiceDate:   data.invoiceDate,
         dueDate:       data.dueDate,
         status:        "pending",
+        approvalStatus,
+        ...(approvalStatus === "pending_approval" ? { submittedBy: profile.displayName ?? profile.email, submittedAt: new Date().toISOString() } : {}),
+        ...(approvalStatus === "approved" ? { approvedBy: profile.displayName ?? profile.email, approvedAt: new Date().toISOString() } : {}),
         client: {
           name:    data.clientName,
           address: data.clientAddress,
@@ -348,11 +356,33 @@ function NewInvoiceForm() {
               </div>
             )}
 
+            {!canApprove && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setSubmitMode("draft"); }}
+                  className={cn("flex-1 text-xs py-2.5 rounded-xl border font-helvetica transition-colors", submitMode === "draft" ? "border-white/30 text-white bg-white/10" : "border-white/10 text-white/40 hover:text-white")}
+                >
+                  Save as Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSubmitMode("submit"); }}
+                  className={cn("flex-1 text-xs py-2.5 rounded-xl border font-helvetica transition-colors", submitMode === "submit" ? "border-accent/30 text-accent bg-accent/10" : "border-white/10 text-white/40 hover:text-white")}
+                >
+                  Submit for Approval
+                </button>
+              </div>
+            )}
             <button type="submit" disabled={isSubmitting} className="btn-primary w-full">
               {isSubmitting ? (
                 <><Spinner /> Creating…</>
+              ) : canApprove ? (
+                <><InvoiceIcon /> Create &amp; Approve</>
+              ) : submitMode === "draft" ? (
+                <><InvoiceIcon /> Save Draft</>
               ) : (
-                <><InvoiceIcon /> Create Invoice</>
+                <><InvoiceIcon /> Submit for Approval</>
               )}
             </button>
           </div>

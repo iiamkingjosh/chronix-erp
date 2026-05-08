@@ -52,6 +52,10 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:analytics",    "view:notifications",
     "view:reports",      "view:subscriptions",
     "view:tax",          "view:settings",
+    "view:assets",       "view:knowledge",
+    "view:incidents",    "view:changes",
+    "view:audit",        "approve:invoices",
+    "approve:expenses",  "manage:disciplinary",
   ],
 
   /* ── CFO ─────────────────────────────────────────────── */
@@ -63,6 +67,8 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "manage:subscriptions",
     "view:analytics",     "view:notifications",
     "view:tax",           "manage:tax",
+    "approve:invoices",   "approve:expenses",
+    "view:expenses",      "manage:expenses",
   ],
 
   /* ── System Admin — full platform access ─────────────── */
@@ -73,7 +79,9 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "manage:projects",    "manage:procurement",
     "manage:subscriptions",
     "view:analytics",     "view:notifications",
-    "view:tax",
+    "view:tax",           "manage:assets",      "manage:knowledge",
+    "manage:incidents",   "manage:changes",     "manage:oncall",
+    "view:audit",         "view:expenses",
   ],
 
   /* ── Brand Lead ──────────────────────────────────────── */
@@ -82,6 +90,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:staff",         "view:tickets",       "view:crm",
     "manage:crm",         "manage:projects",    "view:projects",
     "view:analytics",     "view:notifications",
+    "manage:content",     "manage:campaigns",   "manage:email_marketing",
   ],
 
   /* ── Social Media Lead ───────────────────────────────── */
@@ -90,6 +99,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:reports",       "view:tickets",       "view:crm",
     "manage:crm",         "view:projects",
     "view:analytics",     "view:notifications",
+    "manage:content",     "view:campaigns",
   ],
 
   /* ── HR ──────────────────────────────────────────────── */
@@ -99,6 +109,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:hr",
     "view:analytics",     "view:notifications",
     "view:tax",           "view:paye",
+    "manage:leave",       "manage:disciplinary",
   ],
 
   /* ── Staff ───────────────────────────────────────────── */
@@ -106,6 +117,8 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:own",           "view:announcements",
     "view:tickets",       "view:crm",           "view:projects",
     "view:hr",            "view:notifications",
+    "manage:time",        "view:knowledge",
+    "submit:leave",       "submit:expenses",
   ],
 
   /* ── Client — portal only ────────────────────────────── */

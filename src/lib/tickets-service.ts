@@ -113,3 +113,28 @@ export async function getStaffList(): Promise<StaffMember[]> {
     role:        d.data().role as string,
   }));
 }
+
+export async function escalateTicket(
+  ticketId: string,
+  level: 1 | 2 | 3,
+  escalatedTo: string,
+  reason: string,
+  author: { uid: string; name: string }
+): Promise<void> {
+  const note: TicketNote = {
+    id:         Date.now().toString(),
+    authorUid:  author.uid,
+    authorName: author.name,
+    content:    `Ticket escalated to L${level} (${escalatedTo}): ${reason}`,
+    type:       "assignment",
+    createdAt:  new Date().toISOString(),
+  };
+  await updateDoc(doc(db, TKT, ticketId), {
+    escalatedAt:      new Date().toISOString(),
+    escalatedTo,
+    escalationLevel:  level,
+    escalationReason: reason,
+    updatedAt:        new Date().toISOString(),
+    notes:            arrayUnion(note),
+  });
+}
