@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,7 +15,27 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
+/** Next.js 16: `useSearchParams()` must sit under Suspense for static prerender. */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPrerenderFallback />}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPrerenderFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-primary-dark">
+      <div className="flex flex-col items-center gap-4 animate-pulse">
+        <ChronixLogo size={48} />
+        <p className="font-orbitron text-[10px] text-white/30 tracking-widest uppercase">Loading…</p>
+      </div>
+    </div>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
