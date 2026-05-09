@@ -107,8 +107,8 @@ export default function SettingsPage() {
             <h2 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">Platform</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
-                { label: "System",   value: "Chronix ERP" },
-                { label: "Version",  value: "v7.0" },
+                { label: "System",   value: "Chronix OS" },
+                { label: "Version",  value: "v2.0.0" },
                 { label: "Stack",    value: "Next.js + Firebase" },
                 { label: "Currency", value: "₦ Naira (NGN)" },
               ].map((row) => (

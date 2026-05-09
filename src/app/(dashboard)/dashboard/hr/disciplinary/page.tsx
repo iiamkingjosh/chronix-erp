@@ -6,7 +6,7 @@ import { getDiscEntries, resolveDiscEntry, addEmployeeResponse, updateDiscStatus
 import { DISC_ACTION_LABELS, DISC_ACTION_STYLES, DISC_STATUS_STYLES } from "@/types/disciplinary";
 import type { DiscEntry, DiscStatus } from "@/types/disciplinary";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 function fmtDate(d: string) {
@@ -23,12 +23,13 @@ export default function DisciplinaryPage() {
   const [response, setResponse]   = useState("");
   const [acting, setActing]       = useState<string | null>(null);
 
-  const canManage = profile ? hasPermission(profile.role, "manage:hr") || profile.role === "CEO" : false;
+  const canManage = profile
+    ? isRootAdmin(profile.role) || hasPermission(profile.role, "manage:hr") || profile.role === "CEO"
+    : false;
 
   useEffect(() => {
     if (!canManage) return;
     getDiscEntries().then(setRecords).finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage]);
 
   if (!canManage) {

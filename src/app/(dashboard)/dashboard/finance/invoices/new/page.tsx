@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createInvoice } from "@/lib/finance-service";
 import { generateInvoiceNumber, today, addDays, formatNaira, VAT_RATE, COMPANY } from "@/types/finance";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 const lineItemSchema = z.object({
@@ -49,7 +49,9 @@ function NewInvoiceForm() {
   const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitMode, setSubmitMode] = useState<"draft" | "submit">("submit");
-  const canApprove = profile ? hasPermission(profile.role, "manage:finance") && (profile.role === "CFO" || profile.role === "CEO") : false;
+  const canApprove = profile
+    ? isRootAdmin(profile.role) || (hasPermission(profile.role, "manage:finance") && (profile.role === "CFO" || profile.role === "CEO"))
+    : false;
 
   /* Pre-fill from URL params — used by subscription renewal + CRM links */
   const prefillClient      = searchParams.get("client") ?? "";

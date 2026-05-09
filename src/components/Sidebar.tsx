@@ -37,6 +37,7 @@ const ALL_NAV: NavItem[] = [
 ];
 
 const ROLE_NAV: Record<string, string[]> = {
+  "Root Admin": ALL_NAV.map((i) => i.href),
   "CEO": [
     "/dashboard", "/dashboard/crm", "/dashboard/finance", "/dashboard/tax",
     "/dashboard/tickets", "/dashboard/projects", "/dashboard/procurement", "/dashboard/hr",

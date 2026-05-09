@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 
-const ALLOWED_ROLES = new Set(["System Admin"]);
+const ALLOWED_ROLES = new Set(["System Admin", "Root Admin"]);
 
 export async function DELETE(
   request: Request,

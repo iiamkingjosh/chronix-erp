@@ -5,7 +5,7 @@ import { getAllTimeEntries, getMyTimeEntries, createTimeEntry } from "@/lib/time
 import { TIME_ENTRY_TYPE_LABELS, TIME_ENTRY_TYPE_STYLES } from "@/types/timetrack";
 import type { TimeEntry, TimeEntryType } from "@/types/timetrack";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 const today = new Date().toISOString().split("T")[0];
@@ -29,7 +29,13 @@ export default function TimeTrackingPage() {
     clientName: "",
   });
 
-  const canViewAll = profile ? hasPermission(profile.role, "manage:hr") || profile.role === "CEO" || profile.role === "CFO" || profile.role === "System Admin" : false;
+  const canViewAll = profile
+    ? isRootAdmin(profile.role) ||
+      hasPermission(profile.role, "manage:hr") ||
+      profile.role === "CEO" ||
+      profile.role === "CFO" ||
+      profile.role === "System Admin"
+    : false;
 
   useEffect(() => {
     if (!profile) return;

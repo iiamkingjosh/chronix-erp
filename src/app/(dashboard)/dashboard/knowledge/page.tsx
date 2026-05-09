@@ -6,6 +6,7 @@ import { getArticles, updateArticleStatus } from "@/lib/knowledge-service";
 import { KB_CATEGORY_LABELS, KB_CATEGORY_ICONS } from "@/types/knowledge";
 import type { KBArticle, KBCategory, KBStatus } from "@/types/knowledge";
 import { useAuth } from "@/contexts/AuthContext";
+import { isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES = Object.keys(KB_CATEGORY_LABELS) as KBCategory[];
@@ -22,7 +23,11 @@ export default function KnowledgePage() {
   const [catFilter, setCatFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("published");
 
-  const canManage = profile?.role === "System Admin" || profile?.role === "CEO";
+  const canManage = !!profile && (
+    isRootAdmin(profile.role) ||
+    profile.role === "System Admin" ||
+    profile.role === "CEO"
+  );
 
   useEffect(() => { getArticles().then(setArticles).finally(() => setLoading(false)); }, []);
 

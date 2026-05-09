@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getBrandAssets, createBrandAsset, deleteBrandAsset } from "@/lib/brand-service";
 import type { BrandAsset, AssetFileType } from "@/types/brand";
 import { useAuth } from "@/contexts/AuthContext";
+import { isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 const FILE_ICONS: Record<AssetFileType, string> = { image: "🖼️", video: "🎬", document: "📄", font: "🔤", other: "📎" };
@@ -16,7 +17,12 @@ export default function BrandAssetsPage() {
   const [form, setForm]         = useState({ name: "", fileType: "image" as AssetFileType, url: "", description: "", tags: "", version: "1.0" });
   const [saving, setSaving]     = useState(false);
 
-  const canManage = profile?.role === "Brand Lead" || profile?.role === "System Admin" || profile?.role === "CEO";
+  const canManage = !!profile && (
+    isRootAdmin(profile.role) ||
+    profile.role === "Brand Lead" ||
+    profile.role === "System Admin" ||
+    profile.role === "CEO"
+  );
 
   useEffect(() => { getBrandAssets().then(setAssets).finally(() => setLoading(false)); }, []);
 

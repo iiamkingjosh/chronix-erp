@@ -1,4 +1,5 @@
 export const ROLES = {
+  ROOT_ADMIN:        "Root Admin",
   CEO:               "CEO",
   CFO:               "CFO",
   SYSTEM_ADMIN:      "System Admin",
@@ -31,6 +32,8 @@ export interface ChronixUser {
    nearest canonical Role.  Extend this list when new aliases
    are discovered in production data.                         */
 export const ROLE_ALIASES: Record<string, Role> = {
+  "Chronix Root": ROLES.ROOT_ADMIN,
+  "Root":         ROLES.ROOT_ADMIN,
   "Admin":        ROLES.SYSTEM_ADMIN,
   "Super Admin":  ROLES.SYSTEM_ADMIN,
   "Manager":      ROLES.CEO,
@@ -49,6 +52,9 @@ export function resolveRole(raw: string): Role {
 }
 
 export const ROLE_PERMISSIONS: Record<Role, string[]> = {
+  /* ── Root Admin — break-glass unrestricted access ─────── */
+  [ROLES.ROOT_ADMIN]: ["*"],
+
   /* ── CEO — executive visibility only (no operational manage:* rights)
       Uses view:all which expands only to view:* checks — see hasPermission(). */
   [ROLES.CEO]: [
@@ -176,6 +182,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
  */
 export function hasPermission(rawRole: string, permission: string): boolean {
   const role  = resolveRole(rawRole);
+  if (role === ROLES.ROOT_ADMIN) return true;
   const perms = ROLE_PERMISSIONS[role];
   if (!perms?.length) return false;
   if (perms.includes(permission)) return true;
@@ -187,11 +194,16 @@ export function hasPermission(rawRole: string, permission: string): boolean {
 /** CFO + System Admin may delete unpaid invoices (Firestore rules should match). */
 export function canDeleteUnpaidInvoice(rawRole: string): boolean {
   const r = resolveRole(rawRole);
-  return r === ROLES.CFO || r === ROLES.SYSTEM_ADMIN;
+  return r === ROLES.ROOT_ADMIN || r === ROLES.CFO || r === ROLES.SYSTEM_ADMIN;
+}
+
+export function isRootAdmin(rawRole: string): boolean {
+  return resolveRole(rawRole) === ROLES.ROOT_ADMIN;
 }
 
 /** Where each role lands after login */
 export const ROLE_REDIRECTS: Record<Role, string> = {
+  [ROLES.ROOT_ADMIN]:        "/dashboard",
   [ROLES.CEO]:               "/dashboard",
   [ROLES.CFO]:               "/dashboard/finance",
   [ROLES.SYSTEM_ADMIN]:      "/dashboard",
@@ -207,6 +219,7 @@ export const ROLE_REDIRECTS: Record<Role, string> = {
 };
 
 export const ROLE_COLORS: Record<Role, string> = {
+  [ROLES.ROOT_ADMIN]:        "bg-red-900/30 text-red-300 border-red-700",
   [ROLES.CEO]:               "bg-purple-900/30 text-purple-300 border-purple-700",
   [ROLES.CFO]:               "bg-emerald-900/30 text-emerald-300 border-emerald-700",
   [ROLES.SYSTEM_ADMIN]:      "bg-blue-900/30 text-blue-300 border-blue-700",

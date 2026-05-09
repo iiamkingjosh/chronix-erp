@@ -7,7 +7,7 @@ import { ASSET_CATEGORY_LABELS, ASSET_STATUS_STYLES, ASSET_CONDITION_STYLES } fr
 import type { Asset, AssetStatus } from "@/types/asset";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | AssetStatus;
@@ -33,7 +33,13 @@ export default function AssetsPage() {
   const [search, setSearch]   = useState("");
   const [acting, setActing]   = useState<string | null>(null);
 
-  const canManage = profile ? hasPermission(profile.role, "manage:hr") || profile.role === "System Admin" || profile.role === "CEO" || profile.role === "CFO" : false;
+  const canManage = profile
+    ? isRootAdmin(profile.role) ||
+      hasPermission(profile.role, "manage:hr") ||
+      profile.role === "System Admin" ||
+      profile.role === "CEO" ||
+      profile.role === "CFO"
+    : false;
 
   useEffect(() => { getAssets().then(setAssets).finally(() => setLoading(false)); }, []);
 

@@ -3,12 +3,13 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node --max-old-space-size=6144 ./node_modules/next/dist/bin/next dev --webpack",
+    "dev:turbopack": "node --max-old-space-size=6144 ./node_modules/next/dist/bin/next dev --turbopack",
+    "build": "node --max-old-space-size=6144 ./node_modules/next/dist/bin/next build",
     "start": "next start",
     "lint": "eslint .",
     "lint:strict": "eslint . --max-warnings 0",
-    "typecheck": "next typegen && tsc --noEmit",
+    "typecheck": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next typegen && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
     "check-env": "node scripts/check-env.mjs",
     "verify": "npm run check-env && npm run typecheck && npm run lint:strict && npm run build"
   },

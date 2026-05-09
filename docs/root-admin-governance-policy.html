@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Root Admin Governance Policy</title>
+  <style>
+    :root { --text:#0f172a; --muted:#475569; --border:#cbd5e1; --accent:#0b2f5e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: var(--text); line-height: 1.45; }
+    .page { max-width: 900px; margin: 0 auto; padding: 32px; }
+    h1 { margin: 0 0 8px; color: var(--accent); font-size: 30px; }
+    .meta { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+    h2 { margin: 20px 0 8px; font-size: 18px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+    ul { margin: 8px 0 0 20px; padding: 0; }
+    li { margin: 4px 0; }
+    .checklist li { list-style: none; margin-left: -18px; }
+    .checklist li::before { content: "[ ] "; color: var(--muted); }
+    @media print { .page { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Root Admin Governance Policy</h1>
+    <div class="meta">Organization: Chronix &nbsp;|&nbsp; Status: Draft &nbsp;|&nbsp; Version: 1.0</div>
+
+    <h2>1) Purpose</h2>
+    <p><b>Root Admin</b> exists as a break-glass platform authority for security incidents, account recovery, and critical maintenance. It is not for day-to-day operations.</p>
+
+    <h2>2) Role Definition</h2>
+    <ul>
+      <li><b>Role name:</b> Root Admin</li>
+      <li><b>Authority:</b> Unrestricted access across all modules, records, and administrative controls</li>
+      <li><b>Scope:</b> Platform-wide (auth, users, permissions, data, settings, operational overrides)</li>
+    </ul>
+
+    <h2>3) Eligibility and Ownership</h2>
+    <ul>
+      <li>Owned by Chronix executive governance</li>
+      <li>Maximum active Root Admin accounts: 2 (primary + emergency backup)</li>
+      <li>Assignment requires dual approval (Platform Owner + Security/Operations approver)</li>
+    </ul>
+
+    <h2>4) Access Controls</h2>
+    <ul>
+      <li>Mandatory MFA</li>
+      <li>Strong password policy (14+ chars) and rotation policy</li>
+      <li>No shared credentials</li>
+      <li>Shorter session timeout than normal users</li>
+      <li>Step-up verification for new devices/locations</li>
+      <li>Optional IP/network allowlisting</li>
+    </ul>
+
+    <h2>5) Break-Glass Usage Rules</h2>
+    <p><b>Allowed:</b> incident response, lockout recovery, critical permissions repair, data integrity emergencies, outage remediation.</p>
+    <p><b>Not allowed:</b> routine finance/ticket/project operations or convenience access replacing proper role assignment.</p>
+
+    <h2>6) Impersonation Standard</h2>
+    <ul>
+      <li>Root Admin may act as another role/user for troubleshooting</li>
+      <li>UI must show persistent “Impersonation Active” banner</li>
+      <li>Logs must include real actor and impersonated identity</li>
+    </ul>
+
+    <h2>7) Audit and Logging Requirements</h2>
+    <ul>
+      <li>Log actor UID/email, action type, target resource, timestamp</li>
+      <li>For writes: before/after snapshot</li>
+      <li>Reason/comment required for destructive actions</li>
+      <li>Store request metadata (IP/user-agent where available)</li>
+      <li>Retention minimum 12 months (recommended 24+)</li>
+    </ul>
+
+    <h2>8) Sensitive Action Controls</h2>
+    <ul>
+      <li>Step-up confirmation for destructive/bulk actions</li>
+      <li>Optional second approver for high-impact operations</li>
+      <li>Prefer soft-delete when feasible</li>
+    </ul>
+
+    <h2>9) Provisioning and Deprovisioning</h2>
+    <ul>
+      <li>Provision outside normal user-creation flow</li>
+      <li>Require documented ticket and approvals</li>
+      <li>Immediate deprovision on misuse or security concern</li>
+      <li>Test emergency revocation process quarterly</li>
+    </ul>
+
+    <h2>10) Backend Enforcement Principles</h2>
+    <ul>
+      <li>Use explicit <code>isRootAdmin()</code> checks in rules/server guards</li>
+      <li>Scope privileged bypass to controlled paths</li>
+      <li>Preserve audit-write requirements for privileged actions</li>
+      <li>Never rely on UI-only checks</li>
+    </ul>
+
+    <h2>11) Operational Safeguards</h2>
+    <ul>
+      <li>Quarterly access review of Root Admin accounts</li>
+      <li>Monthly review of Root Admin audit events</li>
+      <li>Alerting for new device/location, bulk edits, destructive actions, after-hours break-glass use</li>
+    </ul>
+
+    <h2>12) Incident Response for Misuse</h2>
+    <ol>
+      <li>Revoke sessions/tokens immediately</li>
+      <li>Disable affected account(s)</li>
+      <li>Preserve audit logs</li>
+      <li>Run impact analysis and rollback where possible</li>
+      <li>Reissue access only after formal review</li>
+    </ol>
+
+    <h2>13) Implementation Acceptance Checklist</h2>
+    <ul class="checklist">
+      <li>Role added to role model and resolver</li>
+      <li>Firestore/server checks updated and tested</li>
+      <li>MFA enforced</li>
+      <li>Audit logging complete for privileged actions</li>
+      <li>Impersonation controls labeled and logged</li>
+      <li>Emergency revoke procedure documented</li>
+      <li>Governance owners assigned</li>
+    </ul>
+  </div>
+</body>
+</html>

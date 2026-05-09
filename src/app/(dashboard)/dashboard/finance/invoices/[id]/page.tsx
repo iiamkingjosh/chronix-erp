@@ -6,7 +6,7 @@ import { getInvoice, updateInvoiceStatus, deleteInvoice, updateInvoiceApproval }
 import { formatNaira, formatDate, COMPANY, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS } from "@/types/finance";
 import type { Invoice } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission, canDeleteUnpaidInvoice } from "@/types/roles";
+import { hasPermission, canDeleteUnpaidInvoice, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 export default function InvoiceViewPage() {
@@ -25,7 +25,7 @@ export default function InvoiceViewPage() {
 
   const canManage  = profile ? hasPermission(profile.role, "manage:finance") : false;
   const canDelete  = profile ? canDeleteUnpaidInvoice(profile.role) : false;
-  const canApprove = profile ? (profile.role === "CFO" || profile.role === "CEO") : false;
+  const canApprove = profile ? (isRootAdmin(profile.role) || profile.role === "CFO" || profile.role === "CEO") : false;
 
   useEffect(() => {
     if (!id) return;

@@ -6,6 +6,7 @@ import { getChanges, updateChangeStatus } from "@/lib/change-service";
 import { CHANGE_RISK_STYLES, CHANGE_STATUS_STYLES, CHANGE_TYPE_LABELS } from "@/types/change";
 import type { ChangeEntry, ChangeStatus } from "@/types/change";
 import { useAuth } from "@/contexts/AuthContext";
+import { isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 function fmtDate(d?: string) {
@@ -22,7 +23,12 @@ export default function ChangesPage() {
   const [postNotes, setPostNotes] = useState("");
   const [postId, setPostId]       = useState<string | null>(null);
 
-  const canApprove = profile?.role === "System Admin" || profile?.role === "CEO" || profile?.role === "CFO";
+  const canApprove = !!profile && (
+    isRootAdmin(profile.role) ||
+    profile.role === "System Admin" ||
+    profile.role === "CEO" ||
+    profile.role === "CFO"
+  );
 
   useEffect(() => { getChanges().then(setChanges).finally(() => setLoading(false)); }, []);
 

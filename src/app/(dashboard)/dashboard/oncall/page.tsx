@@ -6,7 +6,7 @@ import { getEmployees } from "@/lib/hr-service";
 import type { OnCallSlot } from "@/types/oncall";
 import type { Employee } from "@/types/hr";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 function weekStart(offset = 0): string {
@@ -34,7 +34,9 @@ export default function OnCallPage() {
   const [form, setForm]         = useState({ engineerUid: "", weekStartDate: weekStart(), notes: "" });
   const [saving, setSaving]     = useState(false);
 
-  const canManage = profile ? hasPermission(profile.role, "manage:hr") || profile.role === "System Admin" : false;
+  const canManage = profile
+    ? isRootAdmin(profile.role) || hasPermission(profile.role, "manage:hr") || profile.role === "System Admin"
+    : false;
 
   useEffect(() => {
     Promise.all([getOnCallSlots(), getEmployees()])

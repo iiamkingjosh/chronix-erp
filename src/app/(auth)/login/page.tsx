@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +17,8 @@ type FormValues = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [serverError, setServerError]   = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [resetSent, setResetSent]       = useState(false);
@@ -24,6 +26,14 @@ export default function LoginPage() {
 
   const { register, handleSubmit, getValues, formState: { errors, isSubmitting } } =
     useForm<FormValues>({ resolver: zodResolver(schema) });
+
+  useEffect(() => {
+    // Never keep credentials in URL query params.
+    if (!searchParams?.toString()) return;
+    if (searchParams.has("email") || searchParams.has("password")) {
+      router.replace(pathname);
+    }
+  }, [pathname, router, searchParams]);
 
   async function onSubmit(data: FormValues) {
     setServerError(null);
@@ -159,7 +169,7 @@ export default function LoginPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+          <form method="post" action="#" onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
 
             {/* Email */}
             <div>

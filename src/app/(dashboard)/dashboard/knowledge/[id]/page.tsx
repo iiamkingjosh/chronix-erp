@@ -7,6 +7,7 @@ import { getArticle, updateArticleStatus, incrementViewCount } from "@/lib/knowl
 import { KB_CATEGORY_LABELS, KB_CATEGORY_ICONS } from "@/types/knowledge";
 import type { KBArticle } from "@/types/knowledge";
 import { useAuth } from "@/contexts/AuthContext";
+import { isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 function renderMarkdown(text: string): string {
@@ -34,7 +35,11 @@ export default function ArticlePage() {
   const [article, setArticle]   = useState<KBArticle | null>(null);
   const [loading, setLoading]   = useState(true);
 
-  const canManage = profile?.role === "System Admin" || profile?.role === "CEO";
+  const canManage = !!profile && (
+    isRootAdmin(profile.role) ||
+    profile.role === "System Admin" ||
+    profile.role === "CEO"
+  );
 
   useEffect(() => {
     getArticle(id).then((a) => {

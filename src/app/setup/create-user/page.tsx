@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/types/roles";
 
-const ROLE_OPTIONS = Object.values(ROLES).filter((r) => r !== "Client");
+const ROLE_OPTIONS = Object.values(ROLES).filter((r) => r !== "Client" && r !== "Root Admin");
 
 const schema = z
   .object({

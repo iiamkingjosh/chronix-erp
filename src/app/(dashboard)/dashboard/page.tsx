@@ -128,6 +128,7 @@ export default function DashboardHome() {
 
       {canonical === "CEO"              && <CEODashboard />}
       {canonical === "CFO"              && <CFODashboard />}
+      {canonical === "Root Admin"       && <AdminDashboard />}
       {canonical === "System Admin"     && <AdminDashboard />}
       {canonical === "Brand Lead"       && <BrandLeadDashboard />}
       {canonical === "Social Media Lead"&& <BrandLeadDashboard />}
@@ -137,7 +138,7 @@ export default function DashboardHome() {
       {canonical === "Project Manager"  && <ProjectManagerDashboard profile={profile} />}
       {canonical === "Finance Officer"  && <FinanceOfficerDashboard />}
       {canonical === "IT Manager"       && <ITManagerDashboard />}
-      {!["CEO","CFO","System Admin","Brand Lead","Social Media Lead","HR","Staff",
+      {!["Root Admin","CEO","CFO","System Admin","Brand Lead","Social Media Lead","HR","Staff",
          "Sales Rep","Project Manager","Finance Officer","IT Manager"].includes(canonical) && (
         <GenericDashboard profile={profile} />
       )}

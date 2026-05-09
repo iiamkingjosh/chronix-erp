@@ -9,7 +9,7 @@ import { DISC_ACTION_LABELS } from "@/types/disciplinary";
 import type { DiscAction } from "@/types/disciplinary";
 import { useEffect } from "react";
 import type { Employee } from "@/types/hr";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 
 const ACTIONS = Object.entries(DISC_ACTION_LABELS) as [DiscAction, string][];
 
@@ -24,7 +24,9 @@ export default function NewDiscPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
 
-  const canManage = profile ? hasPermission(profile.role, "manage:hr") || profile.role === "CEO" : false;
+  const canManage = profile
+    ? isRootAdmin(profile.role) || hasPermission(profile.role, "manage:hr") || profile.role === "CEO"
+    : false;
 
   useEffect(() => {
     getEmployees().then(setEmployees);

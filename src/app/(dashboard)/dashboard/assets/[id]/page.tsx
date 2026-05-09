@@ -9,7 +9,7 @@ import type { Asset } from "@/types/asset";
 import type { Employee } from "@/types/hr";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 function fmtDate(d?: string) {
@@ -27,7 +27,12 @@ export default function AssetDetailPage() {
   const [assignUid, setAssignUid] = useState("");
   const [acting, setActing] = useState(false);
 
-  const canManage = profile ? hasPermission(profile.role, "manage:hr") || profile.role === "System Admin" || profile.role === "CEO" : false;
+  const canManage = profile
+    ? isRootAdmin(profile.role) ||
+      hasPermission(profile.role, "manage:hr") ||
+      profile.role === "System Admin" ||
+      profile.role === "CEO"
+    : false;
 
   useEffect(() => {
     Promise.all([getAsset(id), getEmployees()])

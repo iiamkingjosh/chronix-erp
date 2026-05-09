@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getAuditLogs } from "@/lib/audit-service";
 import type { AuditLog, AuditModule, AuditAction } from "@/lib/audit-service";
 import { useAuth } from "@/contexts/AuthContext";
+import { isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 const ACTION_STYLES: Record<AuditAction, string> = {
@@ -36,12 +37,13 @@ export default function AuditLogPage() {
   const [modFilter, setModFilter] = useState("all");
   const [search, setSearch]   = useState("");
 
-  const canView = profile ? profile.role === "CEO" || profile.role === "System Admin" : false;
+  const canView = profile
+    ? isRootAdmin(profile.role) || profile.role === "CEO" || profile.role === "System Admin"
+    : false;
 
   useEffect(() => {
     if (!canView) return;
     getAuditLogs(500).then(setLogs).finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
 
   if (!canView) {

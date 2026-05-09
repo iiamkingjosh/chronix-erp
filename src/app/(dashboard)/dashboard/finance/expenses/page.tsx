@@ -7,7 +7,7 @@ import { formatNaira } from "@/types/finance";
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_STATUS_STYLES } from "@/types/expense";
 import type { Expense, ExpenseStatus } from "@/types/expense";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | ExpenseStatus;
@@ -25,8 +25,12 @@ export default function ExpensesPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [acting, setActing]       = useState<string | null>(null);
 
-  const canManage  = profile ? hasPermission(profile.role, "manage:finance") || profile.role === "CEO" : false;
-  const canApprove = profile ? profile.role === "CFO" || profile.role === "CEO" || profile.role === "System Admin" : false;
+  const canManage  = profile
+    ? isRootAdmin(profile.role) || hasPermission(profile.role, "manage:finance") || profile.role === "CEO"
+    : false;
+  const canApprove = profile
+    ? isRootAdmin(profile.role) || profile.role === "CFO" || profile.role === "CEO" || profile.role === "System Admin"
+    : false;
 
   useEffect(() => {
     if (!profile) return;
