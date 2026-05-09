@@ -11,7 +11,10 @@
     "lint:strict": "eslint . --max-warnings 0",
     "typecheck": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next typegen && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
     "check-env": "node scripts/check-env.mjs",
-    "verify": "npm run check-env && npm run typecheck && npm run lint:strict && npm run build"
+    "verify": "npm run check-env && npm run typecheck && npm run lint:strict && npm run build",
+    "git:fetch": "node scripts/git-run.mjs fetch origin",
+    "git:pull": "node scripts/git-run.mjs pull origin master",
+    "git:push": "node scripts/git-run.mjs push origin master"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
