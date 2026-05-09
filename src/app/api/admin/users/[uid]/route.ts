@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
+import { ROLES, resolveRole, type Role } from "@/types/roles";
 
-const ALLOWED_ROLES = new Set(["System Admin", "Root Admin"]);
+const ALLOWED_ROLES = new Set<Role>([ROLES.SYSTEM_ADMIN, ROLES.ROOT_ADMIN]);
 
 export async function DELETE(
   request: Request,
@@ -25,7 +26,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Caller profile not found." }, { status: 403 });
     }
 
-    const callerRole = callerSnap.data()?.role;
+    const callerRole = resolveRole(String(callerSnap.data()?.role ?? ""));
     if (!ALLOWED_ROLES.has(callerRole)) {
       return NextResponse.json({ error: "Insufficient permissions." }, { status: 403 });
     }

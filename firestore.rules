@@ -170,18 +170,63 @@ service cloud.firestore {
           me.get('portalBillingEmail', '') == resourceBillingKey);
     }
 
+    /** Root-breakglass role strings — only System Admin / Root Admin may assign or revoke */
+    function rootLikeRole(r) {
+      return r == 'Root Admin' || r == 'Chronix Root' || r == 'Root';
+    }
+
+    function involvesRootRoleChange() {
+      let oldR = resource.data.get('role', '');
+      let newR = request.resource.data.get('role', '');
+      return oldR != newR && (rootLikeRole(newR) || rootLikeRole(oldR));
+    }
+
+    /** Self-serve updates: profile cosmetics only (no RBAC / payroll / portal keys). */
+    function userSelfCosmeticKeysOnly() {
+      let k = request.resource.data.diff(resource.data).affectedKeys();
+      return k.hasOnly(['displayName']) || k.hasOnly(['photoURL']) || k.hasOnly(['lastLoginAt'])
+        || k.hasOnly(['displayName', 'photoURL']) || k.hasOnly(['displayName', 'lastLoginAt'])
+        || k.hasOnly(['photoURL', 'lastLoginAt'])
+        || k.hasOnly(['displayName', 'photoURL', 'lastLoginAt']);
+    }
+
+    function privilegedUserManagers() {
+      return canManageHR() || isCFO() || canManageStaff();
+    }
+
+    /** First-login bootstrap doc created by the client — Staff only, email must match Auth token. */
+    function userBootstrapCreateValid() {
+      return request.resource.data.uid == request.auth.uid
+        && request.resource.data.role == 'Staff'
+        && tokenEmail() != null
+        && request.resource.data.email == tokenEmail()
+        && (
+          request.resource.data.keys().hasOnly([
+            'uid', 'email', 'displayName', 'role', 'createdAt', 'lastLoginAt'
+          ])
+          || request.resource.data.keys().hasOnly([
+            'uid', 'email', 'displayName', 'role', 'createdAt', 'lastLoginAt', 'department'
+          ])
+          || request.resource.data.keys().hasOnly([
+            'uid', 'email', 'displayName', 'role', 'createdAt', 'lastLoginAt', 'photoURL'
+          ])
+          || request.resource.data.keys().hasOnly([
+            'uid', 'email', 'displayName', 'role', 'createdAt', 'lastLoginAt',
+            'department', 'photoURL'
+          ])
+        );
+    }
+
     /* ── Users ────────────────────────────────────────────── */
     match /users/{userId} {
       allow read:   if isAuth() && (
         request.auth.uid == userId ||
         canReadUserDirectory()
       );
-      allow create: if isAuth() && request.auth.uid == userId;
+      allow create: if isAuth() && request.auth.uid == userId && userBootstrapCreateValid();
       allow update: if isAuth() && (
-        request.auth.uid == userId ||
-        canManageHR() ||
-        isCFO() ||
-        canManageStaff()
+        (request.auth.uid == userId && userSelfCosmeticKeysOnly()) ||
+        (privilegedUserManagers() && (!involvesRootRoleChange() || canManageStaff()))
       );
       allow delete: if false;
     }

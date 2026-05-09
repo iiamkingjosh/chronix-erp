@@ -43,7 +43,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function CreateUserPage() {
-  const { profile, loading } = useAuth();
+  const { profile, loading, firebaseUser } = useAuth();
   const isEnabled = process.env.NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP === "true";
   const canUseSetup = !!profile && hasPermission(profile.role, "manage:settings");
   const [created, setCreated]         = useState<CreatedUser[]>([]);
@@ -63,7 +63,12 @@ export default function CreateUserPage() {
     if (!isEnabled || !canUseSetup) return;
     setServerError(null);
     try {
-      const profile = await createStaffUser({
+      const idToken = await firebaseUser?.getIdToken();
+      if (!idToken) {
+        setServerError("You must be signed in to create users.");
+        return;
+      }
+      const profile = await createStaffUser(idToken, {
         email:       data.email,
         password:    data.password,
         displayName: data.displayName,
@@ -225,11 +230,12 @@ export default function CreateUserPage() {
         {/* Firestore rules hint */}
         <div className="bg-white/[0.03] border border-white/8 rounded-xl p-4">
           <p className="font-orbitron text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2">Firestore Rules Required</p>
-          <pre className="text-[11px] text-white/40 font-mono leading-relaxed overflow-x-auto">{`match /users/{userId} {
-  allow read:   if request.auth.uid == userId;
-  allow create: if request.auth.uid == userId;
-  allow update: if request.auth.uid == userId;
-}`}</pre>
+          <pre className="text-[11px] text-white/40 font-mono leading-relaxed overflow-x-auto">{`See firestore.rules:
+• Bootstrap create: Staff only, email == auth.token.email
+• Self update: displayName / photoURL / lastLoginAt only
+• Role changes + Root Admin: HR/CFO/Staff-admin paths;
+  Root-like roles only via canManageStaff()
+Setup uses POST /api/admin/users/create (Admin SDK).`}</pre>
         </div>
       </div>
     </main>
