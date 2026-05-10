@@ -134,8 +134,11 @@ export default function AddEmployeePage() {
             {errors.uid && <p className="mt-1 text-xs text-red-400">{errors.uid.message}</p>}
             {!loadError && availableUsers.length === 0 && (
               <p className="mt-2 text-xs text-white/30 font-helvetica">
-                All users already have employee records, or no users exist.{" "}
-                <a href="/setup/create-user" className="text-accent hover:underline">Create user accounts first.</a>
+                All users already have employee records, or no eligible accounts exist.{" "}
+                Ask colleagues to register via{" "}
+                <a href="/login?mode=register" className="text-accent hover:underline">Login → Create account</a>
+                {" "}when enabled, or provision accounts via Firebase Admin /{" "}
+                <code className="text-accent/70 text-[10px]">POST /api/admin/users/create</code>.
               </p>
             )}
           </div>

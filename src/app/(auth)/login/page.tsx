@@ -524,15 +524,11 @@ function LoginPageInner() {
             <p className="text-center text-white/20 text-xs font-helvetica leading-relaxed">
               Access is restricted to authorised Chronix Technology personnel.
               <br />
-              After you&apos;re signed in, you can invite teammates from{" "}
+              After you&apos;re signed in, open{" "}
               <Link href="/dashboard/settings" className="text-secondary hover:underline">
                 Settings
               </Link>
-              {" "}or{" "}
-              <Link href="/setup/create-user" className="text-secondary hover:underline">
-                team provisioning
-              </Link>
-              .
+              {" "}for shortcuts to HR and notifications.
             </p>
           </div>
         </div>

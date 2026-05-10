@@ -128,7 +128,7 @@ Role-based redirects use **`ROLE_REDIRECTS`** after login.
 
 - **No separate `root_admins` collection is required by Firestore rules.**  
 - Root access is determined by **`role`** on the user document: `Root Admin`, `Chronix Root`, or `Root` (see `isRootAdmin()` in `firestore.rules`).
-- **Provisioning:** `/setup/create-user` may be used by admins with `manage:settings`; **Root Admin is excluded from the role dropdown** there by design. Promoting a user to Root Admin is done by updating **`users/{uid}.role`** in Firestore (controlled process).
+- **Provisioning:** internal accounts use **`/login` → Create account** (when enabled), **`POST /api/admin/users/create`** (HR / System Admin / Root Admin / Staff-as-Staff), or Firebase Console. Promoting a user to Root Admin is done by updating **`users/{uid}.role`** in Firestore (controlled process).
 
 ### Protected UI
 

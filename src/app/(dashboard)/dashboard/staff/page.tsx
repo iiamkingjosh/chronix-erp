@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -133,11 +132,6 @@ export default function StaffPage() {
               Platform accounts — Root Admin, System Admin, and HR can invite users; HR and staff admins can fix roles here (Root-like roles: System Admin / Root Admin only).
             </p>
           </div>
-          {canManageDirectory && (
-            <Link href="/setup/create-user" className="btn-primary text-xs px-4 py-2.5">
-              + Add User
-            </Link>
-          )}
         </div>
 
         <div className="mb-4">

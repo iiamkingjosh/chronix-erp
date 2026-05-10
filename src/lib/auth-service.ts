@@ -29,7 +29,7 @@ function clearSessionCookie() {
    was created directly in the console without a matching
    Firestore profile), a minimal "Staff" profile is created
    automatically so the user can still log in.  An admin can
-   later update the role via Firestore Console or /setup/create-user.
+   later update the role via Firestore Console or Admin SDK API.
    ─────────────────────────────────────────────────────────── */
 export async function fetchUserProfile(user: User): Promise<ChronixUser> {
   const ref  = doc(db, "users", user.uid);

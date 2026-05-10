@@ -131,14 +131,7 @@ export default function SettingsPage() {
           {canInviteUsers && (
             <div className="surface-card p-6">
               <h2 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">User Management</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Link href="/setup/create-user" className="flex items-center gap-3 px-4 py-3 bg-white/[0.04] border border-white/10 rounded-xl hover:bg-white/[0.07] hover:border-accent/20 transition-all group">
-                  <span className="text-xl">➕</span>
-                  <div>
-                    <p className="text-sm text-white font-helvetica">Create User</p>
-                    <p className="text-xs text-white/30 font-helvetica">Add staff or client account</p>
-                  </div>
-                </Link>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Link href="/dashboard/hr" className="flex items-center gap-3 px-4 py-3 bg-white/[0.04] border border-white/10 rounded-xl hover:bg-white/[0.07] hover:border-accent/20 transition-all group">
                   <span className="text-xl">👥</span>
                   <div>
