@@ -11,8 +11,8 @@ const BODY = z.object({
   department:  z.string().optional(),
 });
 
-/** Root Admin, System Admin, and HR may provision internal accounts (Admin SDK bypasses Firestore user rules). */
-const CAN_CREATE_USERS = new Set<Role>([ROLES.SYSTEM_ADMIN, ROLES.ROOT_ADMIN, ROLES.HR]);
+/** Full provisioning: any internal role except Client; Staff may only create Staff accounts. */
+const FULL_PROVISIONERS = new Set<Role>([ROLES.SYSTEM_ADMIN, ROLES.ROOT_ADMIN, ROLES.HR]);
 
 export async function POST(request: Request) {
   try {
@@ -33,7 +33,9 @@ export async function POST(request: Request) {
     }
 
     const callerRole = resolveRole(String(callerSnap.data()?.role ?? ""));
-    if (!CAN_CREATE_USERS.has(callerRole)) {
+    const isFullProvisioner = FULL_PROVISIONERS.has(callerRole);
+    const isStaffPeerProvisioner = callerRole === ROLES.STAFF;
+    if (!isFullProvisioner && !isStaffPeerProvisioner) {
       return NextResponse.json({ error: "Insufficient permissions." }, { status: 403 });
     }
 
@@ -48,6 +50,16 @@ export async function POST(request: Request) {
 
     if (targetRole === ROLES.CLIENT) {
       return NextResponse.json({ error: "Use the portal flow for Client accounts." }, { status: 400 });
+    }
+
+    if (isStaffPeerProvisioner && targetRole !== ROLES.STAFF) {
+      return NextResponse.json(
+        {
+          error:
+            "Staff can only create Staff accounts. Ask HR or an administrator to assign a different role or add payroll details.",
+        },
+        { status: 403 },
+      );
     }
 
     if (targetRole === ROLES.ROOT_ADMIN && callerRole !== ROLES.ROOT_ADMIN) {

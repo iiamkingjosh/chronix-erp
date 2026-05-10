@@ -1,20 +1,35 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { signIn, sendReset } from "@/lib/auth-service";
+import { signIn, signUp, sendReset } from "@/lib/auth-service";
 import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { ROLE_REDIRECTS, resolveRole } from "@/types/roles";
 import ChronixLogo from "@/components/ChronixLogo";
+import { cn } from "@/lib/utils";
 
-const schema = z.object({
+const loginSchema = z.object({
   email:    z.string().email("Enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
-type FormValues = z.infer<typeof schema>;
+type LoginValues = z.infer<typeof loginSchema>;
+
+const registerSchema = z
+  .object({
+    displayName:     z.string().min(2, "Full name is required"),
+    email:           z.string().email("Enter a valid email address"),
+    password:        z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+type RegisterValues = z.infer<typeof registerSchema>;
 
 /** Next.js 16: `useSearchParams()` must sit under Suspense for static prerender. */
 export default function LoginPage() {
@@ -37,30 +52,60 @@ function LoginPrerenderFallback() {
 }
 
 function LoginPageInner() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const router          = useRouter();
+  const pathname        = usePathname();
+  const searchParams    = useSearchParams();
+  const selfSignupOn = process.env.NEXT_PUBLIC_ENABLE_SELF_SIGNUP !== "false";
+
+  const [mode, setMode] = useState<"signin" | "register">("signin");
+
+  useEffect(() => {
+    if (!selfSignupOn) {
+      setMode("signin");
+      return;
+    }
+    const wr =
+      searchParams.get("mode") === "register" ||
+      searchParams.get("register") === "1" ||
+      searchParams.get("register") === "true";
+    setMode(wr ? "register" : "signin");
+  }, [searchParams, selfSignupOn]);
+
   const [serverError, setServerError]   = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [resetSent, setResetSent]       = useState(false);
   const [resetting, setResetting]       = useState(false);
 
-  const { register, handleSubmit, getValues, formState: { errors, isSubmitting } } =
-    useForm<FormValues>({ resolver: zodResolver(schema) });
+  const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
+  const regForm   = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
+
+  const goSignIn = useCallback(() => {
+    setMode("signin");
+    setServerError(null);
+    regForm.reset();
+    router.replace(pathname);
+  }, [pathname, regForm, router]);
+
+  const goRegister = useCallback(() => {
+    setMode("register");
+    setServerError(null);
+    loginForm.reset();
+    setResetSent(false);
+    router.replace(`${pathname}?mode=register`);
+  }, [loginForm, pathname, router]);
 
   useEffect(() => {
-    // Never keep credentials in URL query params.
     if (!searchParams?.toString()) return;
     if (searchParams.has("email") || searchParams.has("password")) {
-      router.replace(pathname);
+      router.replace(pathname + (mode === "register" ? "?mode=register" : ""));
     }
-  }, [pathname, router, searchParams]);
+  }, [pathname, router, searchParams, mode]);
 
-  async function onSubmit(data: FormValues) {
+  async function onSignIn(data: LoginValues) {
     setServerError(null);
     try {
-      const profile    = await signIn(data.email, data.password);
-      const canonical  = resolveRole(profile.role);
+      const profile   = await signIn(data.email, data.password);
+      const canonical = resolveRole(profile.role);
       router.replace(ROLE_REDIRECTS[canonical] ?? "/dashboard");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -76,8 +121,29 @@ function LoginPageInner() {
     }
   }
 
+  async function onRegister(data: RegisterValues) {
+    if (!selfSignupOn) return;
+    setServerError(null);
+    try {
+      const profile   = await signUp(data.email, data.password, data.displayName);
+      const canonical = resolveRole(profile.role);
+      router.replace(ROLE_REDIRECTS[canonical] ?? "/dashboard");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("email-already-in-use")) {
+        setServerError("An account with this email already exists. Use Sign in.");
+      } else if (msg.includes("weak-password") || msg.includes("weak_password")) {
+        setServerError("Password is too weak. Use at least 8 characters.");
+      } else if (msg.includes("permission-denied") || msg.includes("PERMISSION_DENIED")) {
+        setServerError("Registration was blocked. Ask an administrator.");
+      } else {
+        setServerError(msg || "Could not create account. Try again.");
+      }
+    }
+  }
+
   async function handleForgotPassword() {
-    const email = getValues("email");
+    const email = loginForm.getValues("email");
     if (!email || !/\S+@\S+\.\S+/.test(email)) {
       setServerError("Enter your email address first, then click Forgot password.");
       return;
@@ -94,6 +160,9 @@ function LoginPageInner() {
     }
   }
 
+  const loginSubmitting   = loginForm.formState.isSubmitting;
+  const registerSubmitting = regForm.formState.isSubmitting;
+
   return (
     <div className="min-h-screen flex bg-primary-dark overflow-hidden">
 
@@ -102,16 +171,13 @@ function LoginPageInner() {
       ═══════════════════════════════════════════ */}
       <div className="hidden lg:flex lg:w-[52%] relative flex-col justify-between p-12 bg-primary-gradient overflow-hidden">
 
-        {/* Circuit grid background */}
         <CircuitGrid />
 
-        {/* Radial glow */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full bg-secondary/10 blur-[120px]" />
           <div className="absolute bottom-0 right-0 w-64 h-64 rounded-full bg-accent/8 blur-[80px]" />
         </div>
 
-        {/* Top: Wordmark */}
         <div className="relative z-10 animate-slide-right">
           <div className="flex items-center gap-4 mb-3">
             <ChronixLogo size={52} />
@@ -126,9 +192,7 @@ function LoginPageInner() {
           </div>
         </div>
 
-        {/* Centre: Hero copy */}
         <div className="relative z-10 animate-fade-in">
-          {/* OS badge */}
           <div className="inline-flex items-center gap-2 bg-accent/15 border border-accent/30 rounded-full px-4 py-1.5 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
             <span className="font-orbitron text-[11px] font-semibold tracking-[0.2em] text-accent">
@@ -144,7 +208,6 @@ function LoginPageInner() {
             The internal management platform for Chronix Technology — finance, HR, brand, and operations in one place.
           </p>
 
-          {/* Feature pills */}
           <div className="flex flex-wrap gap-2 mt-8">
             {["Finance", "HR", "Brand", "Operations", "Reports"].map((f) => (
               <span
@@ -157,7 +220,6 @@ function LoginPageInner() {
           </div>
         </div>
 
-        {/* Bottom: Location */}
         <div className="relative z-10 flex items-center gap-2 animate-fade-in">
           <LocationIcon />
           <span className="text-white/30 text-xs font-helvetica tracking-wide">
@@ -167,11 +229,10 @@ function LoginPageInner() {
       </div>
 
       {/* ═══════════════════════════════════════════
-          RIGHT PANEL — Login form
+          RIGHT PANEL — Sign in / Create account
       ═══════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-12 lg:px-16 bg-primary-mid relative">
 
-        {/* Mobile logo — only visible below lg */}
         <div className="lg:hidden flex items-center gap-3 mb-10 animate-fade-in">
           <ChronixLogo size={40} />
           <div>
@@ -182,137 +243,300 @@ function LoginPageInner() {
 
         <div className="w-full max-w-[400px] animate-slide-up">
 
-          {/* Heading */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h2 className="font-orbitron text-2xl font-bold text-white tracking-wide mb-2">
-              Welcome back
+              {mode === "signin" ? "Welcome back" : "Create your account"}
             </h2>
             <p className="text-white/40 text-sm font-helvetica">
-              Sign in to your Chronix ERP workspace
+              {mode === "signin"
+                ? "Sign in to your Chronix ERP workspace"
+                : "You’ll join as Staff — HR can update role and payroll later"}
             </p>
           </div>
 
-          {/* Form */}
-          <form method="post" action="#" onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
-
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-[11px] font-semibold tracking-[0.15em] text-white/40 uppercase mb-2 font-helvetica">
-                Email Address
-              </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
-                  <MailIcon />
-                </span>
-                <input
-                  {...register("email")}
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@chronixtech.com"
-                  className="input-field pl-10"
-                />
-              </div>
-              {errors.email && (
-                <p className="mt-2 text-xs text-red-400 font-helvetica">{errors.email.message}</p>
-              )}
+          {selfSignupOn && (
+            <div className="flex p-1 rounded-xl bg-white/[0.04] border border-white/10 mb-6">
+              <button
+                type="button"
+                onClick={goSignIn}
+                className={cn(
+                  "flex-1 py-2.5 rounded-lg text-sm font-helvetica font-medium transition-all",
+                  mode === "signin"
+                    ? "bg-accent/20 text-accent border border-accent/25 shadow-sm"
+                    : "text-white/45 hover:text-white/70 border border-transparent",
+                )}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={goRegister}
+                className={cn(
+                  "flex-1 py-2.5 rounded-lg text-sm font-helvetica font-medium transition-all",
+                  mode === "register"
+                    ? "bg-accent/20 text-accent border border-accent/25 shadow-sm"
+                    : "text-white/45 hover:text-white/70 border border-transparent",
+                )}
+              >
+                Create account
+              </button>
             </div>
+          )}
 
-            {/* Password */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label htmlFor="password" className="block text-[11px] font-semibold tracking-[0.15em] text-white/40 uppercase font-helvetica">
+          {!selfSignupOn && mode === "register" ? (
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 mb-6">
+              <p className="text-white/50 text-sm font-helvetica leading-relaxed">
+                Self-registration is disabled for this deployment. Sign in with credentials from your administrator.
+              </p>
+            </div>
+          ) : null}
+
+          {mode === "signin" ? (
+            <form
+              method="post"
+              action="#"
+              onSubmit={loginForm.handleSubmit(onSignIn)}
+              noValidate
+              className="space-y-5"
+            >
+              <div>
+                <label htmlFor="login-email" className="block text-[11px] font-semibold tracking-[0.15em] text-white/40 uppercase mb-2 font-helvetica">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
+                    <MailIcon />
+                  </span>
+                  <input
+                    {...loginForm.register("email")}
+                    id="login-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@chronixtech.com"
+                    className="input-field pl-10"
+                  />
+                </div>
+                {loginForm.formState.errors.email && (
+                  <p className="mt-2 text-xs text-red-400 font-helvetica">{loginForm.formState.errors.email.message}</p>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="login-password" className="block text-[11px] font-semibold tracking-[0.15em] text-white/40 uppercase font-helvetica">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={resetting}
+                    className="text-[11px] text-accent hover:text-accent/80 font-helvetica transition-colors disabled:opacity-50"
+                  >
+                    {resetting ? "Sending…" : "Forgot password?"}
+                  </button>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
+                    <LockIcon />
+                  </span>
+                  <input
+                    {...loginForm.register("password")}
+                    id="login-password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="••••••••••"
+                    className="input-field pl-10 pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors"
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+                {loginForm.formState.errors.password && (
+                  <p className="mt-2 text-xs text-red-400 font-helvetica">{loginForm.formState.errors.password.message}</p>
+                )}
+              </div>
+
+              {serverError && (
+                <div className="flex gap-2.5 items-start bg-red-500/8 border border-red-500/20 rounded-xl px-4 py-3 animate-fade-in">
+                  <AlertIcon className="text-red-400 mt-0.5 shrink-0" />
+                  <p className="text-red-400 text-xs leading-relaxed font-helvetica">{serverError}</p>
+                </div>
+              )}
+              {resetSent && !serverError && (
+                <div className="flex gap-2.5 items-start bg-emerald-500/8 border border-emerald-500/20 rounded-xl px-4 py-3 animate-fade-in">
+                  <CheckIcon className="text-emerald-400 mt-0.5 shrink-0" />
+                  <p className="text-emerald-400 text-xs leading-relaxed font-helvetica">
+                    Password reset link sent to your email.
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loginSubmitting}
+                className="relative w-full mt-2 bg-accent hover:bg-accent-hover
+                           text-white font-semibold text-sm rounded-xl py-4
+                           flex items-center justify-center gap-2
+                           transition-all duration-200 active:scale-[0.98]
+                           shadow-glow-accent animate-pulse-glow
+                           disabled:opacity-60 disabled:cursor-not-allowed font-helvetica"
+              >
+                {loginSubmitting ? (
+                  <>
+                    <Spinner />
+                    Signing in…
+                  </>
+                ) : (
+                  <>
+                    Sign In
+                    <ArrowIcon />
+                  </>
+                )}
+              </button>
+            </form>
+          ) : selfSignupOn ? (
+            <form onSubmit={regForm.handleSubmit(onRegister)} noValidate className="space-y-5">
+              <div>
+                <label htmlFor="reg-name" className="block text-[11px] font-semibold tracking-[0.15em] text-white/40 uppercase mb-2 font-helvetica">
+                  Full name
+                </label>
+                <input
+                  {...regForm.register("displayName")}
+                  id="reg-name"
+                  autoComplete="name"
+                  placeholder="e.g. Joshua Adeyemi"
+                  className="input-field"
+                />
+                {regForm.formState.errors.displayName && (
+                  <p className="mt-2 text-xs text-red-400 font-helvetica">{regForm.formState.errors.displayName.message}</p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="reg-email" className="block text-[11px] font-semibold tracking-[0.15em] text-white/40 uppercase mb-2 font-helvetica">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
+                    <MailIcon />
+                  </span>
+                  <input
+                    {...regForm.register("email")}
+                    id="reg-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@chronixtech.com"
+                    className="input-field pl-10"
+                  />
+                </div>
+                {regForm.formState.errors.email && (
+                  <p className="mt-2 text-xs text-red-400 font-helvetica">{regForm.formState.errors.email.message}</p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="reg-password" className="block text-[11px] font-semibold tracking-[0.15em] text-white/40 uppercase mb-2 font-helvetica">
                   Password
                 </label>
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  disabled={resetting}
-                  className="text-[11px] text-accent hover:text-accent/80 font-helvetica transition-colors disabled:opacity-50"
-                >
-                  {resetting ? "Sending…" : "Forgot password?"}
-                </button>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
+                    <LockIcon />
+                  </span>
+                  <input
+                    {...regForm.register("password")}
+                    id="reg-password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
+                    className="input-field pl-10 pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors"
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+                {regForm.formState.errors.password && (
+                  <p className="mt-2 text-xs text-red-400 font-helvetica">{regForm.formState.errors.password.message}</p>
+                )}
               </div>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
-                  <LockIcon />
-                </span>
-                <input
-                  {...register("password")}
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="••••••••••"
-                  className="input-field pl-10 pr-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors"
-                >
-                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                </button>
+              <div>
+                <label htmlFor="reg-confirm" className="block text-[11px] font-semibold tracking-[0.15em] text-white/40 uppercase mb-2 font-helvetica">
+                  Confirm password
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
+                    <LockIcon />
+                  </span>
+                  <input
+                    {...regForm.register("confirmPassword")}
+                    id="reg-confirm"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="Repeat password"
+                    className="input-field pl-10"
+                  />
+                </div>
+                {regForm.formState.errors.confirmPassword && (
+                  <p className="mt-2 text-xs text-red-400 font-helvetica">{regForm.formState.errors.confirmPassword.message}</p>
+                )}
               </div>
-              {errors.password && (
-                <p className="mt-2 text-xs text-red-400 font-helvetica">{errors.password.message}</p>
+
+              {serverError && (
+                <div className="flex gap-2.5 items-start bg-red-500/8 border border-red-500/20 rounded-xl px-4 py-3 animate-fade-in">
+                  <AlertIcon className="text-red-400 mt-0.5 shrink-0" />
+                  <p className="text-red-400 text-xs leading-relaxed font-helvetica">{serverError}</p>
+                </div>
               )}
-            </div>
 
-            {/* Alerts */}
-            {serverError && (
-              <div className="flex gap-2.5 items-start bg-red-500/8 border border-red-500/20 rounded-xl px-4 py-3 animate-fade-in">
-                <AlertIcon className="text-red-400 mt-0.5 shrink-0" />
-                <p className="text-red-400 text-xs leading-relaxed font-helvetica">{serverError}</p>
-              </div>
-            )}
-            {resetSent && !serverError && (
-              <div className="flex gap-2.5 items-start bg-emerald-500/8 border border-emerald-500/20 rounded-xl px-4 py-3 animate-fade-in">
-                <CheckIcon className="text-emerald-400 mt-0.5 shrink-0" />
-                <p className="text-emerald-400 text-xs leading-relaxed font-helvetica">
-                  Password reset link sent to your email.
-                </p>
-              </div>
-            )}
+              <button
+                type="submit"
+                disabled={registerSubmitting}
+                className="relative w-full mt-2 bg-accent hover:bg-accent-hover
+                           text-white font-semibold text-sm rounded-xl py-4
+                           flex items-center justify-center gap-2
+                           transition-all duration-200 active:scale-[0.98]
+                           shadow-glow-accent animate-pulse-glow
+                           disabled:opacity-60 disabled:cursor-not-allowed font-helvetica"
+              >
+                {registerSubmitting ? (
+                  <>
+                    <Spinner />
+                    Creating account…
+                  </>
+                ) : (
+                  <>
+                    Create account
+                    <ArrowIcon />
+                  </>
+                )}
+              </button>
+            </form>
+          ) : null}
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="relative w-full mt-2 bg-accent hover:bg-accent-hover
-                         text-white font-semibold text-sm rounded-xl py-4
-                         flex items-center justify-center gap-2
-                         transition-all duration-200 active:scale-[0.98]
-                         shadow-glow-accent animate-pulse-glow
-                         disabled:opacity-60 disabled:cursor-not-allowed font-helvetica"
-            >
-              {isSubmitting ? (
-                <>
-                  <Spinner />
-                  Signing in…
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowIcon />
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Divider */}
           <div className="mt-8 pt-8 border-t border-white/10">
-            <p className="text-center text-white/20 text-xs font-helvetica">
+            <p className="text-center text-white/20 text-xs font-helvetica leading-relaxed">
               Access is restricted to authorised Chronix Technology personnel.
               <br />
-              Contact{" "}
-              <span className="text-secondary">your System Administrator</span>{" "}
-              if you need access.
+              After you&apos;re signed in, you can invite teammates from{" "}
+              <Link href="/dashboard/settings" className="text-secondary hover:underline">
+                Settings
+              </Link>
+              {" "}or{" "}
+              <Link href="/setup/create-user" className="text-secondary hover:underline">
+                team provisioning
+              </Link>
+              .
             </p>
           </div>
         </div>
 
-        {/* Footer */}
         <p className="absolute bottom-6 text-white/15 text-[11px] font-helvetica tracking-wide text-center w-full px-4">
           © {new Date().getFullYear()} Chronix Technology Limited · All rights reserved · {APP_VERSION_SHORT_LABEL}
         </p>

@@ -1,8 +1,10 @@
 import {
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
+  updateProfile,
   User,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -62,6 +64,21 @@ export async function fetchUserProfile(user: User): Promise<ChronixUser> {
     lastLoginAt: now,
   };
   await setDoc(ref, profile);
+  return profile;
+}
+
+/**
+ * Public self-registration (Firebase Auth + Firestore Staff bootstrap).
+ * Disabled in UI when NEXT_PUBLIC_ENABLE_SELF_SIGNUP=false.
+ */
+export async function signUp(email: string, password: string, displayName: string): Promise<ChronixUser> {
+  const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const dn = displayName.trim();
+  if (dn) await updateProfile(credential.user, { displayName: dn }).catch(() => {});
+  const profile = await fetchUserProfile(credential.user);
+  const token = await credential.user.getIdToken();
+  setSessionCookie(token);
+  setDoc(doc(db, "users", credential.user.uid), { lastLoginAt: new Date().toISOString() }, { merge: true }).catch(() => {});
   return profile;
 }
 

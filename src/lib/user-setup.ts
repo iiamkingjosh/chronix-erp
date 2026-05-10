@@ -10,7 +10,7 @@ export interface CreateUserInput {
 
 /**
  * Creates a Firebase Auth user + Firestore profile via Admin SDK.
- * Caller must pass a fresh ID token from an authenticated System Admin or Root Admin session.
+ * Caller ID token: HR / System Admin / Root Admin (any internal role except Client), or Staff (Staff role targets only).
  */
 export async function createStaffUser(idToken: string, input: CreateUserInput): Promise<ChronixUser> {
   const res = await fetch("/api/admin/users/create", {

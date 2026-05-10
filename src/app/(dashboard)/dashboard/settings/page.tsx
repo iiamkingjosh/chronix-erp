@@ -5,7 +5,7 @@ import { useState } from "react";
 import { APP_VERSION_SEMVER } from "@/lib/app-version";
 import { COMPANY } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission, isRootAdmin } from "@/types/roles";
+import { ROLES, hasPermission, isRootAdmin, resolveRole } from "@/types/roles";
 import { auth } from "@/lib/firebase";
 import { enablePushNotifications, getPushPermission, registerToken, type PermissionStatus } from "@/lib/fcm-client";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -17,7 +17,8 @@ export default function SettingsPage() {
     !!profile &&
     (canManageStaff ||
       hasPermission(profile.role, "manage:hr") ||
-      isRootAdmin(profile.role));
+      isRootAdmin(profile.role) ||
+      resolveRole(profile.role) === ROLES.STAFF);
 
   const [pushStatus, setPushStatus]   = useState<PermissionStatus>(
     () => (typeof window !== "undefined" ? getPushPermission() : "default"),

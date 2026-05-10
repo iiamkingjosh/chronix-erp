@@ -129,6 +129,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:hr",            "view:notifications",
     "manage:time",        "view:knowledge",
     "submit:leave",       "submit:expenses",
+    "view:settings", /* preferences, push, invite Staff peers — not manage:settings */
   ],
 
   /* ── Client — portal only ────────────────────────────── */

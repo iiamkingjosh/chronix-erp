@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createStaffUser } from "@/lib/user-setup";
-import { ROLES, isRootAdmin, hasPermission, type Role } from "@/types/roles";
+import { ROLES, isRootAdmin, hasPermission, resolveRole, type Role } from "@/types/roles";
 import ChronixLogo from "@/components/ChronixLogo";
 import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,14 @@ import { useAuth } from "@/contexts/AuthContext";
 function rolesSelectableByCaller(rawRole: string): Role[] {
   const internal = Object.values(ROLES).filter((r) => r !== ROLES.CLIENT);
   if (isRootAdmin(rawRole)) return internal;
-  return internal.filter((r) => r !== ROLES.ROOT_ADMIN);
+  if (
+    hasPermission(rawRole, "manage:hr") ||
+    hasPermission(rawRole, "manage:settings")
+  ) {
+    return internal.filter((r) => r !== ROLES.ROOT_ADMIN);
+  }
+  if (resolveRole(rawRole) === ROLES.STAFF) return [ROLES.STAFF];
+  return [];
 }
 
 const schema = z
@@ -55,25 +62,36 @@ export default function CreateUserPage() {
   const { profile, loading, firebaseUser } = useAuth();
   /** User provisioning is on by default; set NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP=false to lock the UI. */
   const isEnabled = process.env.NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP !== "false";
+  const selfSignupEnabled = process.env.NEXT_PUBLIC_ENABLE_SELF_SIGNUP !== "false";
   const canUseSetup =
     !!profile &&
     (hasPermission(profile.role, "manage:settings") ||
       hasPermission(profile.role, "manage:hr") ||
-      isRootAdmin(profile.role));
+      isRootAdmin(profile.role) ||
+      resolveRole(profile.role) === ROLES.STAFF);
   const [created, setCreated]         = useState<CreatedUser[]>([]);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } =
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } =
     useForm<FormData>({ resolver: zodResolver(schema) });
 
   const setupGateError =
-    !loading && (!isEnabled || !canUseSetup)
-      ? !isEnabled
-        ? "User provisioning is disabled (NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP=false)."
-        : "Sign in as Root Admin, System Admin, or HR to create accounts."
-      : null;
+    !loading && !isEnabled
+      ? "User provisioning is disabled (NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP=false)."
+      : !loading && !!firebaseUser && !!profile && resolveRole(profile.role) === ROLES.CLIENT
+        ? "Client portal accounts cannot create internal users here."
+        : !loading && !!firebaseUser && !!profile && !canUseSetup
+          ? "Your role cannot create accounts for teammates. Ask HR or an administrator."
+          : null;
 
-  const roleOptions = profile ? rolesSelectableByCaller(profile.role) : [];
+  const roleOptions = useMemo(
+    () => (profile ? rolesSelectableByCaller(profile.role) : []),
+    [profile?.role],
+  );
+
+  useEffect(() => {
+    if (roleOptions.length === 1) setValue("role", roleOptions[0]);
+  }, [roleOptions, setValue]);
 
   const combinedError = serverError ?? setupGateError;
 
@@ -104,6 +122,7 @@ export default function CreateUserPage() {
         uid:         newUser.uid,
       }]);
       reset();
+      if (roleOptions.length === 1) setValue("role", roleOptions[0]);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("email-already-in-use")) {
@@ -126,17 +145,44 @@ export default function CreateUserPage() {
         <div className="flex items-center gap-4 mb-6">
           <ChronixLogo size={44} />
           <div>
-            <h1 className="font-orbitron text-xl font-bold text-white tracking-wide">Create Account</h1>
+            <h1 className="font-orbitron text-xl font-bold text-white tracking-wide">Team provisioning</h1>
             <p className="text-white/40 text-xs font-helvetica mt-0.5">
-              Create an internal Chronix ERP account · {APP_VERSION_SHORT_LABEL}
+              Add a colleague&apos;s login (you must be signed in) · {APP_VERSION_SHORT_LABEL}
             </p>
           </div>
         </div>
 
+        {!loading && !firebaseUser && isEnabled && (
+          <div className="glass-card p-5 mb-5 border border-accent/15 bg-accent/[0.03]">
+            <p className="text-sm text-white/70 font-helvetica leading-relaxed mb-3">
+              <strong className="text-white/90">Need your own login?</strong>{" "}
+              This page is only for people who are already signed in and want to create login credentials <em>for someone else</em>.
+              Open Login and use <strong className="text-white/80">Create account</strong> if you still need your own access.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              {selfSignupEnabled ? (
+                <Link href="/login?mode=register" className="btn-primary text-center text-sm py-2.5 px-4 shrink-0">
+                  Open Login — Create account
+                </Link>
+              ) : (
+                <p className="text-xs text-amber-300/90 font-helvetica">
+                  Self-registration is disabled. Ask your administrator for an account.
+                </p>
+              )}
+              <Link
+                href="/login"
+                className="text-center text-sm py-2.5 px-4 rounded-xl border border-white/15 text-white/55 hover:text-white hover:border-white/25 transition-colors font-helvetica sm:ml-auto"
+              >
+                Sign in
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Form */}
         <div className="glass-card p-6 mb-5">
           <h2 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">
-            New Staff Account
+            New teammate account
           </h2>
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
@@ -156,12 +202,22 @@ export default function CreateUserPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="field-label">Role</label>
-                <select {...register("role")} className="input-field" defaultValue="">
+                <select
+                  {...register("role")}
+                  className="input-field disabled:opacity-60"
+                  disabled={roleOptions.length === 1}
+                  defaultValue=""
+                >
                   <option value="" disabled className="bg-primary-dark">Select a role…</option>
                   {roleOptions.map((r) => (
                     <option key={r} value={r} className="bg-primary-dark text-white">{r}</option>
                   ))}
                 </select>
+                {profile && resolveRole(profile.role) === ROLES.STAFF && roleOptions.length === 1 && (
+                  <p className="mt-1.5 text-[11px] text-white/35 font-helvetica leading-snug">
+                    New teammates join as Staff. HR or an administrator can change role and add salary and payroll details in Employee Profiles.
+                  </p>
+                )}
                 {errors.role && <p className="mt-1.5 text-xs text-red-400 font-helvetica">{errors.role.message}</p>}
               </div>
 
@@ -201,7 +257,7 @@ export default function CreateUserPage() {
                   Creating account…
                 </>
               ) : (
-                "Create Account"
+                "Create teammate account"
               )}
             </button>
           </form>
