@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import { ROLE_COLORS, resolveRole } from "@/types/roles";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
+import { ROLE_COLORS, ROLES, hasPermission, resolveRole } from "@/types/roles";
 import ChronixLogo from "./ChronixLogo";
 import { cn } from "@/lib/utils";
 
@@ -36,66 +37,42 @@ const ALL_NAV: NavItem[] = [
   { label: "Settings",      href: "/dashboard/settings",             icon: <SettingsIcon /> },
 ];
 
-const ROLE_NAV: Record<string, string[]> = {
-  "Root Admin": ALL_NAV.map((i) => i.href),
-  "CEO": [
-    "/dashboard", "/dashboard/crm", "/dashboard/finance", "/dashboard/tax",
-    "/dashboard/tickets", "/dashboard/projects", "/dashboard/procurement", "/dashboard/hr",
-    "/dashboard/assets", "/dashboard/subscriptions", "/dashboard/analytics",
-    "/dashboard/knowledge", "/dashboard/incidents", "/dashboard/changes",
-    "/dashboard/audit", "/dashboard/notifications", "/dashboard/settings",
-  ],
-  "CFO": [
-    "/dashboard", "/dashboard/finance", "/dashboard/tax", "/dashboard/procurement",
-    "/dashboard/subscriptions", "/dashboard/analytics", "/dashboard/notifications",
-  ],
-  "System Admin": [
-    "/dashboard", "/dashboard/staff", "/dashboard/tickets", "/dashboard/projects",
-    "/dashboard/procurement", "/dashboard/subscriptions", "/dashboard/hr",
-    "/dashboard/assets", "/dashboard/time", "/dashboard/tax",
-    "/dashboard/knowledge", "/dashboard/incidents", "/dashboard/changes",
-    "/dashboard/oncall", "/dashboard/audit", "/dashboard/settings", "/dashboard/notifications",
-  ],
-  "Brand Lead": [
-    "/dashboard", "/dashboard/crm", "/dashboard/analytics",
-    "/dashboard/brand/assets", "/dashboard/notifications",
-  ],
-  "Social Media Lead": [
-    "/dashboard", "/dashboard/crm",
-    "/dashboard/brand/assets", "/dashboard/notifications",
-  ],
-  "HR": [
-    "/dashboard", "/dashboard/hr", "/dashboard/tax", "/dashboard/notifications",
-  ],
-  "Staff": [
-    "/dashboard", "/dashboard/tickets", "/dashboard/projects",
-    "/dashboard/time", "/dashboard/knowledge", "/dashboard/notifications",
-  ],
-  "Sales Rep": [
-    "/dashboard", "/dashboard/crm", "/dashboard/finance",
-    "/dashboard/subscriptions", "/dashboard/notifications",
-  ],
-  "Project Manager": [
-    "/dashboard", "/dashboard/projects", "/dashboard/tickets",
-    "/dashboard/time", "/dashboard/crm", "/dashboard/knowledge",
-    "/dashboard/analytics", "/dashboard/notifications",
-  ],
-  "Finance Officer": [
-    "/dashboard", "/dashboard/finance", "/dashboard/tax",
-    "/dashboard/procurement", "/dashboard/subscriptions", "/dashboard/notifications",
-  ],
-  "IT Manager": [
-    "/dashboard", "/dashboard/tickets", "/dashboard/assets",
-    "/dashboard/time", "/dashboard/knowledge", "/dashboard/incidents",
-    "/dashboard/changes", "/dashboard/oncall", "/dashboard/projects",
-    "/dashboard/subscriptions", "/dashboard/analytics", "/dashboard/notifications",
-  ],
-  "Admin":   ["/dashboard", "/dashboard/staff", "/dashboard/tickets", "/dashboard/projects", "/dashboard/procurement", "/dashboard/subscriptions", "/dashboard/hr", "/dashboard/settings", "/dashboard/notifications"],
-  "Manager": ["/dashboard", "/dashboard/crm", "/dashboard/finance", "/dashboard/tickets", "/dashboard/projects", "/dashboard/notifications"],
-  "Finance": ["/dashboard", "/dashboard/finance", "/dashboard/procurement", "/dashboard/subscriptions", "/dashboard/notifications"],
+/**
+ * Sidebar visibility tracks `ROLE_PERMISSIONS` / `hasPermission` so legacy aliases
+ * and roles like System Admin (view:all) stay aligned without duplicate lists.
+ * `null` → always show for non-Client internal users (dashboard shell).
+ */
+const NAV_GATE: Record<string, string[] | null> = {
+  "/dashboard":                      null,
+  "/dashboard/staff":                ["view:staff", "manage:staff", "manage:hr"],
+  "/dashboard/finance":              ["view:finance", "manage:finance", "create:invoices"],
+  "/dashboard/tax":                  ["view:tax", "manage:tax", "view:paye"],
+  "/dashboard/tickets":              ["view:tickets", "manage:tickets"],
+  "/dashboard/crm":                  ["view:crm", "manage:crm"],
+  "/dashboard/projects":             ["view:projects", "manage:projects"],
+  "/dashboard/procurement":          ["view:procurement", "manage:procurement"],
+  "/dashboard/hr":                   ["view:hr", "manage:hr"],
+  "/dashboard/assets":               ["view:assets", "manage:assets"],
+  "/dashboard/time":                 ["view:time", "manage:time"],
+  "/dashboard/subscriptions":        ["view:subscriptions", "manage:subscriptions"],
+  "/dashboard/knowledge":            ["view:knowledge", "manage:knowledge"],
+  "/dashboard/incidents":            ["view:incidents", "manage:incidents"],
+  "/dashboard/changes":              ["view:changes", "manage:changes"],
+  "/dashboard/oncall":               ["manage:oncall"],
+  "/dashboard/brand/assets":         ["view:brand", "manage:brand", "view:social", "manage:social"],
+  "/dashboard/analytics":            ["view:analytics"],
+  "/dashboard/audit":                ["view:audit"],
+  "/dashboard/notifications":        ["view:notifications"],
+  "/dashboard/settings":             ["view:settings", "manage:settings"],
 };
 
-const FALLBACK_NAV = ["/dashboard", "/dashboard/notifications"];
+function navHrefVisible(rawRole: string, href: string): boolean {
+  if (resolveRole(rawRole) === ROLES.CLIENT) return false;
+  const gate = NAV_GATE[href];
+  if (gate === null) return true;
+  if (!gate?.length) return false;
+  return gate.some((p) => hasPermission(rawRole, p));
+}
 
 export default function Sidebar() {
   const { profile, signOut } = useAuth();
@@ -117,8 +94,7 @@ export default function Sidebar() {
   if (!profile) return null;
 
   const canonical    = resolveRole(profile.role);
-  const allowedHrefs = ROLE_NAV[profile.role] ?? ROLE_NAV[canonical] ?? FALLBACK_NAV;
-  const visibleNav   = ALL_NAV.filter((item) => allowedHrefs.includes(item.href));
+  const visibleNav   = ALL_NAV.filter((item) => navHrefVisible(profile.role, item.href));
   const roleColor    = ROLE_COLORS[canonical] ?? "bg-white/10 text-white/50 border-white/20";
 
   return (
@@ -127,7 +103,7 @@ export default function Sidebar() {
         <ChronixLogo size={36} />
         <div>
           <p className="font-orbitron text-sm font-black tracking-[0.12em] text-white leading-none">CHRONIX</p>
-          <p className="font-orbitron text-[9px] tracking-[0.2em] text-secondary mt-0.5 leading-none">ERP v2.0</p>
+          <p className="font-orbitron text-[9px] tracking-[0.2em] text-secondary mt-0.5 leading-none">ERP {APP_VERSION_SHORT_LABEL}</p>
         </div>
       </Link>
 

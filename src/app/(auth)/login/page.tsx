@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { signIn, sendReset } from "@/lib/auth-service";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { ROLE_REDIRECTS, resolveRole } from "@/types/roles";
 import ChronixLogo from "@/components/ChronixLogo";
 
@@ -131,7 +132,7 @@ function LoginPageInner() {
           <div className="inline-flex items-center gap-2 bg-accent/15 border border-accent/30 rounded-full px-4 py-1.5 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
             <span className="font-orbitron text-[11px] font-semibold tracking-[0.2em] text-accent">
-              CHRONIX ERP · v1.0
+              CHRONIX ERP · {APP_VERSION_SHORT_LABEL}
             </span>
           </div>
 
@@ -173,7 +174,10 @@ function LoginPageInner() {
         {/* Mobile logo — only visible below lg */}
         <div className="lg:hidden flex items-center gap-3 mb-10 animate-fade-in">
           <ChronixLogo size={40} />
-          <span className="font-orbitron text-lg font-black tracking-[0.15em] text-white">CHRONIX ERP</span>
+          <div>
+            <span className="font-orbitron text-lg font-black tracking-[0.15em] text-white block leading-tight">CHRONIX ERP</span>
+            <span className="font-orbitron text-[10px] tracking-[0.2em] text-secondary">{APP_VERSION_SHORT_LABEL}</span>
+          </div>
         </div>
 
         <div className="w-full max-w-[400px] animate-slide-up">
@@ -309,8 +313,8 @@ function LoginPageInner() {
         </div>
 
         {/* Footer */}
-        <p className="absolute bottom-6 text-white/15 text-[11px] font-helvetica tracking-wide">
-          © {new Date().getFullYear()} Chronix Technology Limited · All rights reserved
+        <p className="absolute bottom-6 text-white/15 text-[11px] font-helvetica tracking-wide text-center w-full px-4">
+          © {new Date().getFullYear()} Chronix Technology Limited · All rights reserved · {APP_VERSION_SHORT_LABEL}
         </p>
       </div>
     </div>

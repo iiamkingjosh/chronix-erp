@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { APP_VERSION_SEMVER } from "@/lib/app-version";
 import { COMPANY } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { auth } from "@/lib/firebase";
 import { enablePushNotifications, getPushPermission, registerToken, type PermissionStatus } from "@/lib/fcm-client";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -12,6 +13,11 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 export default function SettingsPage() {
   const { profile }    = useAuth();
   const canManageStaff = profile ? hasPermission(profile.role, "manage:staff") : false;
+  const canInviteUsers =
+    !!profile &&
+    (canManageStaff ||
+      hasPermission(profile.role, "manage:hr") ||
+      isRootAdmin(profile.role));
 
   const [pushStatus, setPushStatus]   = useState<PermissionStatus>(
     () => (typeof window !== "undefined" ? getPushPermission() : "default"),
@@ -108,7 +114,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
                 { label: "System",   value: "Chronix OS" },
-                { label: "Version",  value: "v2.0.0" },
+                { label: "Version",  value: `v${APP_VERSION_SEMVER}` },
                 { label: "Stack",    value: "Next.js + Firebase" },
                 { label: "Currency", value: "₦ Naira (NGN)" },
               ].map((row) => (
@@ -121,7 +127,7 @@ export default function SettingsPage() {
           </div>
 
           {/* User Management */}
-          {canManageStaff && (
+          {canInviteUsers && (
             <div className="surface-card p-6">
               <h2 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">User Management</h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

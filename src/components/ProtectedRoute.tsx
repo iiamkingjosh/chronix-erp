@@ -4,8 +4,9 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import ChronixLogo from "@/components/ChronixLogo";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import type { Role } from "@/types/roles";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, resolveRole, ROLES } from "@/types/roles";
 
 interface Props {
   children:               React.ReactNode;
@@ -13,6 +14,8 @@ interface Props {
   /** Access if the user has any of these permissions (e.g. manage vs view). */
   requiredAnyPermission?: string[];
   allowedRoles?:          Role[];
+  /** Portal-only users must not use the internal ERP shell (sidebar layout). */
+  excludeClient?:         boolean;
 }
 
 /* ── Branded loading screen ─────────────────────────────────
@@ -27,6 +30,7 @@ function LoadingScreen({ message }: { message?: string }) {
         <p className="font-orbitron text-xs text-white/30 tracking-widest uppercase">
           {message ?? "Loading…"}
         </p>
+        <p className="font-orbitron text-[10px] text-white/15 tracking-widest">{APP_VERSION_SHORT_LABEL}</p>
       </div>
     </div>
   );
@@ -61,6 +65,7 @@ function ProfileErrorScreen({ error, onRetry }: { error: string; onRetry: () => 
             Sign Out
           </a>
         </div>
+        <p className="font-orbitron text-[10px] text-white/15 tracking-widest">{APP_VERSION_SHORT_LABEL}</p>
       </div>
     </div>
   );
@@ -79,8 +84,14 @@ function ProfileErrorScreen({ error, onRetry }: { error: string; onRetry: () => 
    6. profile + correct role  → render children
 
    We NEVER return null.  Every state shows something.       */
-export default function ProtectedRoute({ children, requiredPermission, requiredAnyPermission, allowedRoles }: Props) {
-  const { firebaseUser, profile, loading, profileError, signOut } = useAuth();
+export default function ProtectedRoute({
+  children,
+  requiredPermission,
+  requiredAnyPermission,
+  allowedRoles,
+  excludeClient,
+}: Props) {
+  const { firebaseUser, profile, loading, profileError } = useAuth();
   const router = useRouter();
 
   function profileHasRequiredPermission(): boolean {
@@ -91,11 +102,18 @@ export default function ProtectedRoute({ children, requiredPermission, requiredA
     return !requiredPermission || hasPermission(profile.role, requiredPermission);
   }
 
+  const canonicalRole = profile ? resolveRole(profile.role) : null;
+
   /* ── Determine access synchronously from current state ── */
   const isAuthenticated    = !loading && !!firebaseUser && !!profile;
-  const hasRoleAccess      = !allowedRoles?.length      || (profile ? allowedRoles.includes(profile.role) : false);
+  const isExcludedClient   =
+    !!excludeClient && canonicalRole === ROLES.CLIENT;
+  const hasRoleAccess      =
+    !allowedRoles?.length ||
+    (canonicalRole !== null && allowedRoles.includes(canonicalRole));
   const hasPermAccess      = profileHasRequiredPermission();
-  const isFullyAuthorized  = isAuthenticated && hasRoleAccess && hasPermAccess;
+  const isFullyAuthorized  =
+    isAuthenticated && !isExcludedClient && hasRoleAccess && hasPermAccess;
 
   /* ── Redirect side-effects (only run after auth resolved) ── */
   useEffect(() => {
@@ -106,10 +124,24 @@ export default function ProtectedRoute({ children, requiredPermission, requiredA
     }
     if (!profile && !profileError) return;   // profile still loading
     if (profileError) return;                // ProfileErrorScreen handles this
+    if (excludeClient && canonicalRole === ROLES.CLIENT) {
+      router.replace("/portal");
+      return;
+    }
     if (!hasRoleAccess || !hasPermAccess) {
       router.replace("/unauthorized");
     }
-  }, [loading, firebaseUser, profile, profileError, hasRoleAccess, hasPermAccess, router]);
+  }, [
+    loading,
+    firebaseUser,
+    profile,
+    profileError,
+    excludeClient,
+    canonicalRole,
+    hasRoleAccess,
+    hasPermAccess,
+    router,
+  ]);
 
   /* ── Render decisions — never return null ─────────────── */
 

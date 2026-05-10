@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 
 /* Use configured FROM address, fall back to Resend's verified test address.
    Until chronixtechnology.com is verified in Resend, emails will only reach
@@ -49,14 +50,14 @@ function shell(accentColor: string, badge: string, content: string): string {
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
 <table width="580" cellpadding="0" cellspacing="0" style="background:#111118;border-radius:12px;border:1px solid rgba(255,255,255,0.1);overflow:hidden;">
   <tr><td style="background:${accentColor};padding:20px 32px;">
-    <p style="margin:0;color:#fff;font-size:20px;font-weight:700;letter-spacing:0.08em;font-family:monospace;">CHRONIX ERP</p>
+    <p style="margin:0;color:#fff;font-size:20px;font-weight:700;letter-spacing:0.08em;font-family:monospace;">CHRONIX ERP · ${APP_VERSION_SHORT_LABEL}</p>
     <p style="margin:4px 0 0;color:rgba(255,255,255,0.7);font-size:11px;letter-spacing:0.2em;text-transform:uppercase;">${badge}</p>
   </td></tr>
   ${content}
   <tr><td style="padding:16px 32px;border-top:1px solid rgba(255,255,255,0.06);">
     <p style="margin:0;color:rgba(255,255,255,0.25);font-size:10px;line-height:1.6;">
       Chronix Technology Limited · Lekki Phase 1, Lagos, Nigeria<br>
-      This is an automated system notification from Chronix ERP. Do not reply to this email.
+      This is an automated system notification from Chronix ERP ${APP_VERSION_SHORT_LABEL}. Do not reply to this email.
     </p>
   </td></tr>
 </table>
@@ -92,7 +93,7 @@ export function taxActivityEmail(title: string, message: string, link: string): 
     "#1a1a2e",
     "Tax Activity",
     bodyRow(title, message, link, "View Details") +
-    disclaimer("This notification was triggered by a recorded action in Chronix ERP."),
+    disclaimer(`This notification was triggered by a recorded action in Chronix ERP ${APP_VERSION_SHORT_LABEL}.`),
   );
 }
 

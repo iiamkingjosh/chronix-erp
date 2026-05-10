@@ -11,8 +11,8 @@ const BODY = z.object({
   department:  z.string().optional(),
 });
 
-/** Matches setup page: elevated operators only (manage:settings is System Admin). */
-const CAN_CREATE_USERS = new Set<Role>([ROLES.SYSTEM_ADMIN, ROLES.ROOT_ADMIN]);
+/** Root Admin, System Admin, and HR may provision internal accounts (Admin SDK bypasses Firestore user rules). */
+const CAN_CREATE_USERS = new Set<Role>([ROLES.SYSTEM_ADMIN, ROLES.ROOT_ADMIN, ROLES.HR]);
 
 export async function POST(request: Request) {
   try {

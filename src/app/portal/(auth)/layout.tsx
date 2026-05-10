@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useClientAuth } from "@/contexts/ClientAuthContext";
 import ChronixLogo from "@/components/ChronixLogo";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -46,7 +47,9 @@ export default function PortalAuthLayout({ children }: { children: React.ReactNo
             <ChronixLogo size={28} />
             <div>
               <p className="font-orbitron text-xs font-black tracking-[0.1em] text-white leading-none">CHRONIX</p>
-              <p className="font-orbitron text-[8px] tracking-[0.2em] text-secondary leading-none mt-0.5">CLIENT PORTAL</p>
+              <p className="font-orbitron text-[8px] tracking-[0.2em] text-secondary leading-none mt-0.5">
+                CLIENT PORTAL · {APP_VERSION_SHORT_LABEL}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-4">

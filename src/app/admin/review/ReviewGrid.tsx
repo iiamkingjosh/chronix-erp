@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 import ChronixLogo from "@/components/ChronixLogo";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { cn } from "@/lib/utils";
 
 /* ── Page catalogue ─────────────────────────────────────────
@@ -330,7 +331,7 @@ export default function ReviewGrid() {
                 Platform Review
               </h1>
               <p className="font-orbitron text-xs text-secondary tracking-[0.2em] mt-0.5">
-                CHRONIX ERP — ALL PAGES
+                CHRONIX ERP · ALL PAGES · {APP_VERSION_SHORT_LABEL}
               </p>
             </div>
           </div>

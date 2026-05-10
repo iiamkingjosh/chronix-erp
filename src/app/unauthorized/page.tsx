@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import ChronixLogo from "@/components/ChronixLogo";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 
 export default function UnauthorizedPage() {
   return (
@@ -17,6 +18,7 @@ export default function UnauthorizedPage() {
         <Link href="/dashboard" className="btn-primary inline-flex">
           Back to Dashboard
         </Link>
+        <p className="text-white/15 text-[10px] font-orbitron tracking-widest mt-10">{APP_VERSION_SHORT_LABEL}</p>
       </div>
     </main>
   );

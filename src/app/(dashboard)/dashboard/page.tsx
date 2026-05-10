@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { ROLE_COLORS, resolveRole } from "@/types/roles";
 import type { ChronixUser } from "@/types/roles";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { formatNaira } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
@@ -121,7 +122,7 @@ export default function DashboardHome() {
           </span>
         </div>
         <p className="text-white/40 text-sm font-helvetica">
-          Welcome to Chronix ERP ·{" "}
+          Welcome to Chronix ERP {APP_VERSION_SHORT_LABEL} ·{" "}
           {new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
         </p>
       </div>

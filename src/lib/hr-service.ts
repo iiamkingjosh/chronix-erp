@@ -9,6 +9,18 @@ import type { Employee, PayrollRun, PayrollEntry, PerformanceNote } from "@/type
 const EMP  = "users";
 const PAY  = "payroll_runs";
 
+/**
+ * Employee HR rows are merged onto `users/{uid}` by Add Employee.
+ * Auth-only profiles lack payroll fields; treating every user doc as an employee
+ * hid everyone from the "link account" dropdown (existing === all uids).
+ */
+function userDocHasHrEmployeeRecord(raw: Record<string, unknown>): boolean {
+  const bank = typeof raw.bankName === "string" && raw.bankName.trim().length > 0;
+  const digits =
+    typeof raw.accountNumber === "string" ? raw.accountNumber.replace(/\D/g, "") : "";
+  return bank && digits.length >= 10;
+}
+
 function mapUserToEmployee(id: string, data: Record<string, unknown>): Employee {
   const createdAt = typeof data.createdAt === "string" ? data.createdAt : new Date().toISOString();
   const displayName =
@@ -82,7 +94,9 @@ export async function createEmployee(data: Employee): Promise<void> {
 export async function getEmployees(): Promise<Employee[]> {
   const snap = await getDocs(collection(db, EMP));
   return snap.docs
-    .map((d) => mapUserToEmployee(d.id, d.data() as Record<string, unknown>))
+    .map((d) => ({ id: d.id, raw: d.data() as Record<string, unknown> }))
+    .filter(({ raw }) => userDocHasHrEmployeeRecord(raw))
+    .map(({ id, raw }) => mapUserToEmployee(id, raw))
     .sort((a, b) => a.fullName.localeCompare(b.fullName));
 }
 

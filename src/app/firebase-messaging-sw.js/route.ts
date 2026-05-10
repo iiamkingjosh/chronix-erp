@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 
 /**
  * Serves the FCM service worker at /firebase-messaging-sw.js
@@ -15,6 +16,8 @@ export async function GET() {
     appId:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID             ?? "",
   };
 
+  const defaultTitle = `Chronix ERP ${APP_VERSION_SHORT_LABEL}`;
+
   const js = `
 importScripts("https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging-compat.js");
@@ -24,7 +27,7 @@ firebase.initializeApp(${JSON.stringify(config)});
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const { title = "Chronix ERP", body = "" } = payload.notification ?? {};
+  const { title = ${JSON.stringify(defaultTitle)}, body = "" } = payload.notification ?? {};
   self.registration.showNotification(title, {
     body,
     icon:  "/chronix-icon.png",

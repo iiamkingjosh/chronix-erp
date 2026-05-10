@@ -1,18 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createStaffUser } from "@/lib/user-setup";
-import { ROLES } from "@/types/roles";
-import type { Role } from "@/types/roles";
+import { ROLES, isRootAdmin, hasPermission, type Role } from "@/types/roles";
 import ChronixLogo from "@/components/ChronixLogo";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission } from "@/types/roles";
 
-const ROLE_OPTIONS = Object.values(ROLES).filter((r) => r !== "Client" && r !== "Root Admin");
+function rolesSelectableByCaller(rawRole: string): Role[] {
+  const internal = Object.values(ROLES).filter((r) => r !== ROLES.CLIENT);
+  if (isRootAdmin(rawRole)) return internal;
+  return internal.filter((r) => r !== ROLES.ROOT_ADMIN);
+}
 
 const schema = z
   .object({
@@ -20,7 +24,7 @@ const schema = z
     email:           z.string().email("Enter a valid email address"),
     password:        z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
-    role:            z.enum(ROLE_OPTIONS as [Role, ...Role[]]),
+    role:            z.string().min(1, "Select a role"),
     department:      z.string().optional(),
   })
   .refine((d) => d.password === d.confirmPassword, {
@@ -40,12 +44,22 @@ const ROLE_COLORS: Record<string, string> = {
   "Social Media Lead": "bg-pink-900/30 text-pink-300 border-pink-700/50",
   "HR":                "bg-teal-900/30 text-teal-300 border-teal-700/50",
   "Staff":             "bg-slate-700/30 text-slate-300 border-slate-600/50",
+  "Sales Rep":         "bg-cyan-900/30 text-cyan-300 border-cyan-700/50",
+  "Project Manager":   "bg-indigo-900/30 text-indigo-300 border-indigo-700/50",
+  "Finance Officer":   "bg-lime-900/30 text-lime-300 border-lime-700/50",
+  "IT Manager":        "bg-rose-900/30 text-rose-300 border-rose-700/50",
+  "Root Admin":        "bg-red-900/30 text-red-300 border-red-700/50",
 };
 
 export default function CreateUserPage() {
   const { profile, loading, firebaseUser } = useAuth();
-  const isEnabled = process.env.NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP === "true";
-  const canUseSetup = !!profile && hasPermission(profile.role, "manage:settings");
+  /** User provisioning is on by default; set NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP=false to lock the UI. */
+  const isEnabled = process.env.NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP !== "false";
+  const canUseSetup =
+    !!profile &&
+    (hasPermission(profile.role, "manage:settings") ||
+      hasPermission(profile.role, "manage:hr") ||
+      isRootAdmin(profile.role));
   const [created, setCreated]         = useState<CreatedUser[]>([]);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -54,8 +68,12 @@ export default function CreateUserPage() {
 
   const setupGateError =
     !loading && (!isEnabled || !canUseSetup)
-      ? "Setup tool is locked. Enable NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP=true and sign in as an admin."
+      ? !isEnabled
+        ? "User provisioning is disabled (NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP=false)."
+        : "Sign in as Root Admin, System Admin, or HR to create accounts."
       : null;
+
+  const roleOptions = profile ? rolesSelectableByCaller(profile.role) : [];
 
   const combinedError = serverError ?? setupGateError;
 
@@ -68,18 +86,22 @@ export default function CreateUserPage() {
         setServerError("You must be signed in to create users.");
         return;
       }
-      const profile = await createStaffUser(idToken, {
+      if (!roleOptions.includes(data.role as Role)) {
+        setServerError("Invalid role for your account.");
+        return;
+      }
+      const newUser = await createStaffUser(idToken, {
         email:       data.email,
         password:    data.password,
         displayName: data.displayName,
-        role:        data.role,
+        role:        data.role as Role,
         department:  data.department,
       });
       setCreated((prev) => [...prev, {
-        displayName: profile.displayName ?? profile.email,
-        email:       profile.email,
-        role:        profile.role,
-        uid:         profile.uid,
+        displayName: newUser.displayName ?? newUser.email,
+        email:       newUser.email,
+        role:        newUser.role,
+        uid:         newUser.uid,
       }]);
       reset();
     } catch (err: unknown) {
@@ -105,18 +127,10 @@ export default function CreateUserPage() {
           <ChronixLogo size={44} />
           <div>
             <h1 className="font-orbitron text-xl font-bold text-white tracking-wide">Create Account</h1>
-            <p className="text-white/40 text-xs font-helvetica mt-0.5">Chronix ERP — User Bootstrap</p>
+            <p className="text-white/40 text-xs font-helvetica mt-0.5">
+              Create an internal Chronix ERP account · {APP_VERSION_SHORT_LABEL}
+            </p>
           </div>
-        </div>
-
-        {/* Warning banner */}
-        <div className="flex gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mb-5">
-          <span className="text-amber-400 text-lg shrink-0">⚠</span>
-          <p className="text-amber-300 text-sm font-helvetica">
-            <strong className="text-amber-200">Setup tool.</strong> Keep this route disabled by default. Enable temporarily with{" "}
-            <code className="text-amber-300/80 text-xs">NEXT_PUBLIC_ENABLE_SETUP_BOOTSTRAP=true</code>{" "}
-            and remove it after bootstrap.
-          </p>
         </div>
 
         {/* Form */}
@@ -144,7 +158,7 @@ export default function CreateUserPage() {
                 <label className="field-label">Role</label>
                 <select {...register("role")} className="input-field" defaultValue="">
                   <option value="" disabled className="bg-primary-dark">Select a role…</option>
-                  {ROLE_OPTIONS.map((r) => (
+                  {roleOptions.map((r) => (
                     <option key={r} value={r} className="bg-primary-dark text-white">{r}</option>
                   ))}
                 </select>
@@ -219,24 +233,12 @@ export default function CreateUserPage() {
               <a href="/login" className="btn-primary text-center text-sm">
                 Go to Login →
               </a>
-              <p className="text-center text-white/20 text-xs font-helvetica">
-                Done? Delete <code className="text-white/40">src/app/setup/</code> and{" "}
-                <code className="text-white/40">src/lib/user-setup.ts</code>
-              </p>
+              <Link href="/dashboard" className="text-center text-white/35 hover:text-white/55 text-xs font-helvetica transition-colors">
+                Back to dashboard
+              </Link>
             </div>
           </div>
         )}
-
-        {/* Firestore rules hint */}
-        <div className="bg-white/[0.03] border border-white/8 rounded-xl p-4">
-          <p className="font-orbitron text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2">Firestore Rules Required</p>
-          <pre className="text-[11px] text-white/40 font-mono leading-relaxed overflow-x-auto">{`See firestore.rules:
-• Bootstrap create: Staff only, email == auth.token.email
-• Self update: displayName / photoURL / lastLoginAt only
-• Role changes + Root Admin: HR/CFO/Staff-admin paths;
-  Root-like roles only via canManageStaff()
-Setup uses POST /api/admin/users/create (Admin SDK).`}</pre>
-        </div>
       </div>
     </main>
   );

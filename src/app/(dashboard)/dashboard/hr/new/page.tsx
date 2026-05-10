@@ -34,6 +34,7 @@ export default function AddEmployeePage() {
   const [users, setUsers]         = useState<StaffMember[]>([]);
   const [existing, setExisting]   = useState<Set<string>>(new Set());
   const [serverError, setServerError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const canManage = profile ? hasPermission(profile.role, "manage:hr") : false;
 
@@ -46,10 +47,21 @@ export default function AddEmployeePage() {
   const selectedUser = users.find((u) => u.uid === watchedUid);
 
   useEffect(() => {
-    Promise.all([getStaffList(), getEmployees()]).then(([staff, emps]) => {
-      setUsers(staff);
-      setExisting(new Set(emps.map((e) => e.uid)));
-    }).catch(() => {});
+    let cancelled = false;
+    setLoadError(null);
+    Promise.all([getStaffList(), getEmployees()])
+      .then(([staff, emps]) => {
+        if (cancelled) return;
+        setUsers(staff);
+        setExisting(new Set(emps.map((e) => e.uid)));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLoadError(err instanceof Error ? err.message : "Could not load users or employee records.");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function onSubmit(data: FormData) {
@@ -104,6 +116,11 @@ export default function AddEmployeePage() {
         {/* Link to user account */}
         <div className="surface-card p-6">
           <h3 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Link to User Account</h3>
+          {loadError && (
+            <div className="mb-4 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+              <p className="text-red-400 text-sm font-helvetica">{loadError}</p>
+            </div>
+          )}
           <div>
             <label className="field-label">Select Employee</label>
             <select {...register("uid")} className="input-field">
@@ -115,7 +132,7 @@ export default function AddEmployeePage() {
               ))}
             </select>
             {errors.uid && <p className="mt-1 text-xs text-red-400">{errors.uid.message}</p>}
-            {availableUsers.length === 0 && (
+            {!loadError && availableUsers.length === 0 && (
               <p className="mt-2 text-xs text-white/30 font-helvetica">
                 All users already have employee records, or no users exist.{" "}
                 <a href="/setup/create-user" className="text-accent hover:underline">Create user accounts first.</a>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { sendPushToTokens } from "@/lib/push-service";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { sendEmail, taxReminderEmail } from "@/lib/email-service";
 
 export async function POST(req: NextRequest) {
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
     const tokens = user.fcmTokens ?? [];
     const email  = user.email;
 
-    const title   = "Test Notification — Chronix ERP";
+    const title   = `Test Notification — Chronix ERP ${APP_VERSION_SHORT_LABEL}`;
     const message = `This is a test notification for the ${user.role} role. Push and email delivery confirmed.`;
     const link    = "/dashboard/notifications";
 

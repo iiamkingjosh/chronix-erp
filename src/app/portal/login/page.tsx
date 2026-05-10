@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-service";
 import ChronixLogo from "@/components/ChronixLogo";
+import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 
 export default function PortalLoginPage() {
   const router = useRouter();
@@ -41,7 +42,9 @@ export default function PortalLoginPage() {
             <ChronixLogo size={52} />
           </div>
           <h1 className="font-orbitron text-xl font-black tracking-[0.1em] text-white">CHRONIX</h1>
-          <p className="font-orbitron text-[10px] tracking-[0.3em] text-secondary mt-1">CLIENT PORTAL</p>
+          <p className="font-orbitron text-[10px] tracking-[0.3em] text-secondary mt-1">
+            CLIENT PORTAL · {APP_VERSION_SHORT_LABEL}
+          </p>
           <p className="text-white/40 text-sm font-helvetica mt-3">Sign in to access your services</p>
         </div>
 
