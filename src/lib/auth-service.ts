@@ -80,7 +80,7 @@ export async function signUp(email: string, password: string, displayName: strin
   const token = await credential.user.getIdToken();
   setSessionCookie(token);
   setDoc(doc(db, "users", credential.user.uid), { lastLoginAt: new Date().toISOString() }, { merge: true }).catch(() => {});
-  logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName, actorRole: profile.role, action: "create", module: "users", entityId: profile.uid, entityRef: profile.email, details: "New account registered", timestamp: new Date().toISOString() });
+  logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "users", entityId: profile.uid, entityRef: profile.email, details: "New account registered", timestamp: new Date().toISOString() });
   return profile;
 }
 
@@ -98,7 +98,7 @@ export async function signIn(email: string, password: string): Promise<ChronixUs
   setDoc(doc(db, "users", credential.user.uid), { lastLoginAt: new Date().toISOString() }, { merge: true })
     .catch(() => { /* best-effort */ });
 
-  logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName, actorRole: profile.role, action: "login", module: "users", entityId: profile.uid, entityRef: profile.email, details: "User signed in", timestamp: new Date().toISOString() });
+  logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "login", module: "users", entityId: profile.uid, entityRef: profile.email, details: "User signed in", timestamp: new Date().toISOString() });
   return profile;
 }
 
