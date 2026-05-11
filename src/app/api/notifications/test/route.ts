@@ -25,17 +25,23 @@ export async function POST(req: NextRequest) {
     const message = `This is a test notification for the ${user.role} role. Push and email delivery confirmed.`;
     const link    = "/dashboard/notifications";
 
-    /* Write in-app notification */
-    await db.collection("notifications").add({
-      type:        "renewal_due",
-      title,
-      message,
-      link,
-      read:        false,
-      targetRoles: [user.role],
-      createdAt:   new Date().toISOString(),
-      dedupeKey:   null,
-    });
+    /* Write in-app notification — dedupe per user per day so tests don't pile up */
+    const today      = new Date().toISOString().slice(0, 10);
+    const dedupeKey  = `notif-test-${decoded.uid}-${today}`;
+    const existing   = await db.collection("notifications")
+      .where("dedupeKey", "==", dedupeKey).limit(1).get();
+    if (existing.empty) {
+      await db.collection("notifications").add({
+        type:        "renewal_due",
+        title,
+        message,
+        link,
+        read:        false,
+        targetRoles: [user.role],
+        createdAt:   new Date().toISOString(),
+        dedupeKey,
+      });
+    }
 
     const results: Record<string, string> = { inApp: "sent" };
 

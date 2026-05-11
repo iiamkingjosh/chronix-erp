@@ -113,12 +113,12 @@ service cloud.firestore {
 
     function hasViewCrm() {
       return hasViewAll() || isCFO() || canManageCRM() ||
-        isHR() || isStaffLike() || isSalesRep() || isProjectManager();
+        isSalesRep() || isProjectManager();
     }
 
     function hasViewProjects() {
       return hasViewAll() || isCFO() || isBrandLead() || isSocialLead() ||
-        isHR() || isStaffLike() || isProjectManager() || isITManager() || isSalesRep();
+        isStaffLike() || isProjectManager() || isITManager() || isSalesRep();
     }
 
     function hasViewProcurement() {
