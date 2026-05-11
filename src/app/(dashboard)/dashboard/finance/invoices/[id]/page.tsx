@@ -62,7 +62,7 @@ export default function InvoiceViewPage() {
   }
 
   async function handleDeleteInvoice() {
-    if (!invoice || invoice.status === "paid" || !canDelete) return;
+    if (!invoice || invoice.status === "paid" || !canDelete || !profile) return;
     setDeleting(true);
     try {
       await deleteInvoice(invoice.id);
