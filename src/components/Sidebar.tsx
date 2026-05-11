@@ -58,7 +58,7 @@ const NAV_GATE: Record<string, string[] | null> = {
   "/dashboard/knowledge":            ["view:knowledge", "manage:knowledge"],
   "/dashboard/incidents":            ["view:incidents", "manage:incidents"],
   "/dashboard/changes":              ["view:changes", "manage:changes"],
-  "/dashboard/oncall":               ["manage:oncall"],
+  "/dashboard/oncall":               ["view:oncall", "manage:oncall"],
   "/dashboard/brand/assets":         ["view:brand", "manage:brand", "view:social", "manage:social"],
   "/dashboard/analytics":            ["view:analytics"],
   "/dashboard/audit":                ["view:audit"],
