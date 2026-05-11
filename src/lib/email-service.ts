@@ -23,18 +23,33 @@ export interface EmailResult {
   error?:   string;   // Resend API error message
 }
 
+export interface EmailAttachment {
+  filename: string;
+  content:  Buffer;
+}
+
 export async function sendEmail(
   to: string[],
   subject: string,
   html: string,
+  attachments?: EmailAttachment[],
 ): Promise<EmailResult> {
-  if (!to.length)   return { sent: false, skipped: "no recipients" };
+  if (!to.length) return { sent: false, skipped: "no recipients" };
 
   const client = getResend();
-  if (!client)      return { sent: false, skipped: "RESEND_API_KEY not configured — check env vars and restart the dev server" };
+  if (!client)    return { sent: false, skipped: "RESEND_API_KEY not configured — check env vars and restart the dev server" };
 
   try {
-    const { error } = await client.emails.send({ from: FROM, to, subject, html });
+    const payload: Parameters<typeof client.emails.send>[0] = {
+      from: FROM, to, subject, html,
+      ...(attachments?.length ? {
+        attachments: attachments.map((a) => ({
+          filename: a.filename,
+          content:  a.content.toString("base64"),
+        })),
+      } : {}),
+    };
+    const { error } = await client.emails.send(payload);
     if (error) return { sent: false, error: `Resend: ${error.message}` };
     return { sent: true };
   } catch (err) {
@@ -103,4 +118,71 @@ export function subscriptionAlertEmail(title: string, message: string, link: str
     "Subscription Alert",
     bodyRow(title, message, link, "View Subscription"),
   );
+}
+
+export function invoiceEmail(invoiceNumber: string, clientName: string, total: string, dueDate: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,-apple-system,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
+<table width="580" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <tr><td style="background:#003366;padding:28px 32px;">
+    <p style="margin:0;color:#fff;font-size:22px;font-weight:700;letter-spacing:0.06em;font-family:monospace;">CHRONIX TECHNOLOGY LIMITED</p>
+    <p style="margin:6px 0 0;color:rgba(255,255,255,0.6);font-size:11px;letter-spacing:0.2em;text-transform:uppercase;">Invoice Notification</p>
+  </td></tr>
+  <tr><td style="padding:32px;">
+    <p style="margin:0 0 8px;color:#111;font-size:18px;font-weight:600;">Dear ${clientName},</p>
+    <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.7;">
+      Please find attached your invoice <strong style="color:#003366;">${invoiceNumber}</strong>.
+      A PDF copy is attached to this email for your records.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:24px;">
+      <tr>
+        <td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;">
+          <p style="margin:0;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;">Invoice Number</p>
+          <p style="margin:4px 0 0;color:#111;font-size:15px;font-weight:700;">${invoiceNumber}</p>
+        </td>
+        <td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;border-left:1px solid #e2e8f0;">
+          <p style="margin:0;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;">Amount Due</p>
+          <p style="margin:4px 0 0;color:#e85d04;font-size:15px;font-weight:700;">${total}</p>
+        </td>
+        <td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;border-left:1px solid #e2e8f0;">
+          <p style="margin:0;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;">Due Date</p>
+          <p style="margin:4px 0 0;color:#111;font-size:15px;font-weight:700;">${dueDate}</p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 8px;color:#555;font-size:13px;line-height:1.7;">
+      Kindly make payment by the due date to the account details below:
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:28px;">
+      <tr>
+        <td style="padding:12px 20px;border-right:1px solid #e2e8f0;">
+          <p style="margin:0;color:#888;font-size:10px;text-transform:uppercase;">Bank</p>
+          <p style="margin:3px 0 0;color:#111;font-size:12px;font-weight:600;">Fidelity Bank</p>
+        </td>
+        <td style="padding:12px 20px;border-right:1px solid #e2e8f0;">
+          <p style="margin:0;color:#888;font-size:10px;text-transform:uppercase;">Account Number</p>
+          <p style="margin:3px 0 0;color:#111;font-size:12px;font-weight:600;">5601601109</p>
+        </td>
+        <td style="padding:12px 20px;">
+          <p style="margin:0;color:#888;font-size:10px;text-transform:uppercase;">Account Name</p>
+          <p style="margin:3px 0 0;color:#111;font-size:12px;font-weight:600;">Chronix Technology Limited</p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;color:#555;font-size:13px;line-height:1.7;">
+      If you have any questions about this invoice, please contact us at
+      <a href="mailto:Info@chronixtechnology.com" style="color:#003366;">Info@chronixtechnology.com</a>
+      or call <strong>+234 91 2664 3718</strong>.
+    </p>
+  </td></tr>
+  <tr><td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+    <p style="margin:0;color:#aaa;font-size:10px;line-height:1.6;">
+      Chronix Technology Limited · No.7 Jerry Iriabe Street, Lekki Phase 1, Lagos<br>
+      TIN: 33646874-0001 · www.chronixtechnology.com
+    </p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
 }

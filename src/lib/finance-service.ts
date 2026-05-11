@@ -58,6 +58,13 @@ export async function getPayments(): Promise<Payment[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Payment));
 }
 
+export async function markInvoiceSent(id: string, sentTo: string): Promise<void> {
+  await updateDoc(doc(db, INV, id), {
+    sentAt: new Date().toISOString(),
+    sentTo,
+  });
+}
+
 export async function updateInvoiceApproval(
   id: string,
   approvalStatus: ApprovalStatus,

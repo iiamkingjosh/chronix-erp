@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
+    "@react-pdf/renderer": "^4.5.1",
+    "@types/react-pdf": "^6.2.0",
     "clsx": "^2.1.1",
     "firebase": "^10.12.4",
     "firebase-admin": "^13.8.0",

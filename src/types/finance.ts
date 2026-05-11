@@ -44,7 +44,10 @@ export interface Invoice {
     name: string;
     address: string;
     phone: string;
+    email?: string;
   };
+  sentAt?: string;
+  sentTo?: string;
   salesperson: string;
   items: InvoiceItem[];
   subtotal: number;

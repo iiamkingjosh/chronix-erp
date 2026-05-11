@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getInvoice, updateInvoiceStatus, deleteInvoice, updateInvoiceApproval } from "@/lib/finance-service";
+import { auth } from "@/lib/firebase";
 import { formatNaira, formatDate, COMPANY, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS } from "@/types/finance";
 import type { Invoice } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,10 +19,15 @@ export default function InvoiceViewPage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [rejectModal, setRejectModal] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [approving, setApproving] = useState(false);
+  const [deleting, setDeleting]           = useState(false);
+  const [rejectModal, setRejectModal]     = useState(false);
+  const [rejectReason, setRejectReason]   = useState("");
+  const [approving, setApproving]         = useState(false);
+  const [sendModal, setSendModal]         = useState(false);
+  const [sendEmail, setSendEmail]         = useState("");
+  const [sending, setSending]             = useState(false);
+  const [sendError, setSendError]         = useState<string | null>(null);
+  const [downloading, setDownloading]     = useState(false);
 
   const canManage  = profile ? hasPermission(profile.role, "manage:finance") : false;
   const canDelete  = profile ? canDeleteUnpaidInvoice(profile.role) : false;
@@ -84,6 +90,51 @@ export default function InvoiceViewPage() {
     setTimeout(() => { win.print(); }, 800);
   }
 
+  async function handleDownloadPDF() {
+    if (!invoice) return;
+    setDownloading(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      const res = await fetch(`/api/invoices/${invoice.id}/pdf`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) { alert("Failed to generate PDF"); return; }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `invoice-${invoice.invoiceNumber}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally { setDownloading(false); }
+  }
+
+  async function handleSendToClient() {
+    if (!invoice || !sendEmail.trim()) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      const res  = await fetch(`/api/invoices/${invoice.id}/send`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body:    JSON.stringify({ clientEmail: sendEmail.trim() }),
+      });
+      const json = await res.json() as { success?: boolean; error?: string; sentTo?: string };
+      if (!res.ok || !json.success) {
+        setSendError(json.error ?? "Failed to send invoice");
+        return;
+      }
+      setInvoice((prev) => prev ? { ...prev, sentAt: new Date().toISOString(), sentTo: json.sentTo } : prev);
+      setSendModal(false);
+      setSendEmail("");
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Failed to send invoice");
+    } finally { setSending(false); }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -111,6 +162,38 @@ export default function InvoiceViewPage() {
 
   return (
     <div className="animate-fade-in max-w-4xl">
+      {/* Send to Client modal */}
+      {sendModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="surface-card w-full max-w-md p-6 mx-4">
+            <h3 className="font-orbitron text-sm font-bold text-white mb-1">Send Invoice to Client</h3>
+            <p className="text-xs text-white/40 font-helvetica mb-4">
+              A PDF copy of <span className="text-accent">{invoice.invoiceNumber}</span> will be emailed as an attachment.
+            </p>
+            <label className="field-label">Client Email Address</label>
+            <input
+              type="email"
+              value={sendEmail}
+              onChange={(e) => setSendEmail(e.target.value)}
+              placeholder="client@example.com"
+              className="input-field mb-1"
+              autoFocus
+            />
+            {invoice.sentAt && (
+              <p className="text-[10px] text-white/30 font-helvetica mb-3">
+                Previously sent to {invoice.sentTo} on {new Date(invoice.sentAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </p>
+            )}
+            {sendError && <p className="text-xs text-red-400 font-helvetica mt-1 mb-2">{sendError}</p>}
+            <div className="flex gap-3 justify-end mt-4">
+              <button onClick={() => { setSendModal(false); setSendEmail(""); setSendError(null); }} className="text-xs text-white/40 hover:text-white font-helvetica px-3 py-2">Cancel</button>
+              <button onClick={handleSendToClient} disabled={!sendEmail.trim() || sending} className="btn-primary text-xs px-5 disabled:opacity-50">
+                {sending ? "Sending…" : "Send Invoice"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Reject modal */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -198,6 +281,24 @@ export default function InvoiceViewPage() {
                 </button>
               </div>
             )
+          )}
+          {canManage && (
+            <>
+              <button
+                onClick={handleDownloadPDF}
+                disabled={downloading}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-secondary border border-secondary/30 rounded-xl hover:bg-secondary/10 font-helvetica transition-colors disabled:opacity-50"
+              >
+                <DownloadIcon /> {downloading ? "Generating…" : "Download PDF"}
+              </button>
+              <button
+                onClick={() => { setSendModal(true); setSendEmail(invoice.client.email ?? ""); }}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-accent border border-accent/30 rounded-xl hover:bg-accent/10 font-helvetica transition-colors"
+              >
+                <SendIcon /> Send to Client
+                {invoice.sentAt && <span className="text-[10px] text-emerald-400 ml-1">✓ Sent</span>}
+              </button>
+            </>
           )}
           <button onClick={handlePrint} className="btn-primary">
             <PrintIcon /> Print Invoice
@@ -727,4 +828,10 @@ function PrintIcon() {
 }
 function CheckIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m20 6-11 11-5-5"/></svg>;
+}
+function DownloadIcon() {
+  return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+}
+function SendIcon() {
+  return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
 }
