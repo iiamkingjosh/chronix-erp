@@ -84,6 +84,7 @@ export default function NewSubscriptionPage() {
         createdBy:   profile.uid,
         updatedAt:   now,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "subscriptions", entityId: sub.id, entityRef: sub.itemName, details: `Subscription created: ${data.itemName} (${data.type}) via ${data.provider}, expires ${data.expiryDate}`, timestamp: now });
       router.push(`/dashboard/subscriptions/${sub.id}`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create subscription");

@@ -68,6 +68,7 @@ export default function ProjectDetailPage() {
   async function handleStatusChange(status: ProjectStatus) {
     if (!project || !profile) return;
     await updateProjectStatus(project.id, status, { uid: profile.uid, name: profile.displayName ?? profile.email });
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "projects", entityId: project.id, entityRef: project.name, details: `Project "${project.name}" status changed to ${PROJECT_STATUS_LABELS[status]}`, timestamp: new Date().toISOString() });
     setProject((prev) => prev ? { ...prev, status } : prev);
   }
 
@@ -126,6 +127,7 @@ export default function ProjectDetailPage() {
     if (!project || !profile) return;
     const milestone = project.milestones.find((m) => m.id === msId);
     await completeMilestone(project.id, msId, project.milestones, { uid: profile.uid, name: profile.displayName ?? profile.email });
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "projects", entityId: project.id, entityRef: project.name, details: `Milestone completed: "${milestone?.title}" on project "${project.name}"`, timestamp: new Date().toISOString() });
     if (milestone) {
       notifyMilestoneComplete({ id: project.id, name: project.name }, milestone).catch(() => {});
     }

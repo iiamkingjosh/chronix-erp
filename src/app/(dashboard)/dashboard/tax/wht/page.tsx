@@ -127,6 +127,7 @@ export default function WHTPage() {
         createdAt:     new Date().toISOString(),
         createdBy:     profile.uid,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT record logged: ₦${rec.whtAmount.toLocaleString()} deducted from ${rec.vendorName}`, timestamp: new Date().toISOString() });
       setAllRecords((prev) => [rec, ...prev]);
       setShowForm(false);
       setForm({ vendorName: "", invoiceAmount: "", whtRate: String(DEFAULT_WHT_RATE), paymentDate: new Date().toISOString().split("T")[0], sourceRef: "", notes: "" });

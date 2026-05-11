@@ -36,17 +36,19 @@ export default function IncidentDetailPage() {
   }
 
   async function handleStatus(status: IncidentStatus) {
-    if (!incident) return;
+    if (!incident || !profile) return;
     setActing(true);
     await updateIncidentStatus(incident.id, status);
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "incidents", entityId: incident.id, entityRef: incident.incidentRef, details: `Incident ${incident.incidentRef} status changed to ${status}`, timestamp: new Date().toISOString() });
     setIncident((prev) => prev ? { ...prev, status } : prev);
     setActing(false);
   }
 
   async function handleCloseRCA() {
-    if (!incident || !rcaForm.rootCause.trim()) return;
+    if (!incident || !profile || !rcaForm.rootCause.trim()) return;
     setActing(true);
     await closeIncidentWithRCA(incident.id, rcaForm.rootCause, rcaForm.actionsTaken, rcaForm.preventionPlan);
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "resolve", module: "incidents", entityId: incident.id, entityRef: incident.incidentRef, details: `Incident ${incident.incidentRef} closed with RCA`, timestamp: new Date().toISOString() });
     setIncident((prev) => prev ? { ...prev, status: "closed", ...rcaForm } : prev);
     setShowRCA(false); setActing(false);
   }

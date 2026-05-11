@@ -62,6 +62,7 @@ export default function SubscriptionDetailPage() {
         notes:          renewNotes || undefined,
       };
       await renewSubscription(sub.id, log, newExpiry);
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "subscriptions", entityId: sub.id, entityRef: sub.itemName, details: `Subscription "${sub.itemName}" renewed to ${newExpiry}`, timestamp: new Date().toISOString() });
       setSub((prev) => prev
         ? { ...prev, expiryDate: newExpiry, cancelled: false, renewalLog: [...prev.renewalLog, log] }
         : prev
@@ -74,6 +75,7 @@ export default function SubscriptionDetailPage() {
   async function handleCancel() {
     if (!sub || !profile) return;
     await cancelSubscription(sub.id);
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "subscriptions", entityId: sub.id, entityRef: sub.itemName, details: `Subscription "${sub.itemName}" cancelled`, timestamp: new Date().toISOString() });
     setSub((prev) => prev ? { ...prev, cancelled: true } : prev);
   }
 

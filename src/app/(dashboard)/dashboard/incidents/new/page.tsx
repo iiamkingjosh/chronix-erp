@@ -24,6 +24,7 @@ export default function NewIncidentPage() {
     if (!profile) return;
     setSaving(true);
     try {
+      const now = new Date().toISOString();
       const inc = await createIncident({
         incidentRef:      generateIncidentRef(),
         title:            form.title,
@@ -34,10 +35,11 @@ export default function NewIncidentPage() {
         status:           "open",
         incidentLead:     profile.displayName ?? profile.email,
         incidentLeadUid:  profile.uid,
-        detectedAt:       new Date().toISOString(),
+        detectedAt:       now,
         updates:          [],
-        createdAt:        new Date().toISOString(),
+        createdAt:        now,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "incidents", entityId: inc.id, entityRef: inc.incidentRef, details: `Incident declared: ${form.title} (${form.severity}) — ${form.affectedServices}`, timestamp: now });
       router.push(`/dashboard/incidents/${inc.id}`);
     } finally { setSaving(false); }
   }

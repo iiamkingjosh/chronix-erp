@@ -102,6 +102,7 @@ export default function NewProjectPage() {
         createdBy:  profile.uid,
         updatedAt:  now,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "projects", entityId: proj.id, entityRef: proj.projectId, details: `Project created: ${data.name} for ${data.clientName}`, timestamp: now });
       router.push(`/dashboard/projects/${proj.id}`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create project");

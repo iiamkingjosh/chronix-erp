@@ -28,7 +28,8 @@ export default function NewChangePage() {
     if (!profile) return;
     setSaving(true); setError(null);
     try {
-      await createChange({
+      const now = new Date().toISOString();
+      const change = await createChange({
         changeRef:       generateChangeRef(),
         title:           form.title,
         type:            form.type,
@@ -42,8 +43,9 @@ export default function NewChangePage() {
         status:          "pending_approval",
         requestedBy:     profile.displayName ?? profile.email,
         requestedByUid:  profile.uid,
-        createdAt:       new Date().toISOString(),
+        createdAt:       now,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "changes", entityId: change.id, entityRef: change.changeRef, details: `Change request submitted: ${form.title} (${form.type}, ${form.risk} risk)`, timestamp: now });
       router.push("/dashboard/changes");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit");

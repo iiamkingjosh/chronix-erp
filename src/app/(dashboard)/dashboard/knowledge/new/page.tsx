@@ -27,6 +27,7 @@ export default function NewArticlePage() {
     if (!profile || !form.title.trim() || !form.content.trim()) return;
     setSaving(true); setError(null);
     try {
+      const now = new Date().toISOString();
       const article = await createArticle({
         title:          form.title,
         category:       form.category,
@@ -37,10 +38,11 @@ export default function NewArticlePage() {
         isPublic:       form.isPublic,
         authorUid:      profile.uid,
         authorName:     profile.displayName ?? profile.email,
-        createdAt:      new Date().toISOString(),
-        updatedAt:      new Date().toISOString(),
+        createdAt:      now,
+        updatedAt:      now,
         viewCount:      0,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "knowledge", entityId: article.id, entityRef: form.title, details: `KB article ${form.status === "published" ? "published" : "saved as draft"}: "${form.title}" (${form.category})`, timestamp: now });
       router.push(`/dashboard/knowledge/${article.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");

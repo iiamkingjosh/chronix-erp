@@ -57,6 +57,7 @@ export default function NewAssetPage() {
         createdAt:      new Date().toISOString(),
         createdBy:      profile.displayName ?? profile.email,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "assets", entityRef: form.name, details: `Asset registered: ${form.name} (${form.category})${assignedEmp ? ` assigned to ${assignedEmp.fullName}` : ""}`, timestamp: new Date().toISOString() });
       router.push("/dashboard/assets");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save asset");

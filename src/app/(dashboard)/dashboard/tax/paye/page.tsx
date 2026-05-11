@@ -135,6 +135,10 @@ export default function PAYEPage() {
         newRecs.push(rec);
       }
       setRecords((prev) => [...prev, ...newRecs]);
+      if (newRecs.length > 0) {
+        const total = newRecs.reduce((s, r) => s + r.payeAmount, 0);
+        logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", details: `PAYE computed for ${newRecs.length} employee${newRecs.length !== 1 ? "s" : ""} — period ${period}, total ₦${total.toLocaleString()}`, timestamp: new Date().toISOString() });
+      }
 
       /* Push + email notification (best-effort) */
       if (newRecs.length > 0) {

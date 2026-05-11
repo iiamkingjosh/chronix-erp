@@ -89,8 +89,8 @@ export default function AddLeadPage() {
         updatedAt:  new Date().toISOString(),
       });
 
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "crm", entityId: lead.id, entityRef: lead.fullName, details: `Lead created: ${lead.fullName} (${lead.company}) assigned to ${assigneeName}`, timestamp: new Date().toISOString() });
       notifyNewLead({ id: lead.id, fullName: lead.fullName, company: lead.company }).catch(() => {});
-
       router.push(`/dashboard/crm/leads/${lead.id}`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create lead");

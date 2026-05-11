@@ -57,6 +57,7 @@ export default function AddVendorPage() {
         createdBy:     profile.uid,
         updatedAt:     now,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "procurement", entityId: vendor.id, entityRef: vendor.companyName, details: `Vendor added: ${data.companyName} (${data.category})`, timestamp: now });
       router.push(`/dashboard/procurement/vendors/${vendor.id}`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to add vendor");

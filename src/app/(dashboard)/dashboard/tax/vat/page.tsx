@@ -93,6 +93,7 @@ export default function VATPage() {
         period,
         createdAt: new Date().toISOString(),
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: rec.id, details: `VAT entry logged: ₦${rec.amount.toLocaleString()} ${rec.type} for ${rec.partyName} (${period})`, timestamp: new Date().toISOString() });
       setRecords((prev) => [rec, ...prev]);
       setShowLogForm(false);
       setLogForm({ type: "collected", amount: "", sourceType: "invoice", sourceRef: "", partyName: "", date: new Date().toISOString().split("T")[0] });

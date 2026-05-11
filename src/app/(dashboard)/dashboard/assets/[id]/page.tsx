@@ -42,19 +42,21 @@ export default function AssetDetailPage() {
   }, [id]);
 
   async function handleAssign() {
-    if (!asset || !assignUid) return;
+    if (!asset || !assignUid || !profile) return;
     const emp = employees.find((e) => e.uid === assignUid);
     if (!emp) return;
     setActing(true);
     await assignAsset(asset.id, emp.uid, emp.fullName);
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "assign", module: "assets", entityId: asset.id, entityRef: asset.name, details: `Asset "${asset.name}" assigned to ${emp.fullName}`, timestamp: new Date().toISOString() });
     setAsset((prev) => prev ? { ...prev, status: "assigned", assignedTo: emp.fullName, assignedToUid: emp.uid } : prev);
     setActing(false); setAssignUid("");
   }
 
   async function handleReturn() {
-    if (!asset) return;
+    if (!asset || !profile) return;
     setActing(true);
     await returnAsset(asset.id);
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "assets", entityId: asset.id, entityRef: asset.name, details: `Asset "${asset.name}" returned by ${asset.assignedTo ?? "unknown"}`, timestamp: new Date().toISOString() });
     setAsset((prev) => prev ? { ...prev, status: "available", assignedTo: undefined, assignedToUid: undefined } : prev);
     setActing(false);
   }

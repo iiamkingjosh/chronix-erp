@@ -80,6 +80,8 @@ export async function POST(request: Request) {
 
     await adminDb.collection("users").doc(cred.uid).set(profile);
 
+    adminDb.collection("audit_logs").add({ actorUid: decoded.uid, actorName: callerSnap.data()?.displayName ?? "", actorRole: callerRole, action: "create", module: "users", entityId: cred.uid, entityRef: email, details: `User account created: ${displayName} (${email}) with role ${targetRole}`, timestamp: now }).catch(() => {});
+
     return NextResponse.json({
       uid: cred.uid,
       email,

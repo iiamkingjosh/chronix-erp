@@ -42,8 +42,12 @@ export async function DELETE(
 
     const usersRef = adminDb.collection("users").doc(uid);
     const legacyEmployeesRef = adminDb.collection("employees").doc(uid);
+    const targetSnap = await adminDb.collection("users").doc(uid).get();
+    const targetName = (targetSnap.data()?.displayName ?? targetSnap.data()?.email ?? uid) as string;
     await Promise.allSettled([usersRef.delete(), legacyEmployeesRef.delete()]);
     await adminAuth.deleteUser(uid);
+
+    adminDb.collection("audit_logs").add({ actorUid: decoded.uid, actorName: callerSnap.data()?.displayName ?? "", actorRole: callerRole, action: "delete", module: "users", entityId: uid, entityRef: targetName, details: `User account deleted: ${targetName}`, timestamp: new Date().toISOString() }).catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (error) {

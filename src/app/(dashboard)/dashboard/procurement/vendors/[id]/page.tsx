@@ -48,6 +48,7 @@ export default function VendorDetailPage() {
         createdAt:    new Date().toISOString(),
       };
       await addVendorRating(vendor.id, r, vendor.ratings);
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "procurement", entityId: vendor.id, entityRef: vendor.companyName, details: `Rating added for ${vendor.companyName}: ${rating}/5`, timestamp: new Date().toISOString() });
       const all  = [...vendor.ratings, r];
       const avg  = Math.round((all.reduce((s, x) => s + x.rating, 0) / all.length) * 10) / 10;
       setVendor((prev) => prev ? { ...prev, ratings: all, avgRating: avg } : prev);

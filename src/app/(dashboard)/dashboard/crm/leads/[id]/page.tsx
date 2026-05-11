@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getLead, updateLeadStage, addLeadActivity,
-  addFollowUp, completeFollowUp, updateLeadNotes, convertToClient,
+  addFollowUp, completeFollowUp, convertToClient,
 } from "@/lib/crm-service";
 import {
   STAGE_LABELS, STAGE_STYLES, SOURCE_LABELS, SOURCE_STYLES,
@@ -44,6 +44,7 @@ export default function LeadDetailPage() {
   async function handleStageChange(stage: LeadStage) {
     if (!lead || !profile) return;
     await updateLeadStage(lead.id, stage, { uid: profile.uid, name: profile.displayName ?? profile.email });
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "crm", entityId: lead.id, entityRef: lead.fullName, details: `Lead ${lead.fullName} moved to stage: ${STAGE_LABELS[stage]}`, timestamp: new Date().toISOString() });
     setLead((prev) => prev ? { ...prev, stage } : prev);
   }
 
@@ -100,6 +101,7 @@ export default function LeadDetailPage() {
     setConverting(true);
     try {
       const client = await convertToClient(lead, { uid: profile.uid, name: profile.displayName ?? profile.email });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "crm", entityId: lead.id, entityRef: lead.fullName, details: `Lead ${lead.fullName} converted to client (${client.clientId})`, timestamp: new Date().toISOString() });
       router.push(`/dashboard/crm/clients/${client.id}`);
     } catch {
       setConverting(false);

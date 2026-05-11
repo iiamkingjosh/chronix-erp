@@ -87,6 +87,7 @@ export default function NewPOPage() {
         createdBy:    profile.uid,
         updatedAt:    now,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "procurement", entityId: po.id, entityRef: po.poNumber, details: `Purchase order ${po.poNumber} created for ${selectedVendor?.companyName ?? data.vendorId} — ₦${subtotal.toLocaleString()}`, timestamp: now });
       router.push(`/dashboard/procurement/orders`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create PO");
