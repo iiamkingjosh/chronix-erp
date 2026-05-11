@@ -83,7 +83,7 @@ export default function EmailMarketingPage() {
           title: camp.subject,
           message: camp.preheader ?? camp.subject,
           link: "/dashboard",
-          targetRoles: ["CEO", "CFO"],
+          targetRoles: ["Root Admin", "CEO", "CFO"],
           sendEmail: true,
           sendPush: false,
           customEmails: emails,

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         title:       "VAT Filing Due in 3 Days",
         message:     `VAT filing for ${period} is due on the 21st. Review your VAT summary and prepare your FIRS submission.`,
         link:        "/dashboard/tax/vat",
-        targetRoles: ["CEO", "CFO", "System Admin"],
+        targetRoles: ["Root Admin", "CEO", "CFO", "System Admin"],
         dedupeKey:   `vat-reminder-${period}`,
       });
     }
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         title:       "VAT Filing Due Today",
         message:     `VAT filing for ${period} is due today (21st). Ensure your submission to FIRS is complete.`,
         link:        "/dashboard/tax/vat",
-        targetRoles: ["CEO", "CFO", "System Admin"],
+        targetRoles: ["Root Admin", "CEO", "CFO", "System Admin"],
         dedupeKey:   `vat-deadline-${period}`,
       });
       /* WHT also due 21st */
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         title:       "WHT Remittance Due Today",
         message:     `Withholding tax deducted for ${period} must be remitted to FIRS today (21st).`,
         link:        "/dashboard/tax/wht",
-        targetRoles: ["CEO", "CFO", "System Admin"],
+        targetRoles: ["Root Admin", "CEO", "CFO", "System Admin"],
         dedupeKey:   `wht-deadline-${period}`,
       });
     }
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
         title:       "PAYE Remittance Due in 2 Days",
         message:     `PAYE remittance for ${period} is due on the 10th. Ensure payroll is finalised and PAYE is computed.`,
         link:        "/dashboard/tax/paye",
-        targetRoles: ["CEO", "CFO", "HR", "System Admin"],
+        targetRoles: ["Root Admin", "CEO", "CFO", "HR", "System Admin"],
         dedupeKey:   `paye-reminder-${period}`,
       });
     }
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
         title:       "PAYE Remittance Due Today",
         message:     `PAYE remittance for ${period} is due today (10th). Remit to LIRS/SIRS before end of business.`,
         link:        "/dashboard/tax/paye",
-        targetRoles: ["CEO", "CFO", "HR", "System Admin"],
+        targetRoles: ["Root Admin", "CEO", "CFO", "HR", "System Admin"],
         dedupeKey:   `paye-deadline-${period}`,
       });
     }
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
         title:       "Annual CIT Review — New Financial Year",
         message:     `CIT returns for FY ${year - 1} must be filed within 6 months of your financial year end. Engage your tax practitioner now.`,
         link:        "/dashboard/tax/corporate",
-        targetRoles: ["CEO", "CFO", "System Admin"],
+        targetRoles: ["Root Admin", "CEO", "CFO", "System Admin"],
         dedupeKey:   `annual-cit-${year - 1}`,
       });
     }
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
         title:       "Annual PAYE Return Due — 31 January",
         message:     `Annual PAYE employer return for ${year - 1} is due by 31 January ${year}. File with your State Internal Revenue Service.`,
         link:        "/dashboard/tax/paye",
-        targetRoles: ["CEO", "CFO", "HR", "System Admin"],
+        targetRoles: ["Root Admin", "CEO", "CFO", "HR", "System Admin"],
         dedupeKey:   `annual-paye-${year - 1}`,
       });
     }

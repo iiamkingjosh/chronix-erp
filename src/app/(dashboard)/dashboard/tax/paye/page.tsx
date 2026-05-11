@@ -152,7 +152,7 @@ export default function PAYEPage() {
               title:       "PAYE Calculation Completed",
               message:     `PAYE computed for ${newRecs.length} employee${newRecs.length !== 1 ? "s" : ""} — period ${period}. Total obligation: ${formatNaira(total)}.`,
               link:        "/dashboard/tax/paye",
-              targetRoles: ["CEO", "CFO", "HR", "System Admin"],
+              targetRoles: ["Root Admin", "CEO", "CFO", "HR", "System Admin"],
               sendEmail:   true,
               sendPush:    true,
               dedupeKey:   `paye-run-${period}`,

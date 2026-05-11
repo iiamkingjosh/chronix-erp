@@ -108,7 +108,7 @@ export default function VATPage() {
             title:       `VAT Entry Logged — ${rec.type === "collected" ? "Collected" : "Paid"}`,
             message:     `Manual VAT entry of ${formatNaira(rec.amount)} (${rec.type}) recorded for ${rec.partyName} in period ${period}.`,
             link:        "/dashboard/tax/vat",
-            targetRoles: ["CEO", "CFO", "System Admin"],
+            targetRoles: ["Root Admin", "CEO", "CFO", "System Admin"],
             sendEmail:   true,
             sendPush:    true,
           }),

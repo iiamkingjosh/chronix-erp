@@ -52,7 +52,7 @@ export async function notifySubscriptionExpiring(
     message:     `"${sub.itemName}" expires on ${sub.expiryDate}. Please action renewal.`,
     link:        `/dashboard/subscriptions/${sub.id}`,
     read:        false,
-    targetRoles: ["CEO", "System Admin", "CFO"],
+    targetRoles: ["Root Admin", "CEO", "System Admin", "CFO"],
     createdAt:   new Date().toISOString(),
     dedupeKey:   `sub-expiry-${sub.id}-${daysBand}d`,
   });
@@ -67,7 +67,7 @@ export async function notifyInvoiceOverdue(
     message:     `Invoice ${inv.invoiceNumber} for ${inv.clientName} is past its due date.`,
     link:        `/dashboard/finance/invoices/${inv.id}`,
     read:        false,
-    targetRoles: ["CEO", "CFO", "System Admin"],
+    targetRoles: ["Root Admin", "CEO", "CFO", "System Admin"],
     createdAt:   new Date().toISOString(),
     dedupeKey:   `inv-overdue-${inv.id}`,
   });
@@ -82,7 +82,7 @@ export async function notifyNewLead(
     message:     `${lead.fullName}${lead.company ? ` (${lead.company})` : ""} has been added as a lead.`,
     link:        `/dashboard/crm/leads/${lead.id}`,
     read:        false,
-    targetRoles: ["CEO", "System Admin", "Brand Lead", "Social Media Lead"],
+    targetRoles: ["Root Admin", "CEO", "System Admin", "Brand Lead", "Social Media Lead"],
     createdAt:   new Date().toISOString(),
   });
 }
@@ -97,7 +97,7 @@ export async function notifyMilestoneComplete(
     message:     `Milestone "${milestone.title}" completed in project "${project.name}".`,
     link:        `/dashboard/projects/${project.id}`,
     read:        false,
-    targetRoles: ["CEO", "System Admin"],
+    targetRoles: ["Root Admin", "CEO", "System Admin"],
     createdAt:   new Date().toISOString(),
   });
 }
@@ -153,7 +153,7 @@ export async function checkTaxFilingReminders(): Promise<void> {
       message:     `VAT filing for ${period} is due today (21st). Ensure FIRS submission is complete. Check VAT page for payable amount.`,
       link:        "/dashboard/tax/vat",
       read:        false,
-      targetRoles: ["CEO", "CFO"],
+      targetRoles: ["Root Admin", "CEO", "CFO"],
       createdAt:   now.toISOString(),
       dedupeKey:   `vat-filing-${period}`,
     });
@@ -167,7 +167,7 @@ export async function checkTaxFilingReminders(): Promise<void> {
       message:     `PAYE remittance for ${period} is due today (10th). Ensure remittance to LIRS/SIRS is complete.`,
       link:        "/dashboard/tax/paye",
       read:        false,
-      targetRoles: ["CEO", "CFO", "HR"],
+      targetRoles: ["Root Admin", "CEO", "CFO", "HR"],
       createdAt:   now.toISOString(),
       dedupeKey:   `paye-filing-${period}`,
     });
@@ -181,7 +181,7 @@ export async function checkTaxFilingReminders(): Promise<void> {
       message:     `It is ${year}. Corporate tax returns for FY ${year - 1} should be reviewed. Consult your tax practitioner.`,
       link:        "/dashboard/tax/corporate",
       read:        false,
-      targetRoles: ["CEO", "CFO"],
+      targetRoles: ["Root Admin", "CEO", "CFO"],
       createdAt:   now.toISOString(),
       dedupeKey:   `annual-cit-${year - 1}`,
     });
@@ -195,7 +195,7 @@ export async function checkTaxFilingReminders(): Promise<void> {
       message:     `Annual PAYE employer return for ${year - 1} is due by 31 January ${year}. File with your State Internal Revenue Service.`,
       link:        "/dashboard/tax/paye",
       read:        false,
-      targetRoles: ["CEO", "CFO", "HR"],
+      targetRoles: ["Root Admin", "CEO", "CFO", "HR"],
       createdAt:   now.toISOString(),
       dedupeKey:   `annual-paye-${year - 1}`,
     });

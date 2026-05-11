@@ -9,7 +9,7 @@ function isCronRequest(req: NextRequest): boolean {
   return !!secret && secret === process.env.CRON_SECRET;
 }
 
-const TARGET_ROLES = ["CEO", "System Admin", "CFO"];
+const TARGET_ROLES = ["Root Admin", "CEO", "System Admin", "CFO"];
 
 export async function GET(req: NextRequest) {
   if (!isCronRequest(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
