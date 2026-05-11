@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (profile) {
-      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName, actorRole: profile.role, action: "logout", module: "users", entityId: profile.uid, entityRef: profile.email, details: "User signed out", timestamp: new Date().toISOString() });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "logout", module: "users", entityId: profile.uid, entityRef: profile.email, details: "User signed out", timestamp: new Date().toISOString() });
     }
     await signOutUser();
     setProfile(null);
