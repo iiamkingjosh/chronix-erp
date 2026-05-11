@@ -53,10 +53,14 @@ export async function POST(req: NextRequest) {
     const emails = users.map((u) => u.email).filter(Boolean);
 
     if (body.sendPush !== false && tokens.length > 0) {
-      await sendPushToTokens(tokens, { title, body: message, link });
+      await sendPushToTokens(tokens, { title, body: message, link }).catch((e) =>
+        console.error("[notifications/send] push failed:", e)
+      );
     }
     if (body.sendEmail !== false && emails.length > 0) {
-      await sendEmail(emails, title, taxActivityEmail(title, message, link ?? "/dashboard/tax"));
+      await sendEmail(emails, title, taxActivityEmail(title, message, link ?? "/dashboard/tax")).catch((e) =>
+        console.error("[notifications/send] email failed:", e)
+      );
     }
 
     return NextResponse.json({ success: true });

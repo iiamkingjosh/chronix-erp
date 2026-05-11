@@ -39,10 +39,15 @@ export async function POST(req: NextRequest) {
 
     const results: Record<string, string> = { inApp: "sent" };
 
-    /* Push */
+    /* Push — isolated so an FCM error doesn't 500 the whole request */
     if (tokens.length > 0) {
-      await sendPushToTokens(tokens, { title, body: message, link });
-      results.push = `sent to ${tokens.length} device${tokens.length !== 1 ? "s" : ""}`;
+      try {
+        await sendPushToTokens(tokens, { title, body: message, link });
+        results.push = `sent to ${tokens.length} device${tokens.length !== 1 ? "s" : ""}`;
+      } catch (pushErr) {
+        console.error("[notifications/test] push failed:", pushErr);
+        results.push = `failed — ${pushErr instanceof Error ? pushErr.message : String(pushErr)}`;
+      }
     } else {
       results.push = "skipped — no FCM token registered for this user";
     }
