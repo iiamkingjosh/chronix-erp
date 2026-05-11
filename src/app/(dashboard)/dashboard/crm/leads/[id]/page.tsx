@@ -13,16 +13,16 @@ import {
 } from "@/types/crm";
 import type { Lead, LeadStage, ActivityEntry, FollowUp } from "@/types/crm";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 const STAGES: LeadStage[] = ["lead", "prospect", "client", "retained"];
 
 export default function LeadDetailPage() {
-  const params  = useParams();
-  const router  = useRouter();
+  const { id }      = useParams() as { id: string };
+  const router      = useRouter();
   const { profile } = useAuth();
-  const id = params?.id as string;
 
   const [lead, setLead]           = useState<Lead | null>(null);
   const [loading, setLoading]     = useState(true);

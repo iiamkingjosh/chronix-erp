@@ -14,16 +14,16 @@ import type { Ticket } from "@/types/tickets";
 import { PRIORITY_STYLES, PRIORITY_LABELS, STATUS_STYLES, STATUS_LABELS } from "@/types/tickets";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { ROLE_COLORS } from "@/types/roles";
 import type { Role } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 export default function EmployeeProfilePage() {
-  const params = useParams();
-  const router = useRouter();
+  const { id }      = useParams() as { id: string };
+  const router      = useRouter();
   const { profile } = useAuth();
-  const id = params?.id as string;
 
   const [employee, setEmployee]   = useState<Employee | null>(null);
   const [tickets, setTickets]     = useState<Ticket[]>([]);
@@ -80,6 +80,7 @@ export default function EmployeeProfilePage() {
         createdAt:   new Date().toISOString(),
       };
       await addPerformanceNote(employee.uid, note);
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "hr", entityId: employee.uid, entityRef: employee.fullName, details: `Performance note added for ${employee.fullName} — ${perfPeriod}`, timestamp: new Date().toISOString() });
       setEmployee((prev) => prev ? { ...prev, performanceNotes: [...(prev.performanceNotes ?? []), note] } : prev);
       setPerfNotes("");
     } finally { setSavingPerf(false); }
@@ -91,9 +92,11 @@ export default function EmployeeProfilePage() {
     try {
       if (employee.status === "suspended") {
         await activateEmployee(employee.uid);
+        if (profile) logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "hr", entityId: employee.uid, entityRef: employee.fullName, details: `Employee ${employee.fullName} reactivated`, timestamp: new Date().toISOString() });
         setEmployee((prev) => prev ? { ...prev, status: "active" } : prev);
       } else {
         await suspendEmployee(employee.uid);
+        if (profile) logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "hr", entityId: employee.uid, entityRef: employee.fullName, details: `Employee ${employee.fullName} suspended`, timestamp: new Date().toISOString() });
         setEmployee((prev) => prev ? { ...prev, status: "suspended" } : prev);
       }
     } finally {
@@ -102,10 +105,11 @@ export default function EmployeeProfilePage() {
   }
 
   async function handleDelete() {
-    if (!employee) return;
+    if (!employee || !profile) return;
     setActionLoading(true);
     try {
       await deleteEmployee(employee.uid);
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "delete", module: "hr", entityId: employee.uid, entityRef: employee.fullName, details: `Employee ${employee.fullName} deleted`, timestamp: new Date().toISOString() });
       router.replace("/dashboard/hr");
     } finally {
       setActionLoading(false);

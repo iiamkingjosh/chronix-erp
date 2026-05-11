@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { createTicket, getStaffList, type StaffMember } from "@/lib/tickets-service";
 import {
@@ -114,6 +115,7 @@ export default function NewTicketPage() {
         createdBy:    profile.uid,
         updatedAt:    new Date().toISOString(),
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "tickets", entityId: ticket.id, entityRef: ticket.ticketId, details: `Ticket created: ${data.title} (${data.priority} priority) for ${data.clientName}`, timestamp: new Date().toISOString() });
       router.push(`/dashboard/tickets/${ticket.id}`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create ticket");

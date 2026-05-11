@@ -19,6 +19,7 @@ import type { Project, Task, TaskStatus, TaskPriority, ProjectStatus, ProjectAct
 import type { Invoice } from "@/types/finance";
 import { formatNaira, formatDate } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
@@ -26,10 +27,9 @@ const TASK_COLS: TaskStatus[] = ["todo", "in_progress", "done"];
 const STATUSES: ProjectStatus[] = ["not_started", "in_progress", "on_hold", "completed"];
 
 export default function ProjectDetailPage() {
-  const params = useParams();
-  const router = useRouter();
+  const { id }      = useParams() as { id: string };
+  const router      = useRouter();
   const { profile } = useAuth();
-  const id = params?.id as string;
 
   const [project, setProject]   = useState<Project | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);

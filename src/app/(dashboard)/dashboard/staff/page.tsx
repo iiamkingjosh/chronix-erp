@@ -51,7 +51,7 @@ export default function StaffPage() {
           }),
         ),
       )
-      .catch(() => {})
+      .catch((e) => console.error("Failed to load staff:", e))
       .finally(() => setLoading(false));
   }, []);
 

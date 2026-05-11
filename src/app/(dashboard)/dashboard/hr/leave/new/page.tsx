@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { createLeaveRequest } from "@/lib/leave-service";
 import { LEAVE_TYPE_LABELS, calcLeaveDays } from "@/types/leave";
 import type { LeaveType } from "@/types/leave";
@@ -31,7 +32,7 @@ export default function NewLeavePage() {
     if (!profile || !form.reason.trim()) return;
     setSaving(true); setError(null);
     try {
-      await createLeaveRequest({
+      const req = await createLeaveRequest({
         employeeUid:   profile.uid,
         employeeName:  profile.displayName ?? profile.email,
         employeeEmail: profile.email,
@@ -45,6 +46,7 @@ export default function NewLeavePage() {
         status:        "pending",
         submittedAt:   new Date().toISOString(),
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "leave", entityId: req.id, entityRef: profile.displayName ?? profile.email, details: `Leave request submitted: ${form.leaveType} ${form.startDate} to ${form.endDate} (${days} days)`, timestamp: new Date().toISOString() });
       router.push("/dashboard/hr/leave");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit");

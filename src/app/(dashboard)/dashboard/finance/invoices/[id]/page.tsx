@@ -6,14 +6,14 @@ import { getInvoice, updateInvoiceStatus, deleteInvoice, updateInvoiceApproval }
 import { formatNaira, formatDate, COMPANY, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS } from "@/types/finance";
 import type { Invoice } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission, canDeleteUnpaidInvoice, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 export default function InvoiceViewPage() {
-  const params  = useParams();
-  const router  = useRouter();
+  const { id }      = useParams() as { id: string };
+  const router      = useRouter();
   const { profile } = useAuth();
-  const id = params?.id as string;
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +37,7 @@ export default function InvoiceViewPage() {
     setApproving(true);
     try {
       await updateInvoiceApproval(invoice.id, "approved", profile.displayName ?? profile.email);
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "approve", module: "invoices", entityId: invoice.id, entityRef: invoice.invoiceNumber, details: `Invoice ${invoice.invoiceNumber} approved`, timestamp: new Date().toISOString() });
       setInvoice((prev) => prev ? { ...prev, approvalStatus: "approved", approvedBy: profile.displayName ?? profile.email, approvedAt: new Date().toISOString() } : prev);
     } finally { setApproving(false); }
   }
@@ -46,6 +47,7 @@ export default function InvoiceViewPage() {
     setApproving(true);
     try {
       await updateInvoiceApproval(invoice.id, "rejected", profile.displayName ?? profile.email, { rejectionReason: rejectReason });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "reject", module: "invoices", entityId: invoice.id, entityRef: invoice.invoiceNumber, details: `Invoice ${invoice.invoiceNumber} rejected: ${rejectReason}`, timestamp: new Date().toISOString() });
       setInvoice((prev) => prev ? { ...prev, approvalStatus: "rejected", rejectedBy: profile.displayName ?? profile.email, rejectionReason: rejectReason } : prev);
       setRejectModal(false);
       setRejectReason("");
@@ -53,8 +55,9 @@ export default function InvoiceViewPage() {
   }
 
   async function handleMarkPaid() {
-    if (!invoice) return;
+    if (!invoice || !profile) return;
     await updateInvoiceStatus(invoice.id, "paid");
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "invoices", entityId: invoice.id, entityRef: invoice.invoiceNumber, details: `Invoice ${invoice.invoiceNumber} marked as paid`, timestamp: new Date().toISOString() });
     setInvoice((prev) => prev ? { ...prev, status: "paid" } : prev);
   }
 
@@ -63,6 +66,7 @@ export default function InvoiceViewPage() {
     setDeleting(true);
     try {
       await deleteInvoice(invoice.id);
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "delete", module: "invoices", entityId: invoice.id, entityRef: invoice.invoiceNumber, details: `Invoice ${invoice.invoiceNumber} deleted`, timestamp: new Date().toISOString() });
       router.replace("/dashboard/finance/invoices");
     } finally {
       setDeleting(false);

@@ -11,13 +11,13 @@ import {
 import type { Vendor, VendorRating, PurchaseOrder } from "@/types/procurement";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { cn } from "@/lib/utils";
 
 export default function VendorDetailPage() {
-  const params = useParams();
-  const router = useRouter();
+  const { id }      = useParams() as { id: string };
+  const router      = useRouter();
   const { profile } = useAuth();
-  const id = params?.id as string;
 
   const [vendor, setVendor]   = useState<Vendor | null>(null);
   const [orders, setOrders]   = useState<PurchaseOrder[]>([]);

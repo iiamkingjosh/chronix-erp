@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { createSubscription } from "@/lib/subscriptions-service";
 import { getClients } from "@/lib/crm-service";
@@ -58,7 +59,7 @@ export default function NewSubscriptionPage() {
   const autoRemindOn = !!autoRemindValue;
 
   useEffect(() => {
-    getClients().then(setClients).catch(() => {});
+    getClients().then(setClients).catch((e) => console.error("Failed to load clients:", e));
   }, []);
 
   async function onSubmit(data: FormData) {

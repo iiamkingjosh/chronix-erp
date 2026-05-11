@@ -17,9 +17,8 @@ import { PRIORITY_STYLES, PRIORITY_LABELS, STATUS_STYLES, STATUS_LABELS } from "
 import { cn } from "@/lib/utils";
 
 export default function ClientProfilePage() {
-  const params = useParams();
+  const { id } = useParams() as { id: string };
   const router = useRouter();
-  const id = params?.id as string;
 
   const [client, setClient]     = useState<Client | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);

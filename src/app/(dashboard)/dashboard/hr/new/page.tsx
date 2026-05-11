@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { createEmployee, getEmployees } from "@/lib/hr-service";
 import { getStaffList, type StaffMember } from "@/lib/tickets-service";
@@ -73,10 +74,11 @@ export default function AddEmployeePage() {
     setServerError(null);
     try {
       const now = new Date().toISOString();
+      const empName = selectedUser.displayName || selectedUser.email.split("@")[0] || "User";
       await createEmployee({
         id:            data.uid,
         uid:           data.uid,
-        fullName:      selectedUser.displayName || selectedUser.email.split("@")[0] || "User",
+        fullName:      empName,
         email:         selectedUser.email,
         phone:         data.phone,
         role:          selectedUser.role || ROLES.STAFF,
@@ -97,6 +99,7 @@ export default function AddEmployeePage() {
         createdAt:        now,
         updatedAt:        now,
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "hr", entityId: data.uid, entityRef: empName, details: `Employee record created for ${empName}`, timestamp: now });
       router.push(`/dashboard/hr/${data.uid}`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create employee record");

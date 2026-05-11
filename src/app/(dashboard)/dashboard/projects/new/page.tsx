@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { createProject } from "@/lib/projects-service";
 import { getStaffList, type StaffMember } from "@/lib/tickets-service";
@@ -53,7 +54,7 @@ export default function NewProjectPage() {
   const { fields: msFields, append: appendMs, remove: removeMs } = useFieldArray({ control, name: "milestones" });
 
   useEffect(() => {
-    Promise.all([getStaffList(), getClients()]).then(([s, c]) => { setStaff(s); setClients(c); }).catch(() => {});
+    Promise.all([getStaffList(), getClients()]).then(([s, c]) => { setStaff(s); setClients(c); }).catch((e) => console.error("Failed to load staff/clients:", e));
   }, []);
 
   function toggleTeam(member: StaffMember) {

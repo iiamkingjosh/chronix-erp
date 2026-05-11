@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { createExpense } from "@/lib/expense-service";
 import { EXPENSE_CATEGORY_LABELS } from "@/types/expense";
 import type { ExpenseCategory } from "@/types/expense";
@@ -29,7 +30,7 @@ export default function NewExpensePage() {
     setSaving(true);
     setError(null);
     try {
-      await createExpense({
+      const exp = await createExpense({
         title:         form.title,
         category:      form.category,
         amount:        Number(form.amount),
@@ -42,6 +43,7 @@ export default function NewExpensePage() {
         ...(form.linkedProject ? { linkedProject: form.linkedProject } : {}),
         ...(form.linkedClient  ? { linkedClient:  form.linkedClient  } : {}),
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "expenses", entityId: exp.id, entityRef: form.title, details: `Expense claim submitted: ${form.title} — ₦${form.amount}`, timestamp: new Date().toISOString() });
       router.push("/dashboard/finance/expenses");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit expense");

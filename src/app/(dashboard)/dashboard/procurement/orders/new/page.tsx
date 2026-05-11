@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { createPO, getVendors } from "@/lib/procurement-service";
 import { generatePONumber, formatProcDate } from "@/types/procurement";
@@ -56,7 +57,7 @@ export default function NewPOPage() {
   );
 
   useEffect(() => {
-    getVendors().then((v) => setVendors(v.filter((vnd) => vnd.status === "active"))).catch(() => {});
+    getVendors().then((v) => setVendors(v.filter((vnd) => vnd.status === "active"))).catch((e) => console.error("Failed to load vendors:", e));
   }, []);
 
   async function onSubmit(data: FormData) {

@@ -16,14 +16,14 @@ import {
 import type { Subscription, RenewalLog, SubType } from "@/types/subscriptions";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 export default function SubscriptionDetailPage() {
-  const params  = useParams();
-  const router  = useRouter();
+  const { id }      = useParams() as { id: string };
+  const router      = useRouter();
   const { profile } = useAuth();
-  const id = params?.id as string;
 
   const [sub, setSub]           = useState<Subscription | null>(null);
   const [loading, setLoading]   = useState(true);

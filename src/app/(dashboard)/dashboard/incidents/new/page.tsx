@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { createIncident } from "@/lib/incident-service";
 import { generateIncidentRef } from "@/types/incident";
 import type { IncidentSeverity } from "@/types/incident";

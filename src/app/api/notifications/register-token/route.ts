@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("[notifications/register-token] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

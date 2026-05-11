@@ -9,6 +9,7 @@ import {
 import { EMPLOYEE_STATUS_STYLES, formatHrDate } from "@/types/hr";
 import type { Employee } from "@/types/hr";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { formatNaira } from "@/types/finance";
 import { ROLE_COLORS } from "@/types/roles";
@@ -57,9 +58,11 @@ export default function EmployeeListPage() {
     try {
       if (emp.status === "suspended") {
         await activateEmployee(emp.uid);
+        if (profile) logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "hr", entityId: emp.uid, entityRef: emp.fullName, details: `Employee ${emp.fullName} reactivated`, timestamp: new Date().toISOString() });
         setEmployees((prev) => prev.map((e) => e.uid === emp.uid ? { ...e, status: "active" } : e));
       } else {
         await suspendEmployee(emp.uid);
+        if (profile) logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "hr", entityId: emp.uid, entityRef: emp.fullName, details: `Employee ${emp.fullName} suspended`, timestamp: new Date().toISOString() });
         setEmployees((prev) => prev.map((e) => e.uid === emp.uid ? { ...e, status: "suspended" } : e));
       }
     } finally {
@@ -71,7 +74,9 @@ export default function EmployeeListPage() {
     setActionError(null);
     setActionLoading(uid);
     try {
+      const emp = employees.find((e) => e.uid === uid);
       await deleteEmployee(uid);
+      if (profile) logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "delete", module: "hr", entityId: uid, entityRef: emp?.fullName, details: `Employee ${emp?.fullName ?? uid} deleted`, timestamp: new Date().toISOString() });
       setEmployees((prev) => prev.filter((e) => e.uid !== uid));
       setConfirmDelete(null);
     } catch (err) {

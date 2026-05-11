@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { createAsset } from "@/lib/asset-service";
 import { getEmployees } from "@/lib/hr-service";
 import { ASSET_CATEGORY_LABELS } from "@/types/asset";

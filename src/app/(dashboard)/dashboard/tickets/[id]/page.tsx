@@ -19,6 +19,7 @@ import {
 } from "@/types/tickets";
 import type { Ticket, TicketNote, TicketStatus } from "@/types/tickets";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
@@ -30,10 +31,9 @@ const NOTE_TYPE_STYLES: Record<TicketNote["type"], string> = {
 };
 
 export default function TicketDetailPage() {
-  const params  = useParams();
-  const router  = useRouter();
+  const { id }      = useParams() as { id: string };
+  const router      = useRouter();
   const { profile } = useAuth();
-  const id = params?.id as string;
 
   const [ticket, setTicket]         = useState<Ticket | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -55,7 +55,7 @@ export default function TicketDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (canManage) getStaffList().then(setStaff).catch(() => {});
+    if (canManage) getStaffList().then(setStaff).catch((e) => console.error("Failed to load staff:", e));
   }, [canManage]);
 
   async function handleStatusChange(status: TicketStatus) {
@@ -64,6 +64,7 @@ export default function TicketDetailPage() {
       uid:  profile.uid,
       name: profile.displayName ?? profile.email,
     });
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: status === "resolved" ? "resolve" : "update", module: "tickets", entityId: ticket.id, entityRef: ticket.ticketId, details: `Ticket ${ticket.ticketId} status changed to ${STATUS_LABELS[status]}`, timestamp: new Date().toISOString() });
     const updated = await getTicket(ticket.id);
     setTicket(updated);
   }
@@ -107,6 +108,7 @@ export default function TicketDetailPage() {
       uid:  profile.uid,
       name: profile.displayName ?? profile.email,
     });
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "assign", module: "tickets", entityId: ticket.id, entityRef: ticket.ticketId, details: `Ticket ${ticket.ticketId} reassigned to ${member.displayName}`, timestamp: new Date().toISOString() });
     const updated = await getTicket(ticket.id);
     setTicket(updated);
     setNewAssignee("");

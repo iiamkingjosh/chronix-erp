@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { createArticle } from "@/lib/knowledge-service";
 import { KB_CATEGORY_LABELS } from "@/types/knowledge";
 import type { KBCategory } from "@/types/knowledge";

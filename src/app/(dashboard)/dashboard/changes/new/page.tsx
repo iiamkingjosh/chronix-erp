@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { createChange } from "@/lib/change-service";
 import { CHANGE_TYPE_LABELS, generateChangeRef } from "@/types/change";
 import type { ChangeType, ChangeRisk } from "@/types/change";

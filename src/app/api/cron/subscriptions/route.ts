@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ sent });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("[cron/subscriptions] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

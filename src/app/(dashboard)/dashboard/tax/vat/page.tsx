@@ -8,6 +8,7 @@ import { currentPeriod, formatTaxDate } from "@/types/tax";
 import type { VATRecord } from "@/types/tax";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
@@ -96,7 +97,7 @@ export default function VATPage() {
       setShowLogForm(false);
       setLogForm({ type: "collected", amount: "", sourceType: "invoice", sourceRef: "", partyName: "", date: new Date().toISOString().split("T")[0] });
 
-      /* Push + email notification */
+      /* Push + email notification (best-effort) */
       auth.currentUser?.getIdToken().then((idToken) => {
         fetch("/api/notifications/send", {
           method:  "POST",
@@ -110,8 +111,10 @@ export default function VATPage() {
             sendEmail:   true,
             sendPush:    true,
           }),
-        }).catch(() => {});
-      }).catch(() => {});
+        }).catch((e) => console.error("VAT notification failed:", e));
+      }).catch((e) => console.error("VAT getIdToken failed:", e));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to log VAT entry");
     } finally { setLogging(false); }
   }
 

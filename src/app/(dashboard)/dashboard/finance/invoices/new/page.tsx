@@ -7,6 +7,7 @@ import { z } from "zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createInvoice } from "@/lib/finance-service";
+import { logAuditEvent } from "@/lib/audit-service";
 import { generateInvoiceNumber, today, addDays, formatNaira, VAT_RATE, COMPANY } from "@/types/finance";
 import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
@@ -126,6 +127,7 @@ function NewInvoiceForm() {
         createdBy: profile.uid,
       });
 
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: inv.id, entityRef: inv.invoiceNumber, details: `Invoice ${inv.invoiceNumber} created for ${data.clientName} — ${approvalStatus}`, timestamp: new Date().toISOString() });
       router.push(`/dashboard/finance/invoices/${inv.id}`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create invoice");

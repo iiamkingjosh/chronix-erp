@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { createDiscEntry } from "@/lib/disciplinary-service";
 import { getEmployees } from "@/lib/hr-service";
 import { DISC_ACTION_LABELS } from "@/types/disciplinary";
@@ -43,7 +44,7 @@ export default function NewDiscPage() {
     const emp = employees.find((e) => e.uid === form.employeeUid);
     if (!emp) { setError("Employee not found"); setSaving(false); return; }
     try {
-      await createDiscEntry({
+      const disc = await createDiscEntry({
         employeeUid:  emp.uid,
         employeeName: emp.fullName,
         department:   emp.department,
@@ -54,6 +55,7 @@ export default function NewDiscPage() {
         issuedBy:     profile.displayName ?? profile.email,
         issuedAt:     new Date().toISOString(),
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "disciplinary", entityId: disc.id, entityRef: emp.fullName, details: `Disciplinary record created for ${emp.fullName}: ${form.action} — ${form.subject}`, timestamp: new Date().toISOString() });
       router.push("/dashboard/hr/disciplinary");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");

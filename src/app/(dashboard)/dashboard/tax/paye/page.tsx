@@ -8,6 +8,7 @@ import type { PAYERecord } from "@/types/tax";
 import type { Employee } from "@/types/hr";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
@@ -93,6 +94,7 @@ export default function PAYEPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading]     = useState(true);
   const [running, setRunning]     = useState(false);
+  const [runError, setRunError]   = useState<string | null>(null);
   const [showBands, setShowBands] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
@@ -134,7 +136,7 @@ export default function PAYEPage() {
       }
       setRecords((prev) => [...prev, ...newRecs]);
 
-      /* Push + email notification */
+      /* Push + email notification (best-effort) */
       if (newRecs.length > 0) {
         const total = newRecs.reduce((s, r) => s + r.payeAmount, 0);
         auth.currentUser?.getIdToken().then((idToken) => {
@@ -151,9 +153,11 @@ export default function PAYEPage() {
               sendPush:    true,
               dedupeKey:   `paye-run-${period}`,
             }),
-          }).catch(() => {});
-        }).catch(() => {});
+          }).catch((e) => console.error("PAYE notification failed:", e));
+        }).catch((e) => console.error("PAYE getIdToken failed:", e));
       }
+    } catch (err) {
+      setRunError(err instanceof Error ? err.message : "Failed to run PAYE calculation");
     } finally { setRunning(false); }
   }
 
@@ -168,6 +172,14 @@ export default function PAYEPage() {
 
   return (
     <div className="animate-fade-in space-y-5">
+
+      {runError && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-500/8 border border-red-500/20 rounded-xl">
+          <span className="text-red-400 shrink-0">✕</span>
+          <p className="text-red-300/80 text-sm font-helvetica flex-1">{runError}</p>
+          <button onClick={() => setRunError(null)} className="text-xs text-red-400 hover:text-red-300 font-helvetica border border-red-500/20 hover:border-red-400/40 px-3 py-1 rounded-lg transition-colors shrink-0">Dismiss</button>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-4 justify-between">

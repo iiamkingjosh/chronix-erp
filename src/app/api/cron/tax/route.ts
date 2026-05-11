@@ -167,6 +167,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ sent, period });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("[cron/tax] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { createLead, getLeastLoadedStaff } from "@/lib/crm-service";
 import { getStaffList, type StaffMember } from "@/lib/tickets-service";
@@ -44,7 +45,7 @@ export default function AddLeadPage() {
   });
 
   useEffect(() => {
-    getStaffList().then(setStaff).catch(() => {});
+    getStaffList().then(setStaff).catch((e) => console.error("Failed to load staff:", e));
   }, []);
 
   async function onSubmit(data: FormData) {

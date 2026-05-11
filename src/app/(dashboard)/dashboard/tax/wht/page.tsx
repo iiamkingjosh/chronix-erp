@@ -8,6 +8,7 @@ import { generateWHTId, WHT_CERT_STYLES, formatTaxDate, currentPeriod } from "@/
 import type { WHTRecord } from "@/types/tax";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
@@ -92,7 +93,8 @@ export default function WHTPage() {
     paymentDate: new Date().toISOString().split("T")[0],
     sourceRef: "", notes: "",
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const canManage     = profile ? hasPermission(profile.role, "manage:tax") : false;
   const periodOptions = buildPeriodOptions();
@@ -110,6 +112,7 @@ export default function WHTPage() {
   async function handleCreate() {
     if (!profile || !form.vendorName || !form.invoiceAmount) return;
     setSaving(true);
+    setSaveError(null);
     try {
       const rec = await createWHTRecord({
         whtId:         generateWHTId(),
@@ -128,7 +131,7 @@ export default function WHTPage() {
       setShowForm(false);
       setForm({ vendorName: "", invoiceAmount: "", whtRate: String(DEFAULT_WHT_RATE), paymentDate: new Date().toISOString().split("T")[0], sourceRef: "", notes: "" });
 
-      /* Push + email notification */
+      /* Push + email notification (best-effort) */
       auth.currentUser?.getIdToken().then((idToken) => {
         fetch("/api/notifications/send", {
           method:  "POST",
@@ -142,8 +145,10 @@ export default function WHTPage() {
             sendEmail:   true,
             sendPush:    true,
           }),
-        }).catch(() => {});
-      }).catch(() => {});
+        }).catch((e) => console.error("WHT notification failed:", e));
+      }).catch((e) => console.error("WHT getIdToken failed:", e));
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save WHT record");
     } finally { setSaving(false); }
   }
 
@@ -161,6 +166,14 @@ export default function WHTPage() {
 
   return (
     <div className="animate-fade-in space-y-5">
+
+      {saveError && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-500/8 border border-red-500/20 rounded-xl">
+          <span className="text-red-400 shrink-0">✕</span>
+          <p className="text-red-300/80 text-sm font-helvetica flex-1">{saveError}</p>
+          <button onClick={() => setSaveError(null)} className="text-xs text-red-400 hover:text-red-300 font-helvetica border border-red-500/20 hover:border-red-400/40 px-3 py-1 rounded-lg transition-colors shrink-0">Dismiss</button>
+        </div>
+      )}
 
       {/* Toolbar ─ period filter + actions */}
       <div className="flex flex-wrap items-end gap-4 justify-between">

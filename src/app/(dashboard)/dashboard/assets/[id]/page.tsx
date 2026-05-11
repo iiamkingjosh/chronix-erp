@@ -9,6 +9,7 @@ import type { Asset } from "@/types/asset";
 import type { Employee } from "@/types/hr";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 

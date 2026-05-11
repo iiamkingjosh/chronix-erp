@@ -8,6 +8,7 @@ import { formatNaira, formatDate, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS
 import type { Invoice, ApprovalStatus } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission, canDeleteUnpaidInvoice } from "@/types/roles";
 
 function StatusBadge({ status }: { status: Invoice["status"] }) {
@@ -47,13 +48,19 @@ export default function InvoicesPage() {
 
   async function markStatus(id: string, status: Invoice["status"]) {
     await updateInvoiceStatus(id, status);
+    if (profile) {
+      const inv = invoices.find((i) => i.id === id);
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "invoices", entityId: id, entityRef: inv?.invoiceNumber, details: `Invoice status changed to ${status}`, timestamp: new Date().toISOString() });
+    }
     setInvoices((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
   }
 
   async function removeInvoice(id: string) {
     setDeletingId(id);
     try {
+      const inv = invoices.find((i) => i.id === id);
       await deleteInvoice(id);
+      if (profile) logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "delete", module: "invoices", entityId: id, entityRef: inv?.invoiceNumber, details: `Invoice ${inv?.invoiceNumber ?? id} deleted`, timestamp: new Date().toISOString() });
       setInvoices((prev) => prev.filter((i) => i.id !== id));
       setConfirmDeleteId(null);
     } finally {

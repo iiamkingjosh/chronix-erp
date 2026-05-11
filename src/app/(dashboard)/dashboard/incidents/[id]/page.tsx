@@ -6,6 +6,7 @@ import { getIncident, updateIncidentStatus, addIncidentUpdate, closeIncidentWith
 import { INCIDENT_SEVERITY_STYLES, INCIDENT_SEVERITY_LABELS, INCIDENT_STATUS_STYLES } from "@/types/incident";
 import type { Incident, IncidentStatus } from "@/types/incident";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { cn } from "@/lib/utils";
 
 function fmtTime(ts: string) {

@@ -11,6 +11,7 @@ import {
 import type { User } from "firebase/auth";
 import type { ChronixUser } from "@/types/roles";
 import { onAuthChange, fetchUserProfile, signOutUser } from "@/lib/auth-service";
+import { logAuditEvent } from "@/lib/audit-service";
 
 interface AuthState {
   firebaseUser:  User | null;
@@ -57,11 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    if (profile) {
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName, actorRole: profile.role, action: "logout", module: "users", entityId: profile.uid, entityRef: profile.email, details: "User signed out", timestamp: new Date().toISOString() });
+    }
     await signOutUser();
     setProfile(null);
     setFirebaseUser(null);
     setProfileError(null);
-  }, []);
+  }, [profile]);
 
   return (
     <AuthContext.Provider value={{ firebaseUser, profile, loading, profileError, signOut }}>

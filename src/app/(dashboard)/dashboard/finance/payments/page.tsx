@@ -5,6 +5,7 @@ import { getPayments, getInvoices, createPayment } from "@/lib/finance-service";
 import { formatNaira, formatDate, PAYMENT_METHOD_LABELS, today } from "@/types/finance";
 import type { Invoice, Payment, PaymentMethod } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
@@ -182,6 +183,7 @@ function RecordPaymentForm({
         recordedBy:    profile.uid,
         createdAt:     new Date().toISOString(),
       });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: selectedInv.id, entityRef: selectedInv.invoiceNumber, details: `Payment of ₦${selectedInv.total.toLocaleString()} recorded for invoice ${selectedInv.invoiceNumber}`, timestamp: new Date().toISOString() });
       onSuccess(payment);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to record payment");
