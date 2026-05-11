@@ -32,10 +32,13 @@ export async function GET(req: NextRequest) {
 
     let sent = 0;
 
+    let invoicesCreated = 0;
+
     for (const subDoc of subsSnap.docs) {
       const sub = { ...subDoc.data(), id: subDoc.id } as {
-        id: string; itemName: string; expiryDate: string;
+        id: string; subId: string; itemName: string; expiryDate: string;
         cancelled: boolean; autoRemind: boolean;
+        renewalCost: number; clientName: string;
       };
 
       if (sub.cancelled || !sub.autoRemind) continue;
@@ -64,10 +67,57 @@ export async function GET(req: NextRequest) {
         if (emails.length > 0) await sendEmail(emails, title, subscriptionAlertEmail(title, message, link));
 
         sent++;
+
+        /* Auto-create a draft renewal invoice at the 7-day mark */
+        if (band === 7 && (sub.renewalCost ?? 0) > 0) {
+          const invDedupeKey = `sub-invoice-${sub.id}-${sub.expiryDate.slice(0, 7)}`;
+          const existingInv  = await db.collection("invoices")
+            .where("subscriptionDedupeKey", "==", invDedupeKey).limit(1).get();
+
+          if (existingInv.empty) {
+            const d    = now;
+            const yy   = String(d.getFullYear()).slice(2);
+            const mm   = String(d.getMonth() + 1).padStart(2, "0");
+            const dd   = String(d.getDate()).padStart(2, "0");
+            const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+            const invoiceNumber = `CT${yy}${mm}${dd}-${rand}`;
+            const cost      = sub.renewalCost;
+            const vatAmount = Math.round(cost * 0.075 * 100) / 100;
+            const total     = Math.round((cost + vatAmount) * 100) / 100;
+            const invoiceDate = d.toISOString().split("T")[0];
+
+            await db.collection("invoices").add({
+              invoiceNumber,
+              invoiceDate,
+              dueDate:        sub.expiryDate,
+              status:         "pending",
+              approvalStatus: "draft",
+              client:         { name: sub.clientName ?? "Unknown", address: "", phone: "" },
+              salesperson:    "System",
+              items: [{
+                id: "1",
+                name:      `${sub.itemName} — Subscription Renewal`,
+                unitPrice: cost,
+                quantity:  1,
+                lineTotal: cost,
+              }],
+              subtotal:             cost,
+              vatRate:              0.075,
+              vatAmount,
+              total,
+              notes:                `Auto-generated renewal invoice for subscription ${sub.subId ?? sub.id}.`,
+              subscriptionId:       sub.id,
+              subscriptionDedupeKey: invDedupeKey,
+              createdAt:            new Date().toISOString(),
+              createdBy:            "cron",
+            });
+            invoicesCreated++;
+          }
+        }
       }
     }
 
-    return NextResponse.json({ sent });
+    return NextResponse.json({ sent, invoicesCreated });
   } catch (err) {
     console.error("[cron/subscriptions] error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

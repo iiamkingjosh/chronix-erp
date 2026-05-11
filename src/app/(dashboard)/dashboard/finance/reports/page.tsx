@@ -118,6 +118,77 @@ export default function FinancialReportsPage() {
     );
   }
 
+  function exportReportPDF() {
+    const fmtN = (n: number) => `₦${n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const esc  = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const base = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      *{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;padding:32px;font-size:12px;color:#111}
+      h1{font-size:18px;margin-bottom:4px}p.sub{color:#555;font-size:11px;margin-bottom:20px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#f4f4f4;border:1px solid #ddd;padding:6px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+      td{border:1px solid #eee;padding:6px 8px}
+      .num{text-align:right}.ctr{text-align:center}.pos{color:#166534}.neg{color:#991b1b}
+      tfoot td{background:#f9f9f9;font-weight:600}@media print{body{padding:16px}}
+    </style></head><body>`;
+
+    let body = "";
+    if (tab === "pl") {
+      const rows = plData.map((r) => `<tr>
+        <td>${r.month}</td>
+        <td class="num pos">${fmtN(r.revenue)}</td>
+        <td class="num neg">${fmtN(r.expenses)}</td>
+        <td class="num ${r.profit >= 0 ? "pos" : "neg"}">${fmtN(r.profit)}</td>
+        <td class="ctr">${r.revenue > 0 ? ((r.profit / r.revenue) * 100).toFixed(1) + "%" : "—"}</td>
+      </tr>`).join("");
+      body = `<h1>P&amp;L Statement — ${esc(year)}</h1>
+        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; Revenue: ${fmtN(totalRevenue)} &nbsp;·&nbsp; Profit: ${fmtN(totalProfit)}</p>
+        <table><thead><tr><th>Month</th><th>Revenue</th><th>Expenses</th><th>Net Profit</th><th>Margin</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td>TOTAL</td><td class="num">${fmtN(totalRevenue)}</td><td class="num">${fmtN(totalExpenses)}</td><td class="num">${fmtN(totalProfit)}</td><td></td></tr></tfoot></table>`;
+    } else if (tab === "ar") {
+      const rows = arRows.map((i) => `<tr>
+        <td>${esc(i.invoiceNumber)}</td><td>${esc(i.client.name)}</td>
+        <td>${esc(formatDate(i.dueDate))}</td><td class="num">${fmtN(i.total)}</td>
+        <td class="ctr">${esc(i.status)}</td><td class="ctr">${ageBucket(i.dueDate)} days</td>
+      </tr>`).join("");
+      const totalAR = arRows.reduce((s, i) => s + i.total, 0);
+      body = `<h1>Accounts Receivable Aging</h1>
+        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; ${arRows.length} outstanding invoice${arRows.length !== 1 ? "s" : ""} &nbsp;·&nbsp; Total: ${fmtN(totalAR)}</p>
+        <table><thead><tr><th>Invoice #</th><th>Client</th><th>Due Date</th><th>Amount</th><th>Status</th><th>Age</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:#999">No outstanding receivables.</td></tr>`}</tbody>
+        <tfoot><tr><td colspan="3">Total Outstanding</td><td class="num">${fmtN(totalAR)}</td><td></td><td></td></tr></tfoot></table>`;
+    } else if (tab === "ap") {
+      const rows = apRows.map((e) => `<tr>
+        <td>${esc(e.title)}</td><td>${esc(e.category)}</td>
+        <td>${esc(e.submittedBy)}</td><td>${esc(e.date)}</td>
+        <td class="num">${fmtN(e.amount)}</td><td class="ctr">${ageBucket(e.date)} days</td>
+      </tr>`).join("");
+      const totalAP = apRows.reduce((s, e) => s + e.amount, 0);
+      body = `<h1>Accounts Payable Aging</h1>
+        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; ${apRows.length} approved expense${apRows.length !== 1 ? "s" : ""} &nbsp;·&nbsp; Total: ${fmtN(totalAP)}</p>
+        <table><thead><tr><th>Title</th><th>Category</th><th>Submitted By</th><th>Date</th><th>Amount</th><th>Age</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:#999">No outstanding payables.</td></tr>`}</tbody>
+        <tfoot><tr><td colspan="4">Total Outstanding</td><td class="num">${fmtN(totalAP)}</td><td></td></tr></tfoot></table>`;
+    } else {
+      const rows = revenueClientRows.map(([client, total], idx) => `<tr>
+        <td class="ctr">${idx + 1}</td><td>${esc(client)}</td>
+        <td class="num">${fmtN(total)}</td>
+        <td class="ctr">${totalRevenue > 0 ? ((total / totalRevenue) * 100).toFixed(1) + "%" : "—"}</td>
+      </tr>`).join("");
+      body = `<h1>Revenue by Client — ${esc(year)}</h1>
+        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; Total: ${fmtN(totalRevenue)}</p>
+        <table><thead><tr><th>#</th><th>Client</th><th>Revenue</th><th>Share</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4" style="text-align:center;color:#999">No paid invoices for ${esc(year)}.</td></tr>`}</tbody>
+        <tfoot><tr><td></td><td>Total</td><td class="num">${fmtN(totalRevenue)}</td><td></td></tr></tfoot></table>`;
+    }
+
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(base + body + "</body></html>");
+    w.document.close();
+    w.print();
+  }
+
   const tabs: { v: ReportTab; label: string }[] = [
     { v: "pl",      label: "P&L Statement" },
     { v: "ar",      label: "AR Aging" },
@@ -140,8 +211,8 @@ export default function FinancialReportsPage() {
             className="text-xs text-white/60 hover:text-white font-helvetica border border-white/15 hover:border-white/30 px-3 py-2 rounded-lg transition-colors">
             Export CSV
           </button>
-          <button onClick={() => window.print()} className="text-xs text-white/60 hover:text-white font-helvetica border border-white/15 hover:border-white/30 px-3 py-2 rounded-lg transition-colors">
-            Print / PDF
+          <button onClick={exportReportPDF} className="text-xs text-white/60 hover:text-white font-helvetica border border-white/15 hover:border-white/30 px-3 py-2 rounded-lg transition-colors">
+            Export PDF
           </button>
         </div>
       </div>
