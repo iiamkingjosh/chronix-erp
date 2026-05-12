@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chronix Technology Limited — Business Profile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --p:#003366; --a:#FF761B; --s:#2472B4;
+    --dark:#09090f; --card:#111118;
+    --border:rgba(255,255,255,0.07);
+    --text:#e2e8f0; --muted:rgba(255,255,255,0.45);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:'Inter',system-ui,sans-serif;background:#09090f;color:var(--text);overflow-x:hidden}
+
+  /* ══════════ UTILITY ══════════ */
+  .container{max-width:1100px;margin:0 auto;padding:0 32px}
+  .section{padding:96px 0}
+  .section-sm{padding:64px 0}
+  .kicker{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--a);font-weight:700;margin-bottom:14px}
+  h2.section-title{font-family:'Orbitron',monospace;font-size:32px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:14px}
+  h2.section-title em{font-style:normal;color:var(--a)}
+  p.section-desc{font-size:15px;color:var(--muted);line-height:1.8;max-width:640px}
+  .divider{width:56px;height:3px;background:linear-gradient(90deg,var(--a),#e06000);border-radius:2px;margin:18px 0 32px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:30px;font-size:11.5px;font-weight:600;border:1px solid}
+  .chip-o{background:rgba(255,118,27,.1);color:var(--a);border-color:rgba(255,118,27,.25)}
+  .chip-b{background:rgba(36,114,180,.12);color:#60a5fa;border-color:rgba(36,114,180,.3)}
+  .chip-g{background:rgba(34,197,94,.08);color:#4ade80;border-color:rgba(34,197,94,.2)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px}
+  @media(max-width:768px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  /* ══════════ TOP NAV BAR ══════════ */
+  .topbar{
+    position:fixed;top:0;left:0;right:0;z-index:100;
+    background:rgba(9,9,15,.85);backdrop-filter:blur(20px);
+    border-bottom:1px solid var(--border);
+    padding:0 32px;height:64px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .topbar-logo{font-family:'Orbitron',monospace;font-size:16px;color:#fff;letter-spacing:.12em}
+  .topbar-logo span{color:var(--a)}
+  .topbar-nav{display:flex;gap:28px;align-items:center}
+  .topbar-nav a{font-size:12.5px;color:var(--muted);text-decoration:none;transition:color .2s;letter-spacing:.02em}
+  .topbar-nav a:hover{color:#fff}
+  .topbar-cta{
+    padding:7px 20px;border-radius:8px;font-size:12px;font-weight:600;
+    background:linear-gradient(135deg,var(--a),#e06000);color:#fff;
+    text-decoration:none;box-shadow:0 4px 14px rgba(255,118,27,.3);
+    transition:box-shadow .2s
+  }
+  .topbar-cta:hover{box-shadow:0 6px 20px rgba(255,118,27,.45)}
+
+  /* ══════════ HERO ══════════ */
+  .hero{
+    min-height:100vh;display:flex;align-items:center;
+    background:radial-gradient(ellipse at 25% 50%,rgba(0,51,102,.45) 0%,transparent 60%),
+               radial-gradient(ellipse at 80% 20%,rgba(255,118,27,.06) 0%,transparent 50%),
+               #09090f;
+    padding-top:64px;overflow:hidden;position:relative;
+  }
+  .hero-bg-lines{
+    position:absolute;inset:0;pointer-events:none;overflow:hidden;
+    background-image:
+      linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);
+    background-size:64px 64px;
+  }
+  .hero-badge{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:6px 16px;border-radius:30px;
+    background:rgba(255,118,27,.08);border:1px solid rgba(255,118,27,.2);
+    font-size:11.5px;color:var(--a);font-weight:600;margin-bottom:24px;
+  }
+  .hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--a);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .hero h1{font-family:'Orbitron',monospace;font-size:62px;font-weight:900;line-height:1.05;color:#fff;margin-bottom:10px}
+  .hero h1 span{color:var(--a)}
+  .hero-sub{font-size:20px;color:rgba(255,255,255,.55);font-weight:300;margin-bottom:10px}
+  .hero-tagline{font-size:15px;color:var(--muted);max-width:560px;line-height:1.8;margin-bottom:40px}
+  .hero-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:48px}
+  .hero-stats{display:flex;gap:40px;flex-wrap:wrap}
+  .hero-stat .n{font-family:'Orbitron',monospace;font-size:30px;font-weight:700;color:#fff}
+  .hero-stat .l{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.08em}
+  .hero-right{position:absolute;right:-60px;top:50%;transform:translateY(-50%);width:520px;opacity:.35;pointer-events:none}
+  .hero-ring{width:100%;aspect-ratio:1;border-radius:50%;border:1px solid rgba(255,118,27,.2);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+
+  /* ══════════ ABOUT ══════════ */
+  .about-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+  @media(max-width:768px){.about-grid{grid-template-columns:1fr;gap:40px}}
+  .about-visual{position:relative}
+  .about-card-main{
+    background:var(--card);border:1px solid var(--border);border-radius:20px;
+    padding:36px;position:relative;overflow:hidden;
+  }
+  .about-card-main::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,var(--p),var(--a));
+  }
+  .about-card-main .year{font-family:'Orbitron',monospace;font-size:56px;font-weight:900;color:rgba(255,255,255,.05);position:absolute;bottom:16px;right:20px;line-height:1}
+  .about-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+  .about-mini{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+  .about-mini .n{font-family:'Orbitron',monospace;font-size:22px;font-weight:700;color:var(--a)}
+  .about-mini .l{font-size:10px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.08em}
+
+  /* ══════════ MISSION / VISION / VALUES ══════════ */
+  .mvv{background:linear-gradient(135deg,rgba(0,51,102,.15) 0%,rgba(9,9,15,0) 100%);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .mvv-card{
+    padding:36px;border-radius:16px;
+    background:rgba(255,255,255,.02);border:1px solid var(--border);
+    transition:border-color .3s,transform .3s;
+  }
+  .mvv-card:hover{border-color:rgba(255,118,27,.3);transform:translateY(-4px)}
+  .mvv-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:20px}
+  .mvv-card h3{font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:#fff;letter-spacing:.06em;margin-bottom:12px;text-transform:uppercase}
+  .mvv-card p{font-size:13.5px;color:var(--muted);line-height:1.8}
+
+  /* ══════════ SERVICES ══════════ */
+  .services{background:#060610}
+  .service-card{
+    background:var(--card);border:1px solid var(--border);border-radius:20px;
+    padding:36px;transition:border-color .3s,transform .3s;position:relative;overflow:hidden;
+  }
+  .service-card:hover{border-color:rgba(255,118,27,.35);transform:translateY(-6px)}
+  .service-card::after{
+    content:'';position:absolute;inset:0;
+    background:radial-gradient(ellipse at 80% 0%,rgba(255,118,27,.04) 0%,transparent 60%);
+    pointer-events:none;opacity:0;transition:opacity .3s;
+  }
+  .service-card:hover::after{opacity:1}
+  .service-icon{
+    width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+    font-size:28px;margin-bottom:24px;
+    background:rgba(255,118,27,.08);border:1px solid rgba(255,118,27,.2);
+  }
+  .service-card h3{font-size:18px;font-weight:700;color:#fff;margin-bottom:12px}
+  .service-card p{font-size:13.5px;color:var(--muted);line-height:1.8;margin-bottom:20px}
+  .service-tags{display:flex;flex-wrap:wrap;gap:6px}
+  .service-tag{font-size:10.5px;color:rgba(255,255,255,.45);padding:3px 10px;border-radius:20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+
+  /* ══════════ WHY US ══════════ */
+  .why-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:768px){.why-grid{grid-template-columns:1fr}}
+  .why-item{
+    display:flex;gap:16px;align-items:flex-start;
+    padding:20px 24px;
+    background:rgba(255,255,255,.025);border:1px solid var(--border);
+    border-radius:14px;transition:border-color .2s;
+  }
+  .why-item:hover{border-color:rgba(255,118,27,.25)}
+  .why-num{
+    width:36px;height:36px;border-radius:10px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--a),#e06000);
+    color:#fff;font-weight:700;font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 12px rgba(255,118,27,.25);
+  }
+  .why-item h4{font-size:14px;font-weight:600;color:#fff;margin-bottom:5px}
+  .why-item p{font-size:12.5px;color:var(--muted);line-height:1.65}
+
+  /* ══════════ PRODUCT SPOTLIGHT ══════════ */
+  .product{background:#060610}
+  .product-inner{
+    border-radius:24px;overflow:hidden;
+    border:1px solid rgba(255,118,27,.2);
+    background:radial-gradient(ellipse at 30% 50%,rgba(0,51,102,.3) 0%,rgba(9,9,15,.9) 70%);
+    padding:64px;
+    display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;
+  }
+  @media(max-width:768px){.product-inner{grid-template-columns:1fr;padding:32px}}
+  .product-modules{display:flex;flex-wrap:wrap;gap:8px}
+  .module-pill{
+    padding:6px 14px;border-radius:30px;font-size:11px;font-weight:600;
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.55);
+    transition:all .2s;
+  }
+  .module-pill:hover{background:rgba(255,118,27,.08);border-color:rgba(255,118,27,.25);color:var(--a)}
+  .product-stat-row{display:flex;gap:32px;margin-top:32px}
+  .ps .n{font-family:'Orbitron',monospace;font-size:26px;font-weight:700;color:var(--a)}
+  .ps .l{font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.08em}
+
+  /* ══════════ TEAM ══════════ */
+  .team-card{
+    background:var(--card);border:1px solid var(--border);border-radius:20px;
+    padding:32px;text-align:center;transition:border-color .3s,transform .3s;
+  }
+  .team-card:hover{border-color:rgba(255,118,27,.3);transform:translateY(-4px)}
+  .team-avatar{
+    width:90px;height:90px;border-radius:50%;margin:0 auto 20px;
+    background:linear-gradient(135deg,var(--p),var(--s));
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Orbitron',monospace;font-size:26px;font-weight:700;color:#fff;
+    border:3px solid rgba(255,118,27,.3);
+    box-shadow:0 0 0 6px rgba(255,118,27,.06);
+  }
+  .team-card h3{font-size:17px;font-weight:700;color:#fff;margin-bottom:4px}
+  .team-card .role{font-size:12px;color:var(--a);font-weight:600;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+  .team-card p{font-size:12.5px;color:var(--muted);line-height:1.7}
+
+  /* ══════════ CONTACT ══════════ */
+  .contact{background:linear-gradient(135deg,rgba(0,51,102,.1) 0%,#09090f 100%)}
+  .contact-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:48px;align-items:start}
+  @media(max-width:768px){.contact-grid{grid-template-columns:1fr}}
+  .contact-item{
+    display:flex;gap:16px;align-items:flex-start;
+    padding:20px;background:rgba(255,255,255,.025);
+    border:1px solid var(--border);border-radius:14px;margin-bottom:12px;
+    transition:border-color .2s;
+  }
+  .contact-item:hover{border-color:rgba(255,118,27,.25)}
+  .contact-icon{
+    width:44px;height:44px;border-radius:12px;flex-shrink:0;
+    background:rgba(255,118,27,.08);border:1px solid rgba(255,118,27,.2);
+    display:flex;align-items:center;justify-content:center;font-size:20px;
+  }
+  .contact-item h4{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px;font-weight:600}
+  .contact-item p,.contact-item a{font-size:14px;color:#fff;text-decoration:none;font-weight:500}
+  .contact-item a:hover{color:var(--a)}
+  .contact-map{
+    background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:20px;
+    overflow:hidden;height:320px;display:flex;flex-direction:column;
+  }
+  .map-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .map-header .dot{width:10px;height:10px;border-radius:50%;background:var(--a);animation:pulse 2s infinite}
+  .map-header p{font-size:12.5px;color:rgba(255,255,255,.6)}
+  .map-body{flex:1;background:radial-gradient(circle at 50% 50%,rgba(0,51,102,.3) 0%,rgba(6,6,16,1) 100%);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+  .map-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:32px 32px}
+  .map-pin{display:flex;flex-direction:column;align-items:center;position:relative;z-index:2}
+  .map-pin-dot{width:16px;height:16px;border-radius:50%;background:var(--a);box-shadow:0 0 0 6px rgba(255,118,27,.2),0 0 0 12px rgba(255,118,27,.08)}
+  .map-pin-line{width:2px;height:28px;background:linear-gradient(var(--a),transparent);margin-top:6px}
+  .map-label{background:rgba(0,51,102,.8);border:1px solid rgba(255,118,27,.3);border-radius:8px;padding:8px 16px;text-align:center;margin-top:8px}
+  .map-label p{font-size:11.5px;color:#fff;font-weight:600}
+  .map-label span{font-size:10px;color:var(--muted)}
+
+  /* ══════════ FOOTER ══════════ */
+  footer{background:#040409;border-top:1px solid var(--border);padding:40px 32px}
+  .footer-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px}
+  .footer-logo{font-family:'Orbitron',monospace;font-size:14px;color:#fff;letter-spacing:.1em}
+  .footer-logo span{color:var(--a)}
+  .footer-links{display:flex;gap:20px}
+  .footer-links a{font-size:12px;color:var(--muted);text-decoration:none;transition:color .2s}
+  .footer-links a:hover{color:#fff}
+  .footer-copy{font-size:11px;color:rgba(255,255,255,.2)}
+
+  /* ══════════ SCROLL CTA BANNER ══════════ */
+  .cta-banner{
+    background:linear-gradient(135deg,var(--p) 0%,rgba(0,51,102,.6) 100%);
+    border-top:1px solid rgba(255,118,27,.2);
+    border-bottom:1px solid rgba(255,118,27,.2);
+    padding:48px 32px;text-align:center;
+  }
+  .cta-banner h2{font-family:'Orbitron',monospace;font-size:26px;color:#fff;margin-bottom:10px}
+  .cta-banner p{font-size:14px;color:rgba(255,255,255,.5);margin-bottom:28px}
+  .btn-main{display:inline-block;padding:14px 40px;border-radius:12px;font-size:13px;font-weight:700;background:linear-gradient(135deg,var(--a),#e06000);color:#fff;text-decoration:none;box-shadow:0 6px 24px rgba(255,118,27,.35);transition:all .2s;margin:6px}
+  .btn-main:hover{box-shadow:0 8px 32px rgba(255,118,27,.5);transform:translateY(-2px)}
+  .btn-out{display:inline-block;padding:14px 40px;border-radius:12px;font-size:13px;font-weight:700;background:rgba(255,255,255,.06);color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.15);margin:6px;transition:all .2s}
+  .btn-out:hover{background:rgba(255,255,255,.1)}
+
+  /* ══════════ PRINT STYLES ══════════ */
+  @media print{
+    .topbar,.cta-banner{display:none}
+    body{background:#fff;color:#111}
+    .section{padding:40px 0}
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ TOP NAV ══ -->
+<nav class="topbar">
+  <div class="topbar-logo">CHRONIX <span>TECH</span></div>
+  <div class="topbar-nav">
+    <a href="#about">About</a>
+    <a href="#services">Services</a>
+    <a href="#product">Product</a>
+    <a href="#team">Team</a>
+    <a href="#contact">Contact</a>
+    <a href="mailto:Info@chronixtechnology.com" class="topbar-cta">Get In Touch</a>
+  </div>
+</nav>
+
+<!-- ══ HERO ══ -->
+<section class="hero">
+  <div class="hero-bg-lines"></div>
+  <div class="container" style="position:relative;z-index:2;padding-top:40px;padding-bottom:80px">
+    <div class="hero-badge">🇳🇬 Lagos, Nigeria · Est. 2025</div>
+    <h1 class="hero h1">CHRONIX<br><span>TECHNOLOGY</span></h1>
+    <p class="hero-sub">Limited</p>
+    <p class="hero-tagline">We engineer digital solutions that transform how African businesses operate — from custom software and enterprise platforms to cybersecurity and IT infrastructure.</p>
+    <div class="hero-chips">
+      <span class="chip chip-o">💻 Software Development</span>
+      <span class="chip chip-b">🔧 IT Consulting & Support</span>
+      <span class="chip chip-g">🔐 Cybersecurity</span>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="n">18+</div><div class="l">Product Modules Built</div></div>
+      <div class="hero-stat"><div class="n">12</div><div class="l">RBAC Roles Supported</div></div>
+      <div class="hero-stat"><div class="n">100%</div><div class="l">Cloud-Native Stack</div></div>
+      <div class="hero-stat"><div class="n">2025</div><div class="l">Founded</div></div>
+    </div>
+  </div>
+  <!-- Decorative ring -->
+  <div style="position:absolute;right:0;top:0;bottom:0;width:50%;pointer-events:none;overflow:hidden;opacity:.12">
+    <div style="position:absolute;width:700px;height:700px;border-radius:50%;border:1px solid var(--a);top:50%;left:50%;transform:translate(-30%,-50%)"></div>
+    <div style="position:absolute;width:500px;height:500px;border-radius:50%;border:1px solid var(--s);top:50%;left:50%;transform:translate(-20%,-50%)"></div>
+    <div style="position:absolute;width:300px;height:300px;border-radius:50%;border:1px solid var(--a);top:50%;left:50%;transform:translate(-10%,-50%)"></div>
+    <div style="position:absolute;width:60px;height:60px;border-radius:50%;background:var(--a);top:50%;left:50%;transform:translate(40%,-50%);opacity:.5"></div>
+  </div>
+</section>
+
+<!-- ══ ABOUT ══ -->
+<section class="section" id="about">
+  <div class="container">
+    <div class="about-grid">
+      <div>
+        <div class="kicker">About Us</div>
+        <h2 class="section-title">Built by Engineers.<br>Driven by <em>Purpose.</em></h2>
+        <div class="divider"></div>
+        <p style="font-size:14.5px;color:var(--muted);line-height:1.85;margin-bottom:20px">
+          Chronix Technology Limited is a Lagos-based technology company founded to solve the operational challenges facing African businesses. We design, build, and deploy digital infrastructure that scales — from custom enterprise software to secure cloud platforms and managed IT services.
+        </p>
+        <p style="font-size:14.5px;color:var(--muted);line-height:1.85;margin-bottom:28px">
+          Our team combines deep engineering expertise with a first-hand understanding of how Nigerian and African businesses work — giving us a unique ability to build solutions that are not just technically excellent, but immediately practical.
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="chip chip-o">🏢 Technology Company</span>
+          <span class="chip chip-b">📍 Lekki, Lagos</span>
+          <span class="chip chip-g">🇳🇬 Nigerian-Owned</span>
+        </div>
+      </div>
+      <div class="about-visual">
+        <div class="about-card-main">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:var(--muted);margin-bottom:16px">Company at a Glance</div>
+          <div style="margin-bottom:16px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">REGISTERED NAME</div>
+            <div style="font-size:15px;font-weight:600;color:#fff">Chronix Technology Limited</div>
+          </div>
+          <div style="margin-bottom:16px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">TAX IDENTIFICATION NUMBER (TIN)</div>
+            <div style="font-size:15px;font-weight:600;color:#fff;font-family:monospace">33646874-0001</div>
+          </div>
+          <div style="margin-bottom:16px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">INDUSTRY</div>
+            <div style="font-size:15px;font-weight:600;color:#fff">Information Technology Services</div>
+          </div>
+          <div style="margin-bottom:16px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">HEADQUARTERS</div>
+            <div style="font-size:15px;font-weight:600;color:#fff">No.7 Jerry Iriabe Street, Lekki Phase 1, Lagos</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">YEAR FOUNDED</div>
+            <div style="font-size:15px;font-weight:600;color:#fff">2025</div>
+          </div>
+          <div class="year">2025</div>
+        </div>
+        <div class="about-mini-grid">
+          <div class="about-mini"><div class="n">CAC</div><div class="l">Registered</div></div>
+          <div class="about-mini"><div class="n">FIRS</div><div class="l">Tax Compliant</div></div>
+          <div class="about-mini"><div class="n">100%</div><div class="l">Nigerian Owned</div></div>
+          <div class="about-mini"><div class="n">Lagos</div><div class="l">Headquartered</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ MISSION / VISION / VALUES ══ -->
+<section class="section-sm mvv" id="mission">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:48px">
+      <div class="kicker" style="text-align:center">Our Foundation</div>
+      <h2 class="section-title" style="text-align:center">Mission. Vision. <em>Values.</em></h2>
+      <div class="divider" style="margin:18px auto 0"></div>
+    </div>
+    <div class="grid3">
+      <div class="mvv-card">
+        <div class="mvv-icon" style="background:rgba(255,118,27,.1);border:1px solid rgba(255,118,27,.2)">🎯</div>
+        <h3>Our Mission</h3>
+        <p>To empower African businesses with world-class technology solutions that eliminate operational inefficiency, enforce accountability, and drive sustainable growth — at a cost accessible to every growth-stage company on the continent.</p>
+      </div>
+      <div class="mvv-card" style="border-color:rgba(255,118,27,.2)">
+        <div class="mvv-icon" style="background:rgba(36,114,180,.1);border:1px solid rgba(36,114,180,.2)">🔭</div>
+        <h3>Our Vision</h3>
+        <p>To become the leading technology partner for African enterprises — recognised for building the digital backbone that enables the continent's most ambitious businesses to scale, compete, and lead globally.</p>
+      </div>
+      <div class="mvv-card">
+        <div class="mvv-icon" style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2)">💎</div>
+        <h3>Our Values</h3>
+        <p><strong style="color:#fff">Excellence</strong> — We build to the highest standard, every time.<br><br>
+        <strong style="color:#fff">Integrity</strong> — We do what we say. Full audit trails, full accountability.<br><br>
+        <strong style="color:#fff">Innovation</strong> — We solve African problems with African intelligence.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ SERVICES ══ -->
+<section class="section services" id="services">
+  <div class="container">
+    <div class="kicker">What We Do</div>
+    <h2 class="section-title">Our Core <em>Services</em></h2>
+    <div class="divider"></div>
+    <p class="section-desc" style="margin-bottom:48px">From concept to production deployment, we deliver end-to-end technology solutions built for reliability, security, and scale.</p>
+
+    <div class="grid3">
+
+      <!-- Software Development -->
+      <div class="service-card">
+        <div class="service-icon">💻</div>
+        <h3>Software Development</h3>
+        <p>We design and build custom software solutions tailored to your exact business needs — from web applications and enterprise platforms to APIs and automation systems. Our engineering team works with modern stacks to deliver fast, reliable, and scalable software.</p>
+        <div class="service-tags">
+          <span class="service-tag">Web Applications</span>
+          <span class="service-tag">Mobile Apps</span>
+          <span class="service-tag">Enterprise Platforms</span>
+          <span class="service-tag">API Development</span>
+          <span class="service-tag">ERP / CRM Systems</span>
+          <span class="service-tag">Process Automation</span>
+        </div>
+      </div>
+
+      <!-- IT Consulting -->
+      <div class="service-card">
+        <div class="service-icon">🔧</div>
+        <h3>IT Consulting & Support</h3>
+        <p>We provide strategic technology advisory and hands-on support that helps businesses make the right technology decisions, implement them correctly, and keep them running. Whether you need a technology roadmap or same-day helpdesk support — we are your IT partner.</p>
+        <div class="service-tags">
+          <span class="service-tag">Technology Strategy</span>
+          <span class="service-tag">IT Infrastructure</span>
+          <span class="service-tag">Helpdesk Support</span>
+          <span class="service-tag">Cloud Migration</span>
+          <span class="service-tag">System Integration</span>
+          <span class="service-tag">IT Procurement</span>
+        </div>
+      </div>
+
+      <!-- Cybersecurity -->
+      <div class="service-card">
+        <div class="service-icon">🔐</div>
+        <h3>Cybersecurity & Infrastructure</h3>
+        <p>We design and implement security-first architectures that protect your business, your data, and your clients. From role-based access control to security audits, compliance frameworks, and incident response — we ensure your operations are secure at every layer.</p>
+        <div class="service-tags">
+          <span class="service-tag">Security Architecture</span>
+          <span class="service-tag">Access Control (RBAC)</span>
+          <span class="service-tag">Security Audits</span>
+          <span class="service-tag">Data Protection</span>
+          <span class="service-tag">Compliance</span>
+          <span class="service-tag">Incident Response</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Additional services row -->
+    <div class="grid3" style="margin-top:24px">
+      <div class="service-card" style="padding:24px">
+        <div style="font-size:24px;margin-bottom:12px">🎨</div>
+        <h3 style="font-size:15px;margin-bottom:8px">UI/UX & Product Design</h3>
+        <p>Intuitive user interfaces built on design systems — ensuring every product we ship is as beautiful as it is functional.</p>
+      </div>
+      <div class="service-card" style="padding:24px">
+        <div style="font-size:24px;margin-bottom:12px">☁️</div>
+        <h3 style="font-size:15px;margin-bottom:8px">Cloud & DevOps</h3>
+        <p>Deployment pipelines, hosting architecture, monitoring, and uptime management on leading cloud platforms (Vercel, Firebase, AWS).</p>
+      </div>
+      <div class="service-card" style="padding:24px">
+        <div style="font-size:24px;margin-bottom:12px">📊</div>
+        <h3 style="font-size:15px;margin-bottom:8px">Digital Transformation</h3>
+        <p>We help businesses move from spreadsheets and paper-based processes to fully digital, automated, and integrated workflows.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ WHY CHOOSE US ══ -->
+<section class="section" id="why">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:64px;align-items:start">
+      <div>
+        <div class="kicker">Why Chronix</div>
+        <h2 class="section-title">The Chronix <em>Difference</em></h2>
+        <div class="divider"></div>
+        <p class="section-desc">We don't just write code — we understand the African business context and build solutions that actually work in it.</p>
+        <div style="margin-top:36px;padding:24px;background:rgba(255,118,27,.06);border:1px solid rgba(255,118,27,.2);border-radius:16px">
+          <p style="font-size:14px;color:rgba(255,255,255,.7);line-height:1.75;font-style:italic">"We built Chronix OS — our own internal ERP — for ourselves first. That means every feature has been tested in a real production environment before we offer it to clients."</p>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--p),var(--s));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px">JM</div>
+            <div><div style="font-size:13px;color:#fff;font-weight:600">Joshua Moses</div><div style="font-size:11px;color:var(--muted)">Chief Executive Officer</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="why-grid">
+        <div class="why-item"><div class="why-num">01</div><div><h4>Built for African Business</h4><p>Nigerian tax law, Naira-denominated systems, FIRS/NRS compliance — not global tools retrofitted for Africa.</p></div></div>
+        <div class="why-item"><div class="why-num">02</div><div><h4>Security-First Design</h4><p>Every system we build has RBAC, audit logging, and data isolation baked in from day one — not added as an afterthought.</p></div></div>
+        <div class="why-item"><div class="why-num">03</div><div><h4>Fast Delivery</h4><p>We ship fast. Our proven stack and modular architecture means you go from brief to live product in weeks, not months.</p></div></div>
+        <div class="why-item"><div class="why-num">04</div><div><h4>Long-Term Partnership</h4><p>We don't disappear after delivery. We provide ongoing support, updates, and improvements as your business grows.</p></div></div>
+        <div class="why-item"><div class="why-num">05</div><div><h4>Proof in Production</h4><p>Chronix OS runs our own business daily — 18+ modules in live production. We eat our own cooking.</p></div></div>
+        <div class="why-item"><div class="why-num">06</div><div><h4>Transparent & Accountable</h4><p>Fixed-scope quotes, clear timelines, full audit trails. You always know what you're getting and where things stand.</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PRODUCT SPOTLIGHT ══ -->
+<section class="section product" id="product">
+  <div class="container">
+    <div class="product-inner">
+      <div>
+        <div class="kicker">Our Flagship Product</div>
+        <h2 class="section-title" style="font-size:28px">Chronix OS —<br>The <em>Business Operating System</em></h2>
+        <div class="divider"></div>
+        <p style="font-size:14px;color:var(--muted);line-height:1.8;margin-bottom:24px">Chronix OS is our all-in-one internal ERP platform — built from the ground up for African enterprises. It covers Finance, HR, Tax, CRM, Operations, Projects, Brand, and more in a single secure, role-governed system.</p>
+        <p style="font-size:14px;color:var(--muted);line-height:1.8;margin-bottom:24px">Available as a licensed platform for your business or as a white-label solution you can brand as your own.</p>
+        <div class="product-stat-row">
+          <div class="ps"><div class="n">18+</div><div class="l">Modules</div></div>
+          <div class="ps"><div class="n">12</div><div class="l">Roles</div></div>
+          <div class="ps"><div class="n">8</div><div class="l">Security Layers</div></div>
+        </div>
+      </div>
+      <div>
+        <p style="font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);margin-bottom:16px;font-weight:600">Modules Included</p>
+        <div class="product-modules">
+          <span class="module-pill">💰 Finance</span>
+          <span class="module-pill">📄 E-Invoicing</span>
+          <span class="module-pill">👥 HR</span>
+          <span class="module-pill">💼 Payroll</span>
+          <span class="module-pill">🧮 PAYE / VAT / WHT</span>
+          <span class="module-pill">🎯 CRM</span>
+          <span class="module-pill">📈 Sales Pipeline</span>
+          <span class="module-pill">🎫 Tickets</span>
+          <span class="module-pill">📦 Subscriptions</span>
+          <span class="module-pill">🛒 Procurement</span>
+          <span class="module-pill">🚀 Projects</span>
+          <span class="module-pill">⏱ Time Tracking</span>
+          <span class="module-pill">🎨 Brand</span>
+          <span class="module-pill">📊 Analytics</span>
+          <span class="module-pill">🔐 Audit Log</span>
+          <span class="module-pill">🔔 Notifications</span>
+          <span class="module-pill">🏢 Assets</span>
+          <span class="module-pill">📚 Knowledge Base</span>
+          <span class="module-pill">🔥 Incidents</span>
+          <span class="module-pill">📟 On-Call</span>
+        </div>
+        <div style="margin-top:24px;padding:16px 20px;background:rgba(255,255,255,.04);border-radius:12px;border:1px solid rgba(255,255,255,.08)">
+          <p style="font-size:12px;color:var(--muted);line-height:1.7">Built on <strong style="color:#fff">Next.js 14 · TypeScript · Firebase · Tailwind CSS</strong>. Hosted on Vercel. Enterprise-grade infrastructure. NRS-compliant architecture ready.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ LEADERSHIP ══ -->
+<section class="section" id="team">
+  <div class="container">
+    <div class="kicker">Leadership</div>
+    <h2 class="section-title">Meet the <em>Team</em></h2>
+    <div class="divider"></div>
+    <p class="section-desc" style="margin-bottom:48px">Driven by experienced professionals who combine technical depth with African business intuition.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:860px">
+      <div class="team-card" style="border-color:rgba(255,118,27,.2)">
+        <div class="team-avatar">JM</div>
+        <h3>Joshua Moses</h3>
+        <div class="role">Chief Executive Officer</div>
+        <p>Leads the company's strategic direction, product vision, and client partnerships. The architect behind Chronix OS and Chronix's technology-first culture.</p>
+      </div>
+      <div class="team-card">
+        <div class="team-avatar" style="background:linear-gradient(135deg,#1a5fb4,#003366)">CT</div>
+        <h3>Engineering Team</h3>
+        <div class="role">Software & Infrastructure</div>
+        <p>A skilled team of full-stack engineers, security specialists, and cloud architects delivering robust digital solutions across all service lines.</p>
+      </div>
+      <div class="team-card">
+        <div class="team-avatar" style="background:linear-gradient(135deg,#2c2c54,#003366)">OPS</div>
+        <h3>Operations Team</h3>
+        <div class="role">Client Success & Support</div>
+        <p>Dedicated professionals ensuring smooth onboarding, ongoing platform support, and long-term client satisfaction for every engagement.</p>
+      </div>
+    </div>
+
+    <div style="margin-top:40px;padding:24px 32px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:16px;max-width:860px">
+      <p style="font-size:13px;color:var(--muted);line-height:1.7">We are actively growing our team. If you are a skilled software engineer, security specialist, or business consultant passionate about building the future of African business technology, we want to hear from you.</p>
+      <a href="mailto:Info@chronixtechnology.com?subject=Careers at Chronix Technology" style="display:inline-block;margin-top:12px;font-size:12.5px;color:var(--a);text-decoration:none;font-weight:600">Apply Now → Info@chronixtechnology.com</a>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CTA BANNER ══ -->
+<div class="cta-banner">
+  <div class="kicker" style="text-align:center">Ready to Work Together?</div>
+  <h2>Let's Build Something <span style="color:var(--a)">Remarkable</span></h2>
+  <p>Whether you need custom software, IT support, or want to license Chronix OS for your business — we are ready to talk.</p>
+  <a href="mailto:Info@chronixtechnology.com" class="btn-main">Send Us an Email</a>
+  <a href="tel:+2349126643718" class="btn-out">+234 91 2664 3718</a>
+</div>
+
+<!-- ══ CONTACT ══ -->
+<section class="section contact" id="contact">
+  <div class="container">
+    <div class="kicker">Get In Touch</div>
+    <h2 class="section-title">Contact <em>Information</em></h2>
+    <div class="divider"></div>
+    <div class="contact-grid">
+      <div>
+        <div class="contact-item">
+          <div class="contact-icon">📍</div>
+          <div>
+            <h4>Office Address</h4>
+            <p>No.7 Jerry Iriabe Street<br>Lekki Phase 1, Lagos, Nigeria</p>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">📧</div>
+          <div>
+            <h4>Email Address</h4>
+            <a href="mailto:Info@chronixtechnology.com">Info@chronixtechnology.com</a>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">📞</div>
+          <div>
+            <h4>Phone Number</h4>
+            <a href="tel:+2349126643718">+234 91 2664 3718</a>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">🌐</div>
+          <div>
+            <h4>Website</h4>
+            <a href="https://www.chronixtechnology.com" target="_blank">www.chronixtechnology.com</a>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">🏦</div>
+          <div>
+            <h4>Banking Details</h4>
+            <p style="font-size:13px;line-height:1.7">Fidelity Bank<br>Account: <strong>5601601109</strong><br>Account Name: Chronix Technology Limited</p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="contact-map">
+          <div class="map-header">
+            <div class="dot"></div>
+            <p>Lekki Phase 1, Lagos — Our Location</p>
+          </div>
+          <div class="map-body">
+            <div class="map-grid"></div>
+            <div class="map-pin">
+              <div class="map-pin-dot"></div>
+              <div class="map-pin-line"></div>
+              <div class="map-label">
+                <p>Chronix Technology Limited</p>
+                <span>No.7 Jerry Iriabe Street, Lekki Phase 1</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:20px 24px;background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:14px">
+          <p style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:12px;font-weight:600">Company Registration Details</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">TIN</div><div style="font-size:13px;color:#fff;font-family:monospace">33646874-0001</div></div>
+            <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Registration</div><div style="font-size:13px;color:#fff">CAC Registered</div></div>
+            <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Industry</div><div style="font-size:13px;color:#fff">IT Services</div></div>
+            <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Founded</div><div style="font-size:13px;color:#fff">2025</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FOOTER ══ -->
+<footer>
+  <div class="footer-inner">
+    <div>
+      <div class="footer-logo">CHRONIX <span>TECHNOLOGY</span> LIMITED</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.2);margin-top:4px">No.7 Jerry Iriabe Street, Lekki Phase 1, Lagos · TIN: 33646874-0001</div>
+    </div>
+    <div class="footer-links">
+      <a href="https://www.chronixtechnology.com/about-us" target="_blank">About</a>
+      <a href="https://www.chronixtechnology.com/services" target="_blank">Services</a>
+      <a href="https://www.chronixtechnology.com/blog" target="_blank">Blog</a>
+      <a href="mailto:Info@chronixtechnology.com">Contact</a>
+    </div>
+    <div class="footer-copy">© 2025 Chronix Technology Limited. All rights reserved.</div>
+  </div>
+</footer>
+
+<script>
+  // Smooth active nav highlight
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.topbar-nav a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 100) current = s.id; });
+    navLinks.forEach(a => {
+      a.style.color = a.getAttribute('href') === '#' + current
+        ? 'var(--a)' : '';
+    });
+  });
+</script>
+</body>
+</html>
