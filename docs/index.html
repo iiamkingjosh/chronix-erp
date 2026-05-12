@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chronix OS — Documentation</title>
+<style>
+  :root{--primary:#003366;--accent:#FF761B;--secondary:#2472B4;--dark:#09090f;--card:#111118;--border:rgba(255,255,255,0.08)}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#0b0b14;color:#e0e0e0;min-height:100vh}
+  /* ── Header ── */
+  header{background:var(--primary);padding:20px 40px;display:flex;align-items:center;gap:20px;border-bottom:3px solid var(--accent)}
+  header h1{font-family:monospace;font-size:22px;color:#fff;letter-spacing:.1em}
+  header p{font-size:11px;color:rgba(255,255,255,0.6);letter-spacing:.2em;text-transform:uppercase;margin-top:4px}
+  .badge{background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.05em}
+  /* ── Tab nav ── */
+  nav{background:#0d0d16;border-bottom:1px solid var(--border);display:flex;gap:0;overflow-x:auto}
+  nav button{padding:14px 28px;font-size:13px;color:rgba(255,255,255,0.45);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:all .2s;font-family:inherit}
+  nav button:hover{color:#fff}
+  nav button.active{color:var(--accent);border-bottom-color:var(--accent)}
+  /* ── Content ── */
+  main{max-width:1100px;margin:0 auto;padding:40px 24px}
+  .tab{display:none}.tab.active{display:block}
+  /* ── Cards ── */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:20px}
+  .card h2{font-size:16px;color:#fff;margin-bottom:16px;display:flex;align-items:center;gap-10px;gap:10px}
+  .card h2 .icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .card p,.card li{font-size:13.5px;color:rgba(255,255,255,0.6);line-height:1.7}
+  .card ul,.card ol{padding-left:20px;margin-top:8px}
+  .card li{margin-bottom:6px}
+  /* ── Grid ── */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr}}
+  /* ── Module card ── */
+  .module{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px}
+  .module h3{font-size:13px;color:#fff;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .module p{font-size:12px;color:rgba(255,255,255,0.45);line-height:1.6}
+  .module .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  /* ── Role table ── */
+  table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12.5px}
+  th{background:rgba(255,255,255,0.04);padding:10px 14px;text-align:left;color:rgba(255,255,255,0.4);font-size:10px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border)}
+  td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);color:rgba(255,255,255,0.7);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(255,255,255,0.02)}
+  .chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;margin:2px}
+  .c-green{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+  .c-blue{background:rgba(36,114,180,.15);color:#60a5fa;border:1px solid rgba(36,114,180,.3)}
+  .c-orange{background:rgba(255,118,27,.12);color:#fb923c;border:1px solid rgba(255,118,27,.25)}
+  .c-purple{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
+  .c-red{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.25)}
+  .c-gray{background:rgba(255,255,255,.06);color:rgba(255,255,255,.45);border:1px solid rgba(255,255,255,.1)}
+  /* ── Section heading ── */
+  .sh{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--accent);margin:32px 0 16px}
+  .sh:first-child{margin-top:0}
+  h1.title{font-size:26px;color:#fff;margin-bottom:8px}
+  p.subtitle{color:rgba(255,255,255,.4);font-size:14px;margin-bottom:32px}
+  /* ── Step list ── */
+  .step{display:flex;gap:16px;margin-bottom:20px;align-items:flex-start}
+  .step-num{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .step-body h4{color:#fff;font-size:14px;margin-bottom:4px}
+  .step-body p{font-size:13px;color:rgba(255,255,255,.5);line-height:1.6}
+  /* ── Security ── */
+  .sec-row{display:flex;gap:16px;margin-bottom:16px;align-items:flex-start;padding:16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px}
+  .sec-icon{font-size:22px;flex-shrink:0;width:40px;text-align:center}
+  .sec-body h4{color:#fff;font-size:14px;margin-bottom:6px}
+  .sec-body p{font-size:12.5px;color:rgba(255,255,255,.5);line-height:1.6}
+  code{font-family:monospace;background:rgba(255,255,255,.06);padding:1px 6px;border-radius:4px;font-size:12px;color:#a5f3fc}
+  footer{text-align:center;padding:40px 20px;color:rgba(255,255,255,.2);font-size:11px;border-top:1px solid var(--border);margin-top:60px}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>CHRONIX OS</h1>
+    <p>Internal Operations Platform — Documentation</p>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+    <span class="badge">v1.0</span>
+    <span style="color:rgba(255,255,255,.3);font-size:12px">Chronix Technology Limited</span>
+  </div>
+</header>
+
+<nav>
+  <button class="active" onclick="show('overview',this)">System Overview</button>
+  <button onclick="show('roles',this)">Role User Guide</button>
+  <button onclick="show('rootadmin',this)">Root Admin Guide</button>
+  <button onclick="show('security',this)">Security</button>
+</nav>
+
+<main>
+
+<!-- ══════════════════ SYSTEM OVERVIEW ══════════════════ -->
+<div id="overview" class="tab active">
+  <h1 class="title">Chronix OS — Full System Documentation</h1>
+  <p class="subtitle">A complete internal business management platform built for Chronix Technology Limited</p>
+
+  <div class="sh">What Was Built</div>
+  <div class="card">
+    <p>Chronix OS is a full-stack internal enterprise resource planning (ERP) platform built on <strong style="color:#fff">Next.js 14 (App Router)</strong>, <strong style="color:#fff">TypeScript</strong>, <strong style="color:#fff">Tailwind CSS</strong>, and <strong style="color:#fff">Firebase</strong> (Authentication + Firestore). It replaces manual spreadsheet workflows across every department with a unified, role-secured, real-time digital workspace.</p>
+    <br>
+    <p>Every module is connected — invoices link to clients and subscriptions, payroll auto-generates PAYE tax records, audit logs capture every significant action, and push + email notifications keep the right people informed in real time.</p>
+  </div>
+
+  <div class="sh">Modules Built</div>
+  <div class="grid3">
+    <div class="module"><h3><span class="dot" style="background:#4ade80"></span>Finance</h3><p>Invoices, Payments, Expenses, P&amp;L Reports, AR/AP Aging, Revenue by Client. Full e-invoicing with server-side PDF generation and email delivery to clients.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#60a5fa"></span>CRM</h3><p>Client directory, Lead pipeline, Follow-up tracking. Full client lifecycle from prospect to active account.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#f472b6"></span>HR</h3><p>Employee roster, Payroll (with automatic PAYE computation on completion), Leave management, Disciplinary records, Performance notes.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#fb923c"></span>Tax</h3><p>PAYE with Nigerian tax bands, VAT (7.5%), Withholding Tax, Corporate Income Tax estimation. Export to CSV, Excel, and PDF.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#a78bfa"></span>Subscriptions</h3><p>Track all software, domain, and service subscriptions. Renewal reminders at 60/30/7/1 days. Auto-creates draft invoice at 7-day mark.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#34d399"></span>Tickets</h3><p>Internal support ticketing system with priority levels, assignment, SLA tracking, and status management.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#fbbf24"></span>Projects</h3><p>Project management with status tracking, team assignment, milestones, and time tracking integration.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#f87171"></span>Procurement</h3><p>Vendor directory, Purchase Order management, WHT tracking on vendor payments.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#38bdf8"></span>Brand</h3><p>Brand asset library, Content calendar, Marketing campaigns, Email marketing management.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#818cf8"></span>Analytics</h3><p>Sales analytics, Service metrics, Team performance, Customer retention dashboards.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#e879f9"></span>Operations</h3><p>Incident management, Change log, On-call scheduling, Time tracking, Knowledge base.</p></div>
+    <div class="module"><h3><span class="dot" style="background:#fb923c"></span>Audit Log</h3><p>Full immutable log of every create, update, delete, login, logout, and export action across all modules.</p></div>
+  </div>
+
+  <div class="sh">Key Features</div>
+  <div class="grid2">
+    <div class="card">
+      <h2><span class="icon" style="background:rgba(255,118,27,.15);color:var(--accent)">📄</span>E-Invoicing (Phase 1)</h2>
+      <ul>
+        <li>Server-side PDF generation using <code>@react-pdf/renderer</code></li>
+        <li>Professional invoice with company header, line items, VAT, bank details</li>
+        <li>One-click <strong style="color:#fff">Download PDF</strong> to browser</li>
+        <li>One-click <strong style="color:#fff">Send to Client</strong> — emails PDF attachment via Resend</li>
+        <li>Invoice marked <code>sentAt</code> / <code>sentTo</code> on successful delivery</li>
+        <li>Full audit trail on every send action</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2><span class="icon" style="background:rgba(36,114,180,.15);color:var(--secondary)">🔁</span>Subscription Auto-Invoice</h2>
+      <ul>
+        <li>Daily cron job scans all active subscriptions</li>
+        <li>Sends alerts at 60 / 30 / 7 / 1 days before expiry</li>
+        <li>At <strong style="color:#fff">7 days</strong>, automatically creates a draft renewal invoice</li>
+        <li>Invoice pre-filled with client name, renewal cost + 7.5% VAT</li>
+        <li>Deduplication prevents double invoicing per cycle</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2><span class="icon" style="background:rgba(168,85,247,.15);color:#c084fc">💰</span>Payroll → PAYE Auto-Wiring</h2>
+      <ul>
+        <li>When HR marks payroll as fully paid, PAYE is computed automatically</li>
+        <li>Uses actual payroll <code>baseSalary</code> — not stale employee records</li>
+        <li>Skips employees already calculated for that period</li>
+        <li>PAYE records land in Tax → PAYE instantly — no manual step</li>
+        <li>Purple confirmation banner shown on payroll page</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2><span class="icon" style="background:rgba(34,197,94,.15);color:#4ade80">🔔</span>Push + Email Notifications</h2>
+      <ul>
+        <li>Firebase Cloud Messaging for browser push notifications</li>
+        <li>Resend API for HTML email delivery with brand templates</li>
+        <li>Targeted by role — each notification reaches only relevant staff</li>
+        <li>In-app notification centre with read/unread tracking</li>
+        <li>Deduplication prevents repeated alerts for the same event</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sh">Technology Stack</div>
+  <div class="card">
+    <table>
+      <tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
+      <tr><td>Frontend</td><td>Next.js 14 App Router + TypeScript</td><td>Full-stack React framework with server/client components</td></tr>
+      <tr><td>Styling</td><td>Tailwind CSS + custom design tokens</td><td>Chronix brand colours, Orbitron headings, glass-card system</td></tr>
+      <tr><td>Auth</td><td>Firebase Authentication</td><td>Email/password login, session management, ID token verification</td></tr>
+      <tr><td>Database</td><td>Cloud Firestore</td><td>Real-time NoSQL database for all business data</td></tr>
+      <tr><td>Server APIs</td><td>Next.js API Routes + Firebase Admin SDK</td><td>Secure server-side operations, PDF generation, email delivery</td></tr>
+      <tr><td>PDF</td><td>@react-pdf/renderer</td><td>Server-side professional PDF invoice generation</td></tr>
+      <tr><td>Email</td><td>Resend</td><td>Transactional email delivery with HTML templates</td></tr>
+      <tr><td>Push</td><td>Firebase Cloud Messaging (FCM)</td><td>Browser push notifications</td></tr>
+      <tr><td>Hosting</td><td>Vercel</td><td>Deployment, cron jobs, environment variables</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════ ROLE GUIDE ══════════════════ -->
+<div id="roles" class="tab">
+  <h1 class="title">Role User Guide</h1>
+  <p class="subtitle">What each role can see and do inside Chronix OS</p>
+
+  <!-- CEO -->
+  <div class="sh">CEO</div>
+  <div class="card">
+    <h2><span class="icon" style="background:rgba(255,118,27,.15);color:var(--accent)">👑</span>Chief Executive Officer</h2>
+    <p style="margin-bottom:14px">Full visibility across the entire platform. Approves invoices and expenses. Reviews all departmental activity.</p>
+    <div class="grid2">
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">MODULES ACCESSIBLE</p>
+        <p>Dashboard · Finance · Tax · CRM · Projects · HR · Payroll · Tickets · Subscriptions · Procurement · Brand · Analytics · Knowledge Base · Incidents · Changes · On-Call · Audit Log · Notifications · Settings</p>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">KEY ACTIONS</p>
+        <ul>
+          <li>Approve or reject invoices and expenses</li>
+          <li>View P&amp;L, AR/AP reports, revenue by client</li>
+          <li>Download and email invoices to clients</li>
+          <li>Review audit log — see who did what</li>
+          <li>View PAYE, VAT, WHT, Corporate Tax estimates</li>
+          <li>Manage disciplinary records for staff</li>
+          <li>View all staff, HR records, leave requests</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- CFO -->
+  <div class="sh">CFO</div>
+  <div class="card">
+    <h2><span class="icon" style="background:rgba(34,197,94,.15);color:#4ade80">💼</span>Chief Financial Officer</h2>
+    <p style="margin-bottom:14px">Manages all financial operations. Full control over finance, tax, and subscriptions.</p>
+    <div class="grid2">
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">MODULES ACCESSIBLE</p>
+        <p>Dashboard · Finance · Tax · CRM · Projects · HR · Tickets · Vendors · Subscriptions · Analytics · Notifications</p>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">KEY ACTIONS</p>
+        <ul>
+          <li>Create, edit, approve invoices and record payments</li>
+          <li>Manage expenses — approve or reject claims</li>
+          <li>Run PAYE, record VAT and WHT transactions</li>
+          <li>Manage subscriptions and renewal invoices</li>
+          <li>Export financial reports (P&amp;L, AR/AP) to CSV or PDF</li>
+          <li>View vendor directory and purchase orders</li>
+          <li>Delete unpaid invoices if required</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Admin -->
+  <div class="sh">System Admin</div>
+  <div class="card">
+    <h2><span class="icon" style="background:rgba(36,114,180,.15);color:var(--secondary)">⚙️</span>System Administrator</h2>
+    <p style="margin-bottom:14px">Full operational control. Manages users, settings, and all operational modules. Cannot delete invoices.</p>
+    <div class="grid2">
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">MODULES ACCESSIBLE</p>
+        <p>All modules — same as CEO + Root Admin operationally</p>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">KEY ACTIONS</p>
+        <ul>
+          <li>Add / edit / suspend employees and user accounts</li>
+          <li>Manage settings, push notification configuration</li>
+          <li>Manage tickets, knowledge base, incidents, changes</li>
+          <li>Manage on-call schedule and asset inventory</li>
+          <li>Run payroll, view audit log</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- HR -->
+  <div class="sh">HR</div>
+  <div class="card">
+    <h2><span class="icon" style="background:rgba(168,85,247,.15);color:#c084fc">👥</span>Human Resources</h2>
+    <p style="margin-bottom:14px">Manages the full employee lifecycle — from hiring records to payroll and leave.</p>
+    <div class="grid2">
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">MODULES ACCESSIBLE</p>
+        <p>Dashboard · Staff Roster · PAYE (view) · Tickets · HR Module · Analytics · Notifications</p>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">KEY ACTIONS</p>
+        <ul>
+          <li>Add new employees and update staff records</li>
+          <li>Generate monthly payroll runs</li>
+          <li>Mark payroll entries as paid (triggers PAYE auto-compute)</li>
+          <li>Approve or reject leave requests</li>
+          <li>Create and manage disciplinary records</li>
+          <li>View PAYE tax records for all staff</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Brand Lead -->
+  <div class="sh">Brand Lead</div>
+  <div class="card">
+    <h2><span class="icon" style="background:rgba(251,191,36,.15);color:#fbbf24">🎨</span>Brand Lead</h2>
+    <p style="margin-bottom:14px">Manages all brand output — content, campaigns, assets, and email marketing.</p>
+    <div class="grid2">
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">MODULES ACCESSIBLE</p>
+        <p>Dashboard · Tickets · CRM · Projects · Brand · Analytics · Notifications</p>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">KEY ACTIONS</p>
+        <ul>
+          <li>Upload and manage brand assets (images, fonts, documents)</li>
+          <li>Schedule content on the brand calendar</li>
+          <li>Create and track marketing campaigns</li>
+          <li>Manage email marketing campaigns</li>
+          <li>View CRM client data and leads</li>
+          <li>Manage brand-related projects</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sales Rep -->
+  <div class="sh">Sales Rep</div>
+  <div class="card">
+    <h2><span class="icon" style="background:rgba(34,197,94,.15);color:#4ade80">📈</span>Sales Representative</h2>
+    <p style="margin-bottom:14px">Manages the sales pipeline — from prospect to invoice.</p>
+    <div class="grid2">
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">MODULES ACCESSIBLE</p>
+        <p>Dashboard · Finance (view + create invoices) · CRM · Projects · Subscriptions · Knowledge Base · Notifications</p>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">KEY ACTIONS</p>
+        <ul>
+          <li>Add and manage leads and clients</li>
+          <li>Create invoices for clients</li>
+          <li>View subscription status for accounts</li>
+          <li>View financial records (read-only)</li>
+          <li>Submit expense claims</li>
+          <li>View project status</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- IT Manager -->
+  <div class="sh">IT Manager</div>
+  <div class="card">
+    <h2><span class="icon" style="background:rgba(56,189,248,.15);color:#38bdf8">🖥️</span>IT Manager</h2>
+    <p style="margin-bottom:14px">Manages all technical operations — incidents, assets, on-call, and changes.</p>
+    <div class="grid2">
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">MODULES ACCESSIBLE</p>
+        <p>Dashboard · Tickets · Projects · Assets · Time · Subscriptions · Knowledge Base · Incidents · Changes · On-Call · Analytics · Notifications</p>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">KEY ACTIONS</p>
+        <ul>
+          <li>Manage and resolve support tickets</li>
+          <li>Log and resolve incidents</li>
+          <li>Create change requests and track approvals</li>
+          <li>Manage company asset inventory</li>
+          <li>Set and manage on-call schedule</li>
+          <li>Manage knowledge base articles</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project Manager -->
+  <div class="sh">Project Manager</div>
+  <div class="card">
+    <h2><span class="icon" style="background:rgba(251,146,60,.15);color:#fb923c">📋</span>Project Manager</h2>
+    <p style="margin-bottom:14px">Owns the delivery of projects and manages cross-functional work.</p>
+    <div class="grid2">
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">MODULES ACCESSIBLE</p>
+        <p>Dashboard · Tickets · CRM · Projects · HR (view) · Time · Knowledge Base · Analytics · Notifications</p>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">KEY ACTIONS</p>
+        <ul>
+          <li>Create and manage projects</li>
+          <li>Assign tickets and track progress</li>
+          <li>Log and approve time entries</li>
+          <li>View HR records (team context)</li>
+          <li>Access knowledge base</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Staff -->
+  <div class="sh">Staff</div>
+  <div class="card">
+    <h2><span class="icon" style="background:rgba(255,255,255,.06);color:rgba(255,255,255,.4)">🙋</span>Staff (General)</h2>
+    <p style="margin-bottom:14px">Standard employee access — self-service for daily work tasks.</p>
+    <div class="grid2">
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">MODULES ACCESSIBLE</p>
+        <p>Dashboard · Tickets · Projects · HR (self) · Time Tracking · Knowledge Base · Notifications · Settings</p>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">KEY ACTIONS</p>
+        <ul>
+          <li>Submit and track support tickets</li>
+          <li>View assigned projects</li>
+          <li>Submit leave requests</li>
+          <li>Submit expense claims</li>
+          <li>Log time entries</li>
+          <li>Read knowledge base articles</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="sh">Access Summary Table</div>
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <tr>
+        <th>Module</th>
+        <th>Root Admin</th><th>CEO</th><th>CFO</th><th>Sys Admin</th>
+        <th>HR</th><th>Brand Lead</th><th>Sales Rep</th><th>IT Mgr</th><th>Proj Mgr</th><th>Staff</th>
+      </tr>
+      <tr><td>Finance</td><td>✅</td><td>✅ view</td><td>✅ manage</td><td>✅ view</td><td>—</td><td>—</td><td>✅ create</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Tax / PAYE</td><td>✅</td><td>✅ view</td><td>✅ manage</td><td>✅ view</td><td>PAYE view</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>CRM</td><td>✅</td><td>✅</td><td>✅ view</td><td>✅ manage</td><td>—</td><td>✅ manage</td><td>✅ manage</td><td>—</td><td>✅ view</td><td>—</td></tr>
+      <tr><td>HR / Payroll</td><td>✅</td><td>✅ view</td><td>✅ view</td><td>✅ manage</td><td>✅ manage</td><td>—</td><td>—</td><td>—</td><td>✅ view</td><td>self</td></tr>
+      <tr><td>Projects</td><td>✅</td><td>✅</td><td>✅ view</td><td>✅ manage</td><td>—</td><td>✅ manage</td><td>✅ view</td><td>✅ view</td><td>✅ manage</td><td>✅ view</td></tr>
+      <tr><td>Tickets</td><td>✅</td><td>✅</td><td>✅</td><td>✅ manage</td><td>✅ view</td><td>✅ view</td><td>—</td><td>✅ manage</td><td>✅ manage</td><td>✅ submit</td></tr>
+      <tr><td>Brand</td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>—</td><td>✅ manage</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Subscriptions</td><td>✅</td><td>✅</td><td>✅ manage</td><td>✅ manage</td><td>—</td><td>—</td><td>✅ view</td><td>✅ view</td><td>—</td><td>—</td></tr>
+      <tr><td>Procurement</td><td>✅</td><td>✅</td><td>✅ view</td><td>✅ manage</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Audit Log</td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Settings</td><td>✅</td><td>✅</td><td>—</td><td>✅ manage</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✅ view</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════ ROOT ADMIN GUIDE ══════════════════ -->
+<div id="rootadmin" class="tab">
+  <h1 class="title">Root Admin Guide</h1>
+  <p class="subtitle">The highest privilege level in Chronix OS — full unrestricted access</p>
+
+  <div class="sh">What Is Root Admin?</div>
+  <div class="card">
+    <p>Root Admin (<code>role: "Root Admin"</code>) is the superuser role in Chronix OS. It bypasses all permission gates — every module, every action, every record is accessible. This role is held by the platform owner and should be assigned to <strong style="color:#fff">one or two people maximum</strong>.</p>
+    <br>
+    <p>In the Firestore rules, Root Admin passes the wildcard fallback rule: <code>allow read, write: if isAuth() &amp;&amp; isRootAdmin()</code> — meaning no collection is off limits at the database level either.</p>
+  </div>
+
+  <div class="sh">Root Admin Capabilities</div>
+  <div class="grid2">
+    <div class="card">
+      <h2>User Management</h2>
+      <ul>
+        <li>Create new user accounts via Admin → Users</li>
+        <li>Assign or change any role including assigning another Root Admin</li>
+        <li>Suspend or reactivate employee accounts</li>
+        <li>Delete user records (hard delete from Firebase Auth + Firestore)</li>
+        <li>Only Root Admin or System Admin can assign Root-level roles</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Financial Control</h2>
+      <ul>
+        <li>Create, edit, approve, and delete invoices</li>
+        <li>Override invoice status</li>
+        <li>Delete unpaid invoices</li>
+        <li>Full access to all payments, expenses, and reports</li>
+        <li>Manage tax rules and rates in Firestore</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>System Administration</h2>
+      <ul>
+        <li>Access and read the full Audit Log</li>
+        <li>Configure push notification settings</li>
+        <li>Test push + email notification delivery</li>
+        <li>Manage all settings</li>
+        <li>Full access to Firestore via Firebase Console (bypasses app rules)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Data Oversight</h2>
+      <ul>
+        <li>View every record across all departments</li>
+        <li>Read all notifications regardless of targetRoles</li>
+        <li>Access all HR, payroll, tax, and audit data</li>
+        <li>Override any approval status on invoices</li>
+        <li>Access the Firebase Console directly for data management</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sh">How To Use Root Admin — Step by Step</div>
+  <div class="card">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body"><h4>Log In</h4><p>Navigate to the Chronix OS login page. Enter your Root Admin email and password. You will be directed to the full dashboard with all 21 sidebar items visible.</p></div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body"><h4>Add New Users</h4><p>Go to Settings → User Management (or the Admin Users API). Create user accounts for new staff, assign their role (e.g. HR, Staff, CFO). New users receive an invite and can log in immediately.</p></div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body"><h4>Configure Roles</h4><p>If a staff member's responsibilities change, update their role in Firestore under <code>users/{uid}.role</code>. Their sidebar and permissions update on next login.</p></div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body"><h4>Monitor the Audit Log</h4><p>Navigate to Audit Log from the sidebar. Every login, invoice action, tax computation, payroll run, and data change is recorded here with actor, timestamp, and details. Use this to investigate any discrepancies.</p></div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body"><h4>Manage Notifications</h4><p>Go to Settings → Test push and email delivery. If push notifications stop working, verify FCM tokens in Firestore (<code>users/{uid}.fcmTokens</code>) and confirm the Firebase Admin env vars are set on Vercel.</p></div>
+    </div>
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body"><h4>Deploy Firestore Rules</h4><p>When permissions are updated, run <code>firebase deploy --only firestore:rules</code> from the project root. Always test in the Firebase Console Rules Playground before deploying to production.</p></div>
+    </div>
+
+    <div style="margin-top:24px;padding:16px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px">
+      <p style="color:#f87171;font-weight:600;margin-bottom:8px">⚠ Important Security Notes for Root Admin</p>
+      <ul style="color:rgba(255,255,255,.5)">
+        <li>Never share Root Admin credentials. Use a strong, unique password.</li>
+        <li>Root Admin bypasses all UI permission checks — be deliberate with every action.</li>
+        <li>All Root Admin actions are captured in the Audit Log and cannot be deleted.</li>
+        <li>Only assign Root Admin role to individuals who absolutely require it.</li>
+        <li>Keep the number of Root Admin accounts to a maximum of 2.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ SECURITY ══════════════════ -->
+<div id="security" class="tab">
+  <h1 class="title">Security Architecture</h1>
+  <p class="subtitle">Multi-layered protection built into every part of Chronix OS</p>
+
+  <div class="sh">Security Layers</div>
+
+  <div class="sec-row">
+    <div class="sec-icon">🔐</div>
+    <div class="sec-body">
+      <h4>Layer 1 — Firebase Authentication</h4>
+      <p>All users must authenticate with email + password through Firebase Auth. Session tokens (ID tokens) are short-lived JWTs signed by Google. Every API route verifies the token via the Firebase Admin SDK before processing any request. No unauthenticated request reaches any data.</p>
+    </div>
+  </div>
+
+  <div class="sec-row">
+    <div class="sec-icon">🛡️</div>
+    <div class="sec-body">
+      <h4>Layer 2 — Role-Based Access Control (RBAC)</h4>
+      <p>Every user has a <code>role</code> field in Firestore. <code>ROLE_PERMISSIONS</code> in <code>src/types/roles.ts</code> defines exactly which permissions each role has. The Sidebar, all page components, and every action button check <code>hasPermission(role, "action:module")</code> before rendering. No UI element is shown to a role that doesn't have the required permission.</p>
+    </div>
+  </div>
+
+  <div class="sec-row">
+    <div class="sec-icon">🗄️</div>
+    <div class="sec-body">
+      <h4>Layer 3 — Firestore Security Rules</h4>
+      <p>Database-level enforcement in <code>firestore.rules</code>. Even if a user bypasses the UI, Firestore rejects unauthorized reads and writes at the database level. Rules are aligned with ROLE_PERMISSIONS — e.g. HR cannot read CRM documents even with a direct Firestore query. Root Admin has a wildcard pass-through. Rules are deployed via Firebase CLI.</p>
+    </div>
+  </div>
+
+  <div class="sec-row">
+    <div class="sec-icon">🌐</div>
+    <div class="sec-body">
+      <h4>Layer 4 — Next.js Middleware Route Guard</h4>
+      <p>Server-side middleware (<code>src/middleware.ts</code>) intercepts all dashboard route requests. If no valid session cookie is present, the user is redirected to the login page before any page renders. This prevents unauthenticated URL access.</p>
+    </div>
+  </div>
+
+  <div class="sec-row">
+    <div class="sec-icon">🔑</div>
+    <div class="sec-body">
+      <h4>Layer 5 — API Route Authentication</h4>
+      <p>Every server-side API route (<code>/api/*</code>) requires a Bearer token in the Authorization header. The Firebase Admin SDK verifies the token and decodes the user identity. Requests without a valid token receive <code>401 Unauthorized</code> immediately. Sensitive operations (PDF generation, email send) can only be triggered through these verified routes.</p>
+    </div>
+  </div>
+
+  <div class="sec-row">
+    <div class="sec-icon">📝</div>
+    <div class="sec-body">
+      <h4>Layer 6 — Immutable Audit Log</h4>
+      <p>Every significant action — login, logout, invoice create/approve/delete, payroll run, PAYE compute, email send, expense approval, tax submission — is written to the <code>audit_logs</code> Firestore collection with actor UID, name, role, action, module, entity reference, and timestamp. Audit records cannot be updated or deleted (Firestore rules: <code>allow update, delete: if false</code>). Only Root Admin, CEO, and System Admin can read the log.</p>
+    </div>
+  </div>
+
+  <div class="sec-row">
+    <div class="sec-icon">🔒</div>
+    <div class="sec-body">
+      <h4>Layer 7 — Environment Variable Isolation</h4>
+      <p>Firebase Admin credentials (<code>FIREBASE_PROJECT_ID</code>, <code>FIREBASE_CLIENT_EMAIL</code>, <code>FIREBASE_PRIVATE_KEY</code>), Resend API key (<code>RESEND_API_KEY</code>), and cron secret (<code>CRON_SECRET</code>) are stored exclusively in Vercel environment variables — never in the codebase or client-side bundles. The Admin SDK is only ever initialized in server-side API routes.</p>
+    </div>
+  </div>
+
+  <div class="sec-row">
+    <div class="sec-icon">🚫</div>
+    <div class="sec-body">
+      <h4>Layer 8 — Client Portal Isolation</h4>
+      <p>Client-role users (external clients accessing their own data) can only read records that match their billing identity (email, company name). Firestore rules enforce <code>userPortalBillingMatches()</code> — a client cannot read another client's invoices, tickets, or subscription data even if they know the document ID.</p>
+    </div>
+  </div>
+
+  <div class="sh">Security Protections Summary</div>
+  <div class="card">
+    <table>
+      <tr><th>Threat</th><th>Protection</th></tr>
+      <tr><td>Unauthenticated access</td><td>Firebase Auth + Next.js middleware redirect to login</td></tr>
+      <tr><td>Privilege escalation (UI)</td><td>RBAC — every button/page checks <code>hasPermission()</code></td></tr>
+      <tr><td>Privilege escalation (DB)</td><td>Firestore rules enforce role at database level</td></tr>
+      <tr><td>Direct API abuse</td><td>Every API route verifies Bearer ID token via Admin SDK</td></tr>
+      <tr><td>Credential exposure</td><td>Admin keys in Vercel env vars only — never in client bundle</td></tr>
+      <tr><td>Root role abuse</td><td>Only Root Admin / System Admin can assign Root-level roles</td></tr>
+      <tr><td>Audit tampering</td><td>Audit logs are write-only — update/delete disabled in Firestore rules</td></tr>
+      <tr><td>Cross-client data leak</td><td>Portal billing key matching in Firestore rules</td></tr>
+      <tr><td>Cron job abuse</td><td>Cron routes require <code>x-vercel-cron: 1</code> header or <code>CRON_SECRET</code></td></tr>
+      <tr><td>Notification spam</td><td>Deduplication keys prevent repeat alerts for same event</td></tr>
+    </table>
+  </div>
+</div>
+
+</main>
+
+<footer>
+  Chronix Technology Limited · Chronix OS v1.0 · Internal Documentation · Confidential
+</footer>
+
+<script>
+function show(id, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>
