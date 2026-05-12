@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chronix OS — Business Pitch Deck</title>
+<style>
+  :root{
+    --p:#003366;--a:#FF761B;--s:#2472B4;
+    --g1:#FF761B;--g2:#e85d04;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#000;overflow:hidden;height:100vh;width:100vw;user-select:none}
+
+  /* ── Deck ── */
+  .deck{width:100vw;height:100vh;position:relative}
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+  .slide.active{display:flex}
+
+  /* ── Progress bar ── */
+  #bar{position:fixed;top:0;left:0;height:3px;background:var(--a);transition:width .4s ease;z-index:999}
+
+  /* ── Nav ── */
+  .nav{position:fixed;bottom:0;left:0;right:0;z-index:100;
+    background:rgba(0,0,0,.7);backdrop-filter:blur(16px);
+    border-top:1px solid rgba(255,255,255,.06);
+    padding:12px 48px;display:flex;align-items:center;justify-content:space-between}
+  .nav button{padding:8px 28px;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;font-family:inherit;border:none;transition:all .2s}
+  .btn-p{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
+  .btn-p:hover{background:rgba(255,255,255,.12);color:#fff}
+  .btn-n{background:linear-gradient(135deg,var(--a),var(--g2));color:#fff;box-shadow:0 4px 16px rgba(255,118,27,.3)}
+  .btn-n:hover{box-shadow:0 4px 24px rgba(255,118,27,.5)}
+  .ctr{font-size:11px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.1em}
+  .slide-dots{display:flex;gap:6px;align-items:center}
+  .dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.15);transition:all .3s;cursor:pointer}
+  .dot.on{width:18px;border-radius:3px;background:var(--a)}
+
+  /* ════════════════════════════
+     SLIDE BACKGROUNDS
+  ════════════════════════════ */
+  .bg-hero{background:radial-gradient(ellipse at 30% 50%,#001f4d 0%,#000814 60%,#000 100%)}
+  .bg-dark{background:#060610}
+  .bg-mid{background:#080813}
+  .bg-problem{background:radial-gradient(ellipse at 80% 20%,#1a0a00 0%,#060610 70%)}
+  .bg-solution{background:radial-gradient(ellipse at 20% 80%,#001a33 0%,#060610 70%)}
+  .bg-market{background:radial-gradient(ellipse at 60% 40%,#0d1a00 0%,#060610 70%)}
+  .bg-price{background:radial-gradient(ellipse at 50% 50%,#1a0800 0%,#060610 70%)}
+  .bg-cta{background:linear-gradient(135deg,#003366 0%,#001a33 50%,#000 100%)}
+
+  /* ════════════════════════════
+     SHARED LAYOUT
+  ════════════════════════════ */
+  .content{flex:1;padding:56px 80px 80px;display:flex;flex-direction:column;justify-content:center}
+  .content.top{justify-content:flex-start;padding-top:52px}
+  .kicker{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--a);font-weight:700;margin-bottom:14px}
+  h1.hero{font-family:monospace;line-height:1.05;letter-spacing:.02em;color:#fff}
+  h2.title{font-size:36px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:10px}
+  h2.title em{font-style:normal;color:var(--a)}
+  p.lead{font-size:15px;color:rgba(255,255,255,.5);line-height:1.75;max-width:700px;margin-bottom:32px}
+  .divider{width:56px;height:3px;background:linear-gradient(90deg,var(--a),var(--g2));border-radius:2px;margin:18px 0 24px}
+
+  /* ════════════════════════════
+     COMPONENTS
+  ════════════════════════════ */
+
+  /* Pill tags */
+  .tag{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:30px;font-size:11.5px;font-weight:600;border:1px solid;margin:3px}
+  .tag-o{background:rgba(255,118,27,.1);color:var(--a);border-color:rgba(255,118,27,.25)}
+  .tag-b{background:rgba(36,114,180,.12);color:#60a5fa;border-color:rgba(36,114,180,.3)}
+  .tag-g{background:rgba(34,197,94,.08);color:#4ade80;border-color:rgba(34,197,94,.2)}
+  .tag-p{background:rgba(168,85,247,.1);color:#c084fc;border-color:rgba(168,85,247,.25)}
+
+  /* Big stat */
+  .bignum{font-family:monospace;font-size:52px;font-weight:700;color:var(--a);line-height:1}
+  .bignumsub{font-size:12px;color:rgba(255,255,255,.35);margin-top:6px;text-transform:uppercase;letter-spacing:.1em}
+
+  /* Problem card */
+  .prob{display:flex;gap:16px;align-items:flex-start;padding:18px 20px;
+    background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);
+    border-radius:12px;margin-bottom:12px}
+  .prob-icon{font-size:22px;flex-shrink:0}
+  .prob h4{font-size:13.5px;color:#fff;margin-bottom:4px}
+  .prob p{font-size:12px;color:rgba(255,255,255,.45);line-height:1.6}
+
+  /* Feature card */
+  .fc{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:20px}
+  .fc .fi{font-size:24px;margin-bottom:12px;display:block}
+  .fc h3{font-size:13.5px;color:#fff;margin-bottom:8px}
+  .fc p{font-size:12px;color:rgba(255,255,255,.45);line-height:1.6}
+  .fc-accent{border-color:rgba(255,118,27,.25);background:rgba(255,118,27,.04)}
+
+  /* Comparison */
+  .comp-table{width:100%;border-collapse:collapse;font-size:12px}
+  .comp-table th{padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.3);border-bottom:1px solid rgba(255,255,255,.07);text-align:center}
+  .comp-table th.hl{background:rgba(255,118,27,.08);color:var(--a);border-bottom-color:rgba(255,118,27,.3)}
+  .comp-table td{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04);color:rgba(255,255,255,.65);text-align:center;vertical-align:middle}
+  .comp-table td.feat{text-align:left;color:rgba(255,255,255,.5);font-size:11.5px}
+  .comp-table td.hl{background:rgba(255,118,27,.04)}
+  .comp-table tr:last-child td{border:none}
+  .yes{color:#4ade80;font-size:15px}
+  .no{color:rgba(255,255,255,.2);font-size:15px}
+  .part{color:#fbbf24;font-size:12px}
+
+  /* Pricing */
+  .price-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px;display:flex;flex-direction:column}
+  .price-card.featured{background:rgba(255,118,27,.06);border-color:rgba(255,118,27,.3);position:relative;overflow:hidden}
+  .price-card.featured::before{content:'MOST POPULAR';position:absolute;top:14px;right:-28px;background:var(--a);color:#fff;font-size:9px;font-weight:700;letter-spacing:.15em;padding:4px 40px;transform:rotate(45deg)}
+  .plan-name{font-size:13px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.12em;margin-bottom:16px}
+  .plan-price{font-family:monospace;font-size:36px;font-weight:700;color:#fff;line-height:1}
+  .plan-price sub{font-size:15px;color:rgba(255,255,255,.4);font-family:inherit}
+  .plan-price span{font-size:13px;color:rgba(255,255,255,.3)}
+  .plan-users{font-size:11px;color:rgba(255,255,255,.3);margin:8px 0 20px}
+  .plan-feats{list-style:none;flex:1}
+  .plan-feats li{font-size:12px;color:rgba(255,255,255,.55);padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;gap:8px}
+  .plan-feats li:last-child{border:none}
+  .plan-feats li::before{content:'✓';color:var(--a);font-weight:700;font-size:11px;flex-shrink:0}
+  .plan-btn{margin-top:20px;padding:12px;border-radius:10px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;border:none;text-align:center}
+  .plan-btn-out{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.1)}
+  .plan-btn-full{background:linear-gradient(135deg,var(--a),var(--g2));color:#fff;box-shadow:0 4px 16px rgba(255,118,27,.3)}
+
+  /* Who it's for */
+  .who{display:flex;gap:14px;align-items:center;padding:14px 20px;
+    background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+    border-radius:12px;margin-bottom:10px;transition:border-color .2s}
+  .who:hover{border-color:rgba(255,118,27,.3)}
+  .who-icon{font-size:28px;flex-shrink:0;width:48px;text-align:center}
+  .who h4{font-size:13.5px;color:#fff;margin-bottom:3px}
+  .who p{font-size:12px;color:rgba(255,255,255,.4);line-height:1.5}
+  .who .badge{margin-left:auto;flex-shrink:0;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(255,118,27,.12);color:var(--a);border:1px solid rgba(255,118,27,.2)}
+
+  /* ROI */
+  .roi{text-align:center;padding:20px 16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px}
+  .roi .n{font-family:monospace;font-size:30px;font-weight:700;color:var(--a)}
+  .roi .l{font-size:11px;color:rgba(255,255,255,.35);margin-top:5px;line-height:1.4}
+
+  /* Security badge */
+  .sbadge{display:flex;gap:12px;align-items:center;padding:12px 18px;
+    background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.15);
+    border-radius:10px;margin-bottom:10px}
+  .sbadge .si{color:#4ade80;font-size:18px;flex-shrink:0}
+  .sbadge h4{font-size:13px;color:#fff;margin-bottom:2px}
+  .sbadge p{font-size:11.5px;color:rgba(255,255,255,.4)}
+
+  /* CTA */
+  .cta-btn{padding:14px 40px;border-radius:12px;font-size:14px;font-weight:700;
+    font-family:inherit;cursor:pointer;border:none;
+    background:linear-gradient(135deg,var(--a),var(--g2));
+    color:#fff;box-shadow:0 8px 32px rgba(255,118,27,.4);
+    transition:transform .2s,box-shadow .2s}
+  .cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(255,118,27,.5)}
+  .cta-out{padding:14px 40px;border-radius:12px;font-size:14px;font-weight:700;
+    font-family:inherit;cursor:pointer;
+    background:rgba(255,255,255,.06);color:#fff;
+    border:1px solid rgba(255,255,255,.15);
+    transition:all .2s}
+  .cta-out:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.3)}
+
+  /* Grid helpers */
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  .g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
+
+  /* Process step */
+  .step{display:flex;flex-direction:column;align-items:center;text-align:center;padding:20px 12px;position:relative}
+  .step::after{content:'→';position:absolute;right:-12px;top:24px;color:rgba(255,255,255,.15);font-size:18px}
+  .step:last-child::after{display:none}
+  .step-num{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--g2));color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;box-shadow:0 4px 16px rgba(255,118,27,.3)}
+  .step h4{font-size:12.5px;color:#fff;margin-bottom:5px}
+  .step p{font-size:11px;color:rgba(255,255,255,.35);line-height:1.5}
+
+  /* Testimonial */
+  .tcard{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px;position:relative}
+  .tcard::before{content:'"';font-size:80px;color:rgba(255,118,27,.15);font-family:Georgia,serif;position:absolute;top:10px;left:24px;line-height:1}
+  .tcard .quote{font-size:14px;color:rgba(255,255,255,.65);line-height:1.75;margin-bottom:20px;padding-top:36px}
+  .tcard .attr{display:flex;align-items:center;gap:12px}
+  .tcard .avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--p),var(--s));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0}
+  .tcard .name{font-size:13px;color:#fff;font-weight:600}
+  .tcard .role{font-size:11px;color:rgba(255,255,255,.35);margin-top:2px}
+
+  /* Glow accent line */
+  .glow-line{height:1px;background:linear-gradient(90deg,transparent,var(--a),transparent);margin:24px 0;opacity:.3}
+
+  /* Floating logo */
+  .logo-mark{font-family:monospace;font-size:13px;color:rgba(255,255,255,.12);letter-spacing:.15em;position:absolute;top:24px;right:48px}
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="deck">
+
+<!-- ══ S1: HERO ══ -->
+<div class="slide bg-hero active" id="s1">
+  <div style="position:absolute;inset:0;overflow:hidden;pointer-events:none">
+    <div style="position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(255,118,27,.08) 0%,transparent 70%);top:-100px;right:-100px"></div>
+    <div style="position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(0,51,102,.3) 0%,transparent 70%);bottom:-50px;left:100px"></div>
+  </div>
+  <div class="content" style="justify-content:center;padding-bottom:100px">
+    <div class="kicker">Business Operating System · B2B Solution</div>
+    <h1 class="hero" style="font-size:68px;margin-bottom:6px">RUN YOUR</h1>
+    <h1 class="hero" style="font-size:68px;color:var(--a);margin-bottom:20px">BUSINESS SMARTER</h1>
+    <div class="divider"></div>
+    <p class="lead" style="font-size:17px;margin-bottom:36px">Chronix OS is the all-in-one business management platform built for African enterprises — covering Finance, HR, Tax, CRM, Operations and more in a single secure system.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <span class="tag tag-o">🚀 18+ Modules</span>
+      <span class="tag tag-b">🔐 Role-Based Access</span>
+      <span class="tag tag-g">🇳🇬 Built for Nigerian Compliance</span>
+      <span class="tag tag-p">☁️ Cloud-Based & Secure</span>
+    </div>
+  </div>
+  <div class="logo-mark">CHRONIX OS · 2025</div>
+</div>
+
+<!-- ══ S2: THE PAIN ══ -->
+<div class="slide bg-problem" id="s2">
+  <div class="content top">
+    <div class="kicker">The Problem</div>
+    <h2 class="title">Most Businesses Are Running on <em>Broken Tools</em></h2>
+    <div class="divider"></div>
+    <div class="g2">
+      <div>
+        <div class="prob"><span class="prob-icon">📊</span><div><h4>Scattered Spreadsheets</h4><p>Finance in Excel, staff records in Google Sheets, client contacts in a WhatsApp group. No single source of truth — data gets lost, duplicated, and outdated.</p></div></div>
+        <div class="prob"><span class="prob-icon">🧾</span><div><h4>Slow, Error-Prone Invoicing</h4><p>Manual invoice design, chasing payment, no visibility into outstanding receivables. Businesses lose revenue due to poor follow-up.</p></div></div>
+        <div class="prob"><span class="prob-icon">💸</span><div><h4>Tax Compliance Nightmares</h4><p>PAYE, VAT, and WHT calculated manually each month — often late, often wrong. Businesses risk FIRS penalties and interest charges.</p></div></div>
+      </div>
+      <div>
+        <div class="prob"><span class="prob-icon">🔓</span><div><h4>No Access Control</h4><p>Salary data visible to everyone. Client contracts shared in email chains. No way to control who sees what — a serious data privacy risk.</p></div></div>
+        <div class="prob"><span class="prob-icon">🔔</span><div><h4>Missed Renewals & Deadlines</h4><p>Software subscriptions, domain renewals, tax filing dates — tracked in a calendar at best, forgotten at worst. Service disruptions cost clients.</p></div></div>
+        <div class="prob"><span class="prob-icon">🕳️</span><div><h4>Zero Audit Trail</h4><p>Who approved that expense? Who deleted that invoice? No record. When disputes arise, there's no way to investigate — trust breaks down.</p></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S3: MARKET OPPORTUNITY ══ -->
+<div class="slide bg-market" id="s3">
+  <div class="content" style="justify-content:center;padding-bottom:90px">
+    <div class="kicker">Market Opportunity</div>
+    <h2 class="title">A Massive Underserved Market <em>Waiting</em></h2>
+    <div class="divider"></div>
+    <div class="g4" style="margin-bottom:28px">
+      <div style="text-align:center;padding:20px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px">
+        <div class="bignum">41M+</div><div class="bignumsub">SMEs in Nigeria<br>alone</div>
+      </div>
+      <div style="text-align:center;padding:20px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px">
+        <div class="bignum">96%</div><div class="bignumsub">Have no integrated<br>ERP solution</div>
+      </div>
+      <div style="text-align:center;padding:20px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px">
+        <div class="bignum">$2B+</div><div class="bignumsub">African SaaS market<br>by 2026</div>
+      </div>
+      <div style="text-align:center;padding:20px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px">
+        <div class="bignum">$50K+</div><div class="bignumsub">SAP/Oracle cost<br>per business</div>
+      </div>
+    </div>
+    <div style="padding:20px 28px;background:rgba(255,118,27,.06);border:1px solid rgba(255,118,27,.2);border-radius:14px">
+      <p style="font-size:15px;color:rgba(255,255,255,.7);line-height:1.7">Existing solutions (SAP, Oracle, QuickBooks) are either <strong style="color:#fff">too expensive</strong> for African SMEs, <strong style="color:#fff">not localised</strong> for Nigerian tax law, or require months of implementation. Chronix OS fills this gap — built from day one for the Nigerian business environment.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S4: SOLUTION ══ -->
+<div class="slide bg-solution" id="s4">
+  <div class="content top">
+    <div class="kicker">The Solution</div>
+    <h2 class="title">One Platform. Every Department. <em>Zero Chaos.</em></h2>
+    <div class="divider"></div>
+    <div class="g3">
+      <div class="fc fc-accent"><span class="fi">💰</span><h3>Finance & Invoicing</h3><p>Professional PDF invoices, payment tracking, AR/AP aging, P&L reports — all connected and automated.</p></div>
+      <div class="fc"><span class="fi">👥</span><h3>HR & Payroll</h3><p>Full employee records, monthly payroll, automatic PAYE computation, leave and disciplinary management.</p></div>
+      <div class="fc"><span class="fi">🧮</span><h3>Nigerian Tax Compliance</h3><p>PAYE (6-band), VAT (7.5%), WHT, and Corporate Tax — computed from live data and ready for FIRS filing.</p></div>
+      <div class="fc"><span class="fi">🎯</span><h3>CRM & Sales</h3><p>Lead pipeline, client directory, follow-up tracking — manage your full sales cycle from prospect to payment.</p></div>
+      <div class="fc"><span class="fi">🎫</span><h3>Operations & Tickets</h3><p>Support ticketing, incidents, subscriptions, procurement, knowledge base, on-call schedules.</p></div>
+      <div class="fc"><span class="fi">🔐</span><h3>Security & Audit</h3><p>12 RBAC roles, 8 security layers, immutable audit log — every action recorded, nothing hidden.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S5: KEY DIFFERENTIATORS ══ -->
+<div class="slide bg-dark" id="s5">
+  <div class="content top">
+    <div class="kicker">Why Chronix OS</div>
+    <h2 class="title">What Makes Us <em>Different</em></h2>
+    <div class="divider"></div>
+    <div class="g2">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:18px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.07)">
+          <span style="font-size:26px;flex-shrink:0">🇳🇬</span>
+          <div><h4 style="color:#fff;font-size:14px;margin-bottom:5px">Built for Nigeria — Not Localised for Nigeria</h4><p style="font-size:12px;color:rgba(255,255,255,.45);line-height:1.6">Nigerian PAYE bands baked in. VAT at 7.5%. WHT at 5%/2.5%. Naira throughout. NRS-ready architecture. Not an American tool with Naira swapped in.</p></div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:18px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.07)">
+          <span style="font-size:26px;flex-shrink:0">⚡</span>
+          <div><h4 style="color:#fff;font-size:14px;margin-bottom:5px">Live in 24 Hours</h4><p style="font-size:12px;color:rgba(255,255,255,.45);line-height:1.6">No 6-month implementation. No consultants. No training programme. We onboard your team and you're operational by tomorrow.</p></div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:18px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.07)">
+          <span style="font-size:26px;flex-shrink:0">🔌</span>
+          <div><h4 style="color:#fff;font-size:14px;margin-bottom:5px">Everything Connected</h4><p style="font-size:12px;color:rgba(255,255,255,.45);line-height:1.6">Payroll auto-triggers PAYE. Subscriptions auto-generate renewal invoices. Finance talks to Tax. No copy-pasting between systems.</p></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:18px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.07)">
+          <span style="font-size:26px;flex-shrink:0">💸</span>
+          <div><h4 style="color:#fff;font-size:14px;margin-bottom:5px">Fraction of the Cost</h4><p style="font-size:12px;color:rgba(255,255,255,.45);line-height:1.6">SAP costs $50,000–$500,000 to implement. Oracle: similar. Chronix OS starts at ₦150,000/month — all-inclusive, no implementation fee.</p></div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:18px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.07)">
+          <span style="font-size:26px;flex-shrink:0">🔐</span>
+          <div><h4 style="color:#fff;font-size:14px;margin-bottom:5px">Enterprise-Grade Security</h4><p style="font-size:12px;color:rgba(255,255,255,.45);line-height:1.6">8 security layers. Role-based access. Immutable audit log. Firebase Auth. Not an SME tool bolted onto security — security-first by design.</p></div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:18px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.07)">
+          <span style="font-size:26px;flex-shrink:0">📱</span>
+          <div><h4 style="color:#fff;font-size:14px;margin-bottom:5px">Cloud-Based. Always On.</h4><p style="font-size:12px;color:rgba(255,255,255,.45);line-height:1.6">No server to maintain. No software to install. Works on any modern browser. Real-time data across your entire team, anywhere.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S6: COMPETITOR COMPARISON ══ -->
+<div class="slide bg-dark" id="s6">
+  <div class="content top">
+    <div class="kicker">Competitive Landscape</div>
+    <h2 class="title">How We Stack Up <em>Against the Alternatives</em></h2>
+    <div class="divider"></div>
+    <table class="comp-table">
+      <tr>
+        <th style="text-align:left">Feature</th>
+        <th class="hl">Chronix OS ✦</th>
+        <th>SAP / Oracle</th>
+        <th>QuickBooks</th>
+        <th>Spreadsheets + Tools</th>
+      </tr>
+      <tr>
+        <td class="feat">Nigerian Tax Built-In (PAYE, VAT, WHT)</td>
+        <td class="hl yes">✓</td><td class="no">✗</td><td class="part">Partial</td><td class="no">✗</td>
+      </tr>
+      <tr>
+        <td class="feat">HR + Payroll + Tax Integrated</td>
+        <td class="hl yes">✓</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td>
+      </tr>
+      <tr>
+        <td class="feat">E-Invoicing (PDF + Email to Client)</td>
+        <td class="hl yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✗</td>
+      </tr>
+      <tr>
+        <td class="feat">CRM + Sales Pipeline</td>
+        <td class="hl yes">✓</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td>
+      </tr>
+      <tr>
+        <td class="feat">Support Tickets + Operations</td>
+        <td class="hl yes">✓</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td>
+      </tr>
+      <tr>
+        <td class="feat">Role-Based Access (12 roles)</td>
+        <td class="hl yes">✓</td><td class="yes">✓</td><td class="part">Basic</td><td class="no">✗</td>
+      </tr>
+      <tr>
+        <td class="feat">Push + Email Notifications</td>
+        <td class="hl yes">✓</td><td class="part">Add-on</td><td class="no">✗</td><td class="no">✗</td>
+      </tr>
+      <tr>
+        <td class="feat">Immutable Audit Log</td>
+        <td class="hl yes">✓</td><td class="yes">✓</td><td class="part">Limited</td><td class="no">✗</td>
+      </tr>
+      <tr>
+        <td class="feat">Live in 24 hours</td>
+        <td class="hl yes">✓</td><td class="no">✗ (6–18 months)</td><td class="part">Weeks</td><td class="yes">✓</td>
+      </tr>
+      <tr>
+        <td class="feat">Affordable for SMEs</td>
+        <td class="hl yes">✓ From ₦150K/mo</td><td class="no">✗ $50K+ setup</td><td class="part">Limited features</td><td class="part">Free but broken</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ══ S7: WHO IT'S FOR ══ -->
+<div class="slide bg-mid" id="s7">
+  <div class="content top">
+    <div class="kicker">Target Customers</div>
+    <h2 class="title">Built For Businesses That Are <em>Ready to Scale</em></h2>
+    <div class="divider"></div>
+    <div class="g2">
+      <div>
+        <div class="who"><div class="who-icon">💻</div><div><h4>Technology Companies</h4><p>Software firms, digital agencies, IT service providers — 10 to 500 staff</p></div><div class="badge">Primary</div></div>
+        <div class="who"><div class="who-icon">⚖️</div><div><h4>Professional Services</h4><p>Law firms, consulting firms, accounting practices needing client and billing management</p></div><div class="badge">Primary</div></div>
+        <div class="who"><div class="who-icon">🏗️</div><div><h4>Construction & Real Estate</h4><p>Project tracking, vendor procurement, subcontractor payroll management</p></div><div class="badge">Strong Fit</div></div>
+        <div class="who"><div class="who-icon">🛒</div><div><h4>Trading & Distribution</h4><p>Procurement, vendor management, invoice tracking, expense management</p></div><div class="badge">Strong Fit</div></div>
+      </div>
+      <div>
+        <div class="who"><div class="who-icon">🏥</div><div><h4>Healthcare Practices</h4><p>Clinics, hospitals — HR, payroll, procurement, and patient billing</p></div><div class="badge">Strong Fit</div></div>
+        <div class="who"><div class="who-icon">🎓</div><div><h4>Education Institutions</h4><p>Schools, training centres — staff management, invoicing, subscriptions</p></div><div class="badge">Good Fit</div></div>
+        <div class="who"><div class="who-icon">🚚</div><div><h4>Logistics & Transport</h4><p>Fleet management firms needing vendor, procurement, and payroll management</p></div><div class="badge">Good Fit</div></div>
+        <div class="who"><div class="who-icon">🌍</div><div><h4>Any Growth-Stage Business</h4><p>Any Nigerian or African business with 10–500 employees outgrowing spreadsheets</p></div><div class="badge">All Welcome</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S8: HOW IT WORKS ══ -->
+<div class="slide bg-dark" id="s8">
+  <div class="content" style="justify-content:center;padding-bottom:90px">
+    <div class="kicker">Onboarding Process</div>
+    <h2 class="title">Go From Zero to <em>Fully Operational</em> in 4 Steps</h2>
+    <div class="divider"></div>
+    <div style="display:flex;gap:0;margin-top:8px">
+      <div class="step" style="flex:1">
+        <div class="step-num">1</div>
+        <h4>Sign Up & Configure</h4>
+        <p>We provision your workspace, set up your company profile, and configure your tax settings and bank details</p>
+      </div>
+      <div class="step" style="flex:1">
+        <div class="step-num">2</div>
+        <h4>Import Your Data</h4>
+        <p>We import your existing employee records, client directory, and chart of accounts — no manual re-entry</p>
+      </div>
+      <div class="step" style="flex:1">
+        <div class="step-num">3</div>
+        <h4>Assign Roles</h4>
+        <p>Add your team with their roles — CFO, HR, Brand Lead, Sales Rep etc. Each person only sees what they need to</p>
+      </div>
+      <div class="step" style="flex:1">
+        <div class="step-num">4</div>
+        <h4>Go Live</h4>
+        <p>Your first payroll run, first invoice, first client record — all within 24 hours. We provide 30-day onboarding support</p>
+      </div>
+    </div>
+    <div class="glow-line"></div>
+    <div class="g3" style="margin-top:8px">
+      <div style="text-align:center;padding:14px;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.07)">
+        <div style="font-size:22px;margin-bottom:6px">📞</div>
+        <p style="font-size:12px;color:rgba(255,255,255,.5)"><strong style="color:#fff">Free Discovery Call</strong><br>30-minute walkthrough of your current workflow</p>
+      </div>
+      <div style="text-align:center;padding:14px;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.07)">
+        <div style="font-size:22px;margin-bottom:6px">🎯</div>
+        <p style="font-size:12px;color:rgba(255,255,255,.5)"><strong style="color:#fff">Custom Configuration</strong><br>We tailor roles and modules for your business type</p>
+      </div>
+      <div style="text-align:center;padding:14px;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.07)">
+        <div style="font-size:22px;margin-bottom:6px">🏋️</div>
+        <p style="font-size:12px;color:rgba(255,255,255,.5)"><strong style="color:#fff">Team Training</strong><br>Live sessions + documentation for every role</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S9: ROI ══ -->
+<div class="slide bg-mid" id="s9">
+  <div class="content top">
+    <div class="kicker">Return on Investment</div>
+    <h2 class="title">The Numbers <em>Speak for Themselves</em></h2>
+    <div class="divider"></div>
+    <div class="g4" style="margin-bottom:20px">
+      <div class="roi"><div class="n">8hrs</div><div class="l">Saved per month on<br>manual payroll + PAYE</div></div>
+      <div class="roi"><div class="n">₦0</div><div class="l">FIRS penalties when<br>tax is filed correctly</div></div>
+      <div class="roi"><div class="n">3×</div><div class="l">Faster invoice approval<br>and client delivery</div></div>
+      <div class="roi"><div class="n">100%</div><div class="l">Audit trail coverage<br>across all departments</div></div>
+    </div>
+    <div class="g2">
+      <div style="padding:20px;background:rgba(255,118,27,.05);border:1px solid rgba(255,118,27,.15);border-radius:14px">
+        <h4 style="color:#fff;font-size:14px;margin-bottom:12px">💡 Before Chronix OS</h4>
+        <ul style="list-style:none">
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">✗ 3 accountants manually calculating PAYE</li>
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">✗ Invoices designed in Word, emailed manually</li>
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">✗ Expired Sophos license caused security breach</li>
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">✗ HR records in a shared Google Drive folder</li>
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0">✗ No way to prove who approved an expense</li>
+        </ul>
+      </div>
+      <div style="padding:20px;background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.15);border-radius:14px">
+        <h4 style="color:#fff;font-size:14px;margin-bottom:12px">✅ After Chronix OS</h4>
+        <ul style="list-style:none">
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">✓ PAYE auto-computed when payroll is marked paid</li>
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">✓ Branded PDF invoices emailed to clients in seconds</li>
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">✓ Subscription alerts + auto renewal invoice at 7 days</li>
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">✓ HR records secured by role — HR sees, CEO sees, others don't</li>
+          <li style="font-size:12.5px;color:rgba(255,255,255,.5);padding:5px 0">✓ Full immutable audit trail for every action</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S10: SECURITY TRUST ══ -->
+<div class="slide bg-dark" id="s10">
+  <div class="content top">
+    <div class="kicker">Security & Trust</div>
+    <h2 class="title">Enterprise Security. <em>No Compromises.</em></h2>
+    <div class="divider"></div>
+    <div class="g2">
+      <div>
+        <div class="sbadge"><div class="si">🔐</div><div><h4>Firebase Authentication</h4><p>Google-signed JWT tokens. Every session verified. No password stored in our systems — Firebase Auth handles it.</p></div></div>
+        <div class="sbadge"><div class="si">🛡️</div><div><h4>Role-Based Access Control</h4><p>12 roles, 40+ granular permissions. Staff can't see salary data. Finance can't see HR records. Designed on zero-trust principles.</p></div></div>
+        <div class="sbadge"><div class="si">🗄️</div><div><h4>Firestore Security Rules</h4><p>Database-level enforcement. Even if someone bypasses the UI, the database rejects unauthorised reads and writes.</p></div></div>
+        <div class="sbadge"><div class="si">📝</div><div><h4>Immutable Audit Log</h4><p>Every action logged — create, update, delete, login, logout, export. Logs cannot be edited or deleted. Full forensic trail.</p></div></div>
+      </div>
+      <div>
+        <div class="sbadge"><div class="si">🌐</div><div><h4>Route-Level Auth Guards</h4><p>Server-side middleware blocks unauthenticated URL access. No page loads before identity is verified.</p></div></div>
+        <div class="sbadge"><div class="si">🔑</div><div><h4>API Token Verification</h4><p>Every server API endpoint requires a valid Bearer token. Anonymous API calls return 401 immediately.</p></div></div>
+        <div class="sbadge"><div class="si">☁️</div><div><h4>Vercel + Firebase Infrastructure</h4><p>Hosted on Vercel (99.99% uptime SLA) with Google Firebase backend. Enterprise-grade cloud infrastructure.</p></div></div>
+        <div class="sbadge"><div class="si">🚫</div><div><h4>Client Data Isolation</h4><p>Each client (your customers) can only see their own records. Firestore rules enforce strict data boundaries.</p></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S11: TESTIMONIAL / CASE STUDY ══ -->
+<div class="slide bg-mid" id="s11">
+  <div class="content" style="justify-content:center;padding-bottom:90px">
+    <div class="kicker">In Production Today</div>
+    <h2 class="title">Chronix Technology Limited — <em>Our First Client</em></h2>
+    <div class="divider"></div>
+    <div class="g2" style="margin-bottom:20px">
+      <div class="tcard">
+        <p class="quote">Before Chronix OS, our Finance team was spending 2 days every month manually computing PAYE and preparing invoices in Word. Now payroll triggers PAYE automatically and our clients receive a professional branded invoice PDF the moment we issue it. The time saved is remarkable.</p>
+        <div class="attr"><div class="avatar">JM</div><div><div class="name">Joshua Moses</div><div class="role">CEO, Chronix Technology Limited</div></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="padding:18px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px">
+          <p style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.3);margin-bottom:14px">Platform Stats — Chronix Technology</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><div style="font-family:monospace;font-size:24px;font-weight:700;color:var(--a)">18+</div><div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;margin-top:3px">Modules Active</div></div>
+            <div><div style="font-family:monospace;font-size:24px;font-weight:700;color:var(--a)">12</div><div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;margin-top:3px">Staff Roles Configured</div></div>
+            <div><div style="font-family:monospace;font-size:24px;font-weight:700;color:var(--a)">100%</div><div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;margin-top:3px">Audit Coverage</div></div>
+            <div><div style="font-family:monospace;font-size:24px;font-weight:700;color:var(--a)">24hr</div><div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;margin-top:3px">Onboarding Time</div></div>
+          </div>
+        </div>
+        <div style="padding:18px;background:rgba(255,118,27,.05);border:1px solid rgba(255,118,27,.15);border-radius:12px">
+          <p style="font-size:12px;color:rgba(255,255,255,.6);line-height:1.7">We built Chronix OS for ourselves first — so we know exactly what a growing Nigerian tech company needs. Every feature was tested and refined in a real production environment before we offer it to you.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S12: PRICING ══ -->
+<div class="slide bg-price" id="s12">
+  <div class="content top">
+    <div class="kicker">Pricing</div>
+    <h2 class="title">Transparent Pricing. <em>No Surprises.</em></h2>
+    <div class="divider"></div>
+    <div class="g3">
+      <div class="price-card">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">₦150<sub>K</sub> <span>/ month</span></div>
+        <div class="plan-users">Up to 15 users</div>
+        <ul class="plan-feats">
+          <li>Finance & Invoicing</li>
+          <li>HR & Payroll (up to 15 staff)</li>
+          <li>PAYE, VAT, WHT Tax modules</li>
+          <li>CRM — Clients & Leads</li>
+          <li>Support Tickets</li>
+          <li>Push & Email Notifications</li>
+          <li>Audit Log</li>
+          <li>30-day onboarding support</li>
+        </ul>
+        <button class="plan-btn plan-btn-out">Get Started</button>
+      </div>
+      <div class="price-card featured">
+        <div class="plan-name">Business</div>
+        <div class="plan-price">₦350<sub>K</sub> <span>/ month</span></div>
+        <div class="plan-users">Up to 50 users</div>
+        <ul class="plan-feats">
+          <li>Everything in Starter</li>
+          <li>Subscription management + auto-invoicing</li>
+          <li>Procurement & Vendor management</li>
+          <li>Brand & Marketing modules</li>
+          <li>Projects & Time Tracking</li>
+          <li>Incidents, Changes & On-Call</li>
+          <li>Knowledge Base</li>
+          <li>Analytics dashboards</li>
+          <li>Asset Inventory</li>
+          <li>Priority support (48hr SLA)</li>
+        </ul>
+        <button class="plan-btn plan-btn-full">Start Free Trial</button>
+      </div>
+      <div class="price-card">
+        <div class="plan-name">Enterprise</div>
+        <div class="plan-price" style="font-size:28px">Custom</div>
+        <div class="plan-users">Unlimited users</div>
+        <ul class="plan-feats">
+          <li>Everything in Business</li>
+          <li>Custom modules on request</li>
+          <li>NRS / FIRS API integration</li>
+          <li>Client portal (white-label)</li>
+          <li>Mobile app (PWA)</li>
+          <li>Dedicated account manager</li>
+          <li>Data migration assistance</li>
+          <li>Custom SLA agreement</li>
+          <li>On-site training available</li>
+          <li>Source code licensing option</li>
+        </ul>
+        <button class="plan-btn plan-btn-out">Contact Us</button>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:16px">
+      <p style="font-size:12px;color:rgba(255,255,255,.3)">All plans include a <strong style="color:rgba(255,255,255,.6)">14-day free trial</strong>. No credit card required. Cancel anytime. Annual billing available at 15% discount.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S13: ROADMAP ══ -->
+<div class="slide bg-dark" id="s13">
+  <div class="content top">
+    <div class="kicker">Product Roadmap</div>
+    <h2 class="title">We Are <em>Just Getting Started</em></h2>
+    <div class="divider"></div>
+    <div class="g2">
+      <div>
+        <div style="margin-bottom:16px;padding:20px;background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.15);border-radius:12px">
+          <p style="font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#4ade80;margin-bottom:10px;font-weight:700">✓ Available Now — v1.0</p>
+          <p style="font-size:12.5px;color:rgba(255,255,255,.55);line-height:1.8">Finance · Invoicing · HR · Payroll · PAYE/VAT/WHT · CRM · Projects · Tickets · Subscriptions · Procurement · Brand · Analytics · Incidents · Knowledge Base · On-Call · Audit Log · Notifications</p>
+        </div>
+        <div style="padding:20px;background:rgba(36,114,180,.05);border:1px solid rgba(36,114,180,.15);border-radius:12px">
+          <p style="font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#60a5fa;margin-bottom:10px;font-weight:700">→ Coming Q3 2025</p>
+          <p style="font-size:12.5px;color:rgba(255,255,255,.55);line-height:1.8">Payslip PDF per employee · Expense receipt upload · Contract management · Advanced Excel export · Inventory management</p>
+        </div>
+      </div>
+      <div>
+        <div style="margin-bottom:16px;padding:20px;background:rgba(168,85,247,.05);border:1px solid rgba(168,85,247,.15);border-radius:12px">
+          <p style="font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#c084fc;margin-bottom:10px;font-weight:700">→ Coming Q4 2025</p>
+          <p style="font-size:12.5px;color:rgba(255,255,255,.55);line-height:1.8">NRS/FIRS API integration (real-time invoice registration, IRN, QR codes) · Client portal (white-label) · Mobile PWA</p>
+        </div>
+        <div style="padding:20px;background:rgba(255,118,27,.05);border:1px solid rgba(255,118,27,.15);border-radius:12px">
+          <p style="font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--a);margin-bottom:10px;font-weight:700">→ 2026 Vision</p>
+          <p style="font-size:12.5px;color:rgba(255,255,255,.55);line-height:1.8">AI-powered financial forecasting · Bank statement reconciliation · Multi-company support · West Africa multi-currency · React Native mobile app</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S14: PARTNERSHIP ══ -->
+<div class="slide bg-mid" id="s14">
+  <div class="content" style="justify-content:center;padding-bottom:90px">
+    <div class="kicker">Partnership & Reseller Programme</div>
+    <h2 class="title">Grow With Us. <em>Earn With Us.</em></h2>
+    <div class="divider"></div>
+    <p class="lead">We are looking for technology partners, consultants, and resellers who can bring Chronix OS to businesses across Nigeria and West Africa.</p>
+    <div class="g3">
+      <div style="padding:24px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px;text-align:center">
+        <div style="font-size:32px;margin-bottom:12px">🤝</div>
+        <h3 style="color:#fff;font-size:14px;margin-bottom:8px">Reseller Partner</h3>
+        <p style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.6;margin-bottom:16px">Sell Chronix OS to your clients. Earn <strong style="color:var(--a)">25% recurring commission</strong> on every active subscription you bring in — every month.</p>
+        <div style="font-size:11px;color:rgba(255,255,255,.3)">IT firms, consultants, accountants</div>
+      </div>
+      <div style="padding:24px;background:rgba(255,118,27,.06);border:1px solid rgba(255,118,27,.2);border-radius:14px;text-align:center">
+        <div style="font-size:32px;margin-bottom:12px">⚙️</div>
+        <h3 style="color:#fff;font-size:14px;margin-bottom:8px">Implementation Partner</h3>
+        <p style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.6;margin-bottom:16px">Provide onboarding, training, and support to Chronix OS clients. Earn <strong style="color:var(--a)">implementation fees</strong> plus ongoing retainer.</p>
+        <div style="font-size:11px;color:rgba(255,255,255,.3)">Business consultants, tech firms</div>
+      </div>
+      <div style="padding:24px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px;text-align:center">
+        <div style="font-size:32px;margin-bottom:12px">🏢</div>
+        <h3 style="color:#fff;font-size:14px;margin-bottom:8px">White-Label License</h3>
+        <p style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.6;margin-bottom:16px">License the full platform under your own brand. Offer it as your company's ERP product. <strong style="color:var(--a)">Full source code access</strong> available for Enterprise tier.</p>
+        <div style="font-size:11px;color:rgba(255,255,255,.3)">Software companies, large consultancies</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S15: CTA ══ -->
+<div class="slide bg-cta" id="s15">
+  <div style="position:absolute;inset:0;overflow:hidden;pointer-events:none">
+    <div style="position:absolute;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(255,118,27,.1) 0%,transparent 70%);top:-200px;right:-200px"></div>
+    <div style="position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(0,51,102,.4) 0%,transparent 70%);bottom:-100px;left:-100px"></div>
+  </div>
+  <div class="content" style="justify-content:center;align-items:center;text-align:center;padding-bottom:90px;position:relative">
+    <div class="kicker" style="text-align:center">Ready to Transform Your Business?</div>
+    <h1 class="hero" style="font-size:52px;margin-bottom:8px">STOP RUNNING ON<br><span style="color:var(--a)">SPREADSHEETS</span></h1>
+    <div class="divider" style="margin:20px auto"></div>
+    <p style="font-size:16px;color:rgba(255,255,255,.5);max-width:560px;line-height:1.75;margin-bottom:40px">Join businesses across Nigeria and Africa that are replacing fragmented tools with one unified, secure, intelligent platform built for how African businesses actually work.</p>
+    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:40px">
+      <button class="cta-btn">Book a Free Demo →</button>
+      <button class="cta-out">Start 14-Day Free Trial</button>
+    </div>
+    <div style="display:flex;gap:32px;justify-content:center;flex-wrap:wrap">
+      <div style="text-align:center"><div style="font-family:monospace;font-size:20px;font-weight:700;color:#fff">₦0</div><div style="font-size:10px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;margin-top:3px">Setup Fee</div></div>
+      <div style="text-align:center"><div style="font-family:monospace;font-size:20px;font-weight:700;color:#fff">24hr</div><div style="font-size:10px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;margin-top:3px">To Go Live</div></div>
+      <div style="text-align:center"><div style="font-family:monospace;font-size:20px;font-weight:700;color:#fff">14 Days</div><div style="font-size:10px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;margin-top:3px">Free Trial</div></div>
+      <div style="text-align:center"><div style="font-family:monospace;font-size:20px;font-weight:700;color:#fff">Cancel</div><div style="font-size:10px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;margin-top:3px">Anytime</div></div>
+    </div>
+    <div style="margin-top:32px;padding:14px 28px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;display:inline-block">
+      <p style="font-size:12px;color:rgba(255,255,255,.5)">📞 <strong style="color:#fff">+234 91 2664 3718</strong> &nbsp;·&nbsp; 📧 <strong style="color:#fff">Info@chronixtechnology.com</strong> &nbsp;·&nbsp; 🌐 <strong style="color:#fff">www.chronixtechnology.com</strong></p>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- Nav bar -->
+<div class="nav">
+  <button class="btn-p" onclick="go(-1)" id="btnP">← Previous</button>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+    <div class="slide-dots" id="dots"></div>
+    <span class="ctr" id="ctr">1 / 15</span>
+  </div>
+  <button class="btn-n" onclick="go(1)" id="btnN">Next →</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total  = slides.length;
+  let cur      = 0;
+
+  const dotsEl = document.getElementById('dots');
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' on' : '');
+    d.onclick = () => show(i);
+    dotsEl.appendChild(d);
+  }
+
+  function show(n) {
+    slides[cur].classList.remove('active');
+    dotsEl.children[cur].classList.remove('on');
+    cur = Math.max(0, Math.min(n, total - 1));
+    slides[cur].classList.add('active');
+    dotsEl.children[cur].classList.add('on');
+    document.getElementById('ctr').textContent = `${cur + 1} / ${total}`;
+    document.getElementById('bar').style.width = `${((cur + 1) / total) * 100}%`;
+    document.getElementById('btnP').style.opacity = cur === 0 ? '.3' : '1';
+    document.getElementById('btnN').textContent = cur === total - 1 ? '✓ Done' : 'Next →';
+    window.scrollTo(0, 0);
+  }
+
+  function go(d) { show(cur + d); }
+
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight','ArrowDown',' '].includes(e.key)) { e.preventDefault(); go(1); }
+    if (['ArrowLeft','ArrowUp'].includes(e.key))        { e.preventDefault(); go(-1); }
+  });
+
+  let tx = 0;
+  document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+  document.addEventListener('touchend',   e => {
+    const dx = tx - e.changedTouches[0].clientX;
+    if (Math.abs(dx) > 50) go(dx > 0 ? 1 : -1);
+  });
+
+  show(0);
+</script>
+</body>
+</html>
