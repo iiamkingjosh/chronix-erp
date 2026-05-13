@@ -147,7 +147,14 @@ export default function EmployeeProfilePage() {
               {employee.fullName[0]?.toUpperCase()}
             </div>
             <div>
-              <h2 className="font-orbitron text-xl font-bold text-white">{employee.fullName}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-orbitron text-xl font-bold text-white">{employee.fullName}</h2>
+                {employee.employeeNumber && (
+                  <span className="font-orbitron text-xs font-bold text-secondary border border-secondary/30 bg-secondary/10 px-2 py-0.5 rounded-md">
+                    {employee.employeeNumber}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica", ROLE_COLORS[employee.role as Role] ?? "bg-white/8 text-white/40 border-white/15")}>
                   {employee.role}

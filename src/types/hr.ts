@@ -19,24 +19,25 @@ export interface PerformanceNote {
 }
 
 export interface Employee {
-  id:           string;   // same as user UID
-  uid:          string;
-  fullName:     string;
-  email:        string;
-  phone:        string;
-  role:         string;
-  department:   string;
-  salary:       number;   // monthly ₦
-  bankName:     string;
-  accountNumber:string;
-  accountName:  string;
-  dateJoined:   string;
-  status:       EmployeeStatus;
-  nextOfKin:    NextOfKin;
-  notes:        string;
+  id:             string;   // same as user UID
+  uid:            string;
+  employeeNumber?: string;  // e.g. CTL001 — assigned by hr-service.assignEmployeeNumber()
+  fullName:       string;
+  email:          string;
+  phone:          string;
+  role:           string;
+  department:     string;
+  salary:         number;   // monthly ₦
+  bankName:       string;
+  accountNumber:  string;
+  accountName:    string;
+  dateJoined:     string;
+  status:         EmployeeStatus;
+  nextOfKin:      NextOfKin;
+  notes:          string;
   performanceNotes: PerformanceNote[];
-  createdAt:    string;
-  updatedAt:    string;
+  createdAt:      string;
+  updatedAt:      string;
 }
 
 export interface PayrollEntry {

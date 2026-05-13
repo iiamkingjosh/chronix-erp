@@ -10,11 +10,12 @@ import { EMPLOYEE_STATUS_STYLES, formatHrDate } from "@/types/hr";
 import type { Employee } from "@/types/hr";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { formatNaira } from "@/types/finance";
 import { ROLE_COLORS } from "@/types/roles";
 import type { Role } from "@/types/roles";
 import { cn } from "@/lib/utils";
+import { auth } from "@/lib/firebase";
 
 export default function EmployeeListPage() {
   const { profile } = useAuth();
@@ -26,8 +27,11 @@ export default function EmployeeListPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // uid pending deletion
   const [actionLoading, setActionLoading] = useState<string | null>(null); // uid currently processing
   const [actionError, setActionError]     = useState<string | null>(null);
+  const [migrating, setMigrating]         = useState(false);
+  const [migrateResult, setMigrateResult] = useState<string | null>(null);
 
-  const canManage = profile ? hasPermission(profile.role, "manage:hr") : false;
+  const canManage  = profile ? hasPermission(profile.role, "manage:hr") : false;
+  const canMigrate = profile ? isRootAdmin(profile.role) : false;
 
   useEffect(() => {
     if (!canManage && profile) {
@@ -44,7 +48,8 @@ export default function EmployeeListPage() {
     return (
       e.fullName.toLowerCase().includes(q) ||
       e.department.toLowerCase().includes(q) ||
-      e.role.toLowerCase().includes(q)
+      e.role.toLowerCase().includes(q) ||
+      (e.employeeNumber ?? "").toLowerCase().includes(q)
     );
   });
 
@@ -86,6 +91,28 @@ export default function EmployeeListPage() {
     }
   }
 
+  async function handleMigrate() {
+    if (!canMigrate) return;
+    setMigrating(true);
+    setMigrateResult(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res   = await fetch("/api/admin/migrate-employee-numbers", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json() as { message?: string; assigned?: number; error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Migration failed");
+      setMigrateResult(json.message ?? `Done — ${json.assigned} assigned`);
+      // Refresh the list so the new numbers appear
+      getEmployees().then(setEmployees);
+    } catch (err) {
+      setMigrateResult(err instanceof Error ? err.message : "Migration failed");
+    } finally {
+      setMigrating(false);
+    }
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;
   }
@@ -119,6 +146,12 @@ export default function EmployeeListPage() {
           {actionError}
         </div>
       )}
+      {migrateResult && (
+        <div className="mb-4 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-xs text-accent font-helvetica flex items-center justify-between gap-3">
+          <span>{migrateResult}</span>
+          <button onClick={() => setMigrateResult(null)} className="text-white/30 hover:text-white transition-colors">✕</button>
+        </div>
+      )}
       <div className="flex gap-3 mb-5">
         <div className="relative flex-1">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
@@ -132,6 +165,16 @@ export default function EmployeeListPage() {
             className="input-field pl-10"
           />
         </div>
+        {canMigrate && employees.some((e) => !e.employeeNumber) && (
+          <button
+            onClick={handleMigrate}
+            disabled={migrating}
+            className="text-xs font-helvetica font-semibold border border-secondary/30 text-secondary hover:bg-secondary/10 px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50 whitespace-nowrap"
+            title="Assign CTL numbers to all existing employees"
+          >
+            {migrating ? "Assigning…" : "Assign Emp #s"}
+          </button>
+        )}
         {canManage && (
           <Link href="/dashboard/hr/new" className="btn-primary text-xs px-4 py-2.5 whitespace-nowrap">
             <PlusIcon /> Add Employee
@@ -157,6 +200,7 @@ export default function EmployeeListPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
+                  <th className="px-5 py-4 text-left   text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Emp #</th>
                   <th className="px-5 py-4 text-left   text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Employee</th>
                   <th className="px-5 py-4 text-left   text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Role</th>
                   <th className="px-5 py-4 text-left   text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Department</th>
@@ -183,6 +227,14 @@ export default function EmployeeListPage() {
                         isDel  && "bg-red-500/[0.05]"
                       )}
                     >
+                      {/* Emp # */}
+                      <td className="px-5 py-3.5">
+                        {emp.employeeNumber
+                          ? <span className="font-orbitron text-xs font-bold text-secondary">{emp.employeeNumber}</span>
+                          : <span className="text-xs text-white/20 font-helvetica">—</span>
+                        }
+                      </td>
+
                       {/* Name */}
                       <td className="px-5 py-3.5">
                         <Link href={`/dashboard/hr/${emp.uid}`} className="text-sm font-semibold text-white hover:text-accent font-helvetica transition-colors">

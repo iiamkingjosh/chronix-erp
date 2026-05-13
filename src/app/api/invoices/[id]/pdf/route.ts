@@ -1,10 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { createElement, type ReactElement } from "react";
+import type { ReactElement } from "react";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { InvoicePDFDocument } from "@/lib/invoice-pdf";
 import type { Invoice } from "@/types/finance";
 import type { DocumentProps } from "@react-pdf/renderer";
+
+const REACT_ELEMENT      = Symbol.for("react.element");
+const REACT_TRANSITIONAL = Symbol.for("react.transitional.element");
+function normalizeTree(node: unknown): unknown {
+  if (node === null || node === undefined || typeof node !== "object") return node;
+  if (Array.isArray(node)) return node.map(normalizeTree);
+  const obj = node as Record<string, unknown>;
+  if (obj.$$typeof === REACT_TRANSITIONAL || obj.$$typeof === REACT_ELEMENT) {
+    const props = obj.props as Record<string, unknown> | undefined;
+    return {
+      $$typeof: REACT_ELEMENT,
+      type:     obj.type,
+      key:      obj.key ?? null,
+      ref:      null,
+      props:    props ? { ...props, children: normalizeTree(props.children) } : {},
+      _owner:   null,
+    };
+  }
+  return node;
+}
 
 export async function GET(
   req: NextRequest,
@@ -23,9 +43,8 @@ export async function GET(
 
     const invoice = { id: snap.id, ...snap.data() } as Invoice;
 
-    const buffer = await renderToBuffer(
-      createElement(InvoicePDFDocument, { invoice }) as ReactElement<DocumentProps>
-    );
+    const pdfElement = normalizeTree(InvoicePDFDocument({ invoice })) as ReactElement<DocumentProps>;
+    const buffer     = await renderToBuffer(pdfElement);
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

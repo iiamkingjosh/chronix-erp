@@ -1,10 +1,47 @@
 import {
   collection, doc, setDoc, getDoc, getDocs,
-  updateDoc, query, orderBy, arrayUnion, addDoc,
+  updateDoc, query, orderBy, arrayUnion, addDoc, runTransaction,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { auth } from "./firebase";
 import type { Employee, PayrollRun, PayrollEntry, PerformanceNote } from "@/types/hr";
+
+/* ── Employee number helpers ── */
+
+/** CTL + zero-padded 3-digit number, e.g. formatEmployeeNumber(3) → "CTL003" */
+export function formatEmployeeNumber(n: number): string {
+  return `CTL${String(n).padStart(3, "0")}`;
+}
+
+/**
+ * Atomically claims the next sequential employee number for `uid`.
+ * Uses a Firestore transaction on `counters/employeeNumber` so concurrent
+ * employee-creation requests never receive the same number.
+ *
+ * Numbers CTL001 and CTL002 are reserved for Root Admin and CEO respectively
+ * and are assigned during the one-time migration; the counter is initialised
+ * at 2 so the first number issued here is CTL003.
+ *
+ * Returns the assigned number string (e.g. "CTL004").
+ */
+export async function assignEmployeeNumber(uid: string): Promise<string> {
+  const counterRef = doc(db, "counters", "employeeNumber");
+  const userRef    = doc(db, EMP, uid);
+
+  return runTransaction(db, async (tx) => {
+    const counterSnap = await tx.get(counterRef);
+    const last        = counterSnap.exists()
+      ? (counterSnap.data().lastAssigned as number)
+      : 2;           // bootstrap: CTL001 + CTL002 are reserved
+    const next        = last + 1;
+    const empNumber   = formatEmployeeNumber(next);
+
+    tx.set(counterRef, { lastAssigned: next }, { merge: true });
+    tx.update(userRef, { employeeNumber: empNumber });
+
+    return empNumber;
+  });
+}
 
 const EMP  = "users";
 const PAY  = "payroll_runs";
@@ -35,6 +72,7 @@ function mapUserToEmployee(id: string, data: Record<string, unknown>): Employee 
   return {
     id,
     uid: id,
+    employeeNumber: typeof data.employeeNumber === "string" ? data.employeeNumber : undefined,
     fullName: displayName,
     email: typeof data.email === "string" ? data.email : "",
     phone: typeof data.phone === "string" ? data.phone : "",
@@ -65,7 +103,17 @@ function mapUserToEmployee(id: string, data: Record<string, unknown>): Employee 
 }
 
 /* ── Employees ── */
-export async function createEmployee(data: Employee): Promise<void> {
+
+/**
+ * Creates (or updates) the HR record for a user and assigns an employee number
+ * if one has not already been allocated.  The number is claimed atomically via
+ * assignEmployeeNumber() so concurrent creations never collide.
+ *
+ * Returns the employee number that was assigned (or the pre-existing one).
+ */
+export async function createEmployee(data: Employee): Promise<string> {
+  // Write all HR fields first so the document exists before the transaction
+  // tries to update it (Firestore transactions can't update non-existent docs).
   await setDoc(
     doc(db, EMP, data.uid),
     {
@@ -89,6 +137,16 @@ export async function createEmployee(data: Employee): Promise<void> {
     },
     { merge: true }
   );
+
+  // If a number was already reserved (e.g. via migration) keep it.
+  if (data.employeeNumber) return data.employeeNumber;
+
+  // Check Firestore in case a number was assigned between the call and now.
+  const snap = await getDoc(doc(db, EMP, data.uid));
+  const existing = snap.data()?.employeeNumber as string | undefined;
+  if (existing) return existing;
+
+  return assignEmployeeNumber(data.uid);
 }
 
 export async function getEmployees(): Promise<Employee[]> {

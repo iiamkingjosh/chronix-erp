@@ -171,7 +171,7 @@ export function InvoicePDFDocument({ invoice }: { invoice: Invoice }) {
             <View key={item.id} style={S.tableRow}>
               <Text style={[S.tdText, S.colName]}>{item.name}</Text>
               <Text style={[S.tdText, S.colPrice]}>{item.unitPrice.toLocaleString("en-NG")}</Text>
-              <Text style={[S.tdText, S.colQty]}>{item.quantity}</Text>
+              <Text style={[S.tdText, S.colQty]}>{String(item.quantity)}</Text>
               <Text style={[S.tdText, S.colTotal]}>{item.lineTotal.toLocaleString("en-NG")}</Text>
             </View>
           ))}

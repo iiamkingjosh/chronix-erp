@@ -14,7 +14,8 @@
     "verify": "npm run check-env && npm run typecheck && npm run lint:strict && npm run build",
     "git:fetch": "node scripts/git-run.mjs fetch origin",
     "git:pull": "node scripts/git-run.mjs pull origin master",
-    "git:push": "node scripts/git-run.mjs push origin master"
+    "git:push": "node scripts/git-run.mjs push origin master",
+    "postinstall": "node scripts/patch-react-pdf-reconciler.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
