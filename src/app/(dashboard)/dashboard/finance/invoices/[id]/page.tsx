@@ -296,7 +296,6 @@ export default function InvoiceViewPage() {
                 className="flex items-center gap-2 px-4 py-2 text-sm text-accent border border-accent/30 rounded-xl hover:bg-accent/10 font-helvetica transition-colors"
               >
                 <SendIcon /> Send to Client
-                {invoice.sentAt && <span className="text-[10px] text-emerald-400 ml-1">✓ Sent</span>}
               </button>
             </>
           )}
@@ -458,9 +457,9 @@ export default function InvoiceViewPage() {
 }
 
 /* ── Print HTML generator ── */
-function buildPrintHtml(inv: Invoice, origin: string): string {
-  const logoUrl      = `${origin}/invoice-logo.png`;
-  const watermarkUrl = `${origin}/watermark-logo.png`;
+function buildPrintHtml(inv: Invoice, _origin: string): string {
+  const logoUrl      = "/images/invoice-logo.png";
+  const watermarkUrl = "/images/invoice-watermark.png";
 
   const fmt = (n: number) =>
     n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

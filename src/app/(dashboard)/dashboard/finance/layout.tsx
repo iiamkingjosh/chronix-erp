@@ -6,9 +6,11 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { label: "Overview", href: "/dashboard/finance" },
-  { label: "Invoices", href: "/dashboard/finance/invoices" },
-  { label: "Payments", href: "/dashboard/finance/payments" },
+  { label: "Overview",  href: "/dashboard/finance" },
+  { label: "Invoices",  href: "/dashboard/finance/invoices" },
+  { label: "Payments",  href: "/dashboard/finance/payments" },
+  { label: "Expenses",  href: "/dashboard/finance/expenses" },
+  { label: "Reports",   href: "/dashboard/finance/reports" },
 ];
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {

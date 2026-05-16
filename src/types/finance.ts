@@ -101,14 +101,6 @@ export function formatNaira(amount: number): string {
   })}`;
 }
 
-export function generateInvoiceNumber(date?: Date): string {
-  const d = date ?? new Date();
-  const yy = String(d.getFullYear()).slice(2);
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `CT${yy}${mm}${dd}`;
-}
-
 export function today(): string {
   return new Date().toISOString().split("T")[0];
 }
@@ -127,4 +119,151 @@ export function formatDate(dateStr: string): string {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+/* ── ACCOUNTING TYPES ─────────────────────────────────────────────────────── */
+
+export type AccountType = "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE";
+
+export interface ChartOfAccount {
+  id: string;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  category: string;
+  subCategory?: string;
+  isActive: boolean;
+  parentAccountCode?: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+}
+
+export interface JournalLineItem {
+  accountCode: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+  description?: string;
+}
+
+export interface JournalEntry {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  description: string;
+  reference?: string;
+  referenceType?: "invoice" | "payment" | "expense" | "manual";
+  referenceId?: string;
+  lineItems: JournalLineItem[];
+  totalDebit: number;
+  totalCredit: number;
+  status: "draft" | "posted" | "void";
+  createdBy: string;
+  createdAt: string;
+  postedBy?: string;
+  postedAt?: string;
+  voidedBy?: string;
+  voidedAt?: string;
+  voidReason?: string;
+}
+
+export type ExpenseCategory = "PURCHASES" | "OPERATING" | "PAYROLL" | "CAPITAL" | "TAX";
+export type ExpenseStatus   = "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" | "PAID";
+
+export interface Expense {
+  id: string;
+  expenseNumber: string;
+  expenseDate: string;
+  vendor: string;
+  vendorTIN?: string;
+  description: string;
+  category: ExpenseCategory;
+  accountCode: string;
+  amount: number;
+  vatAmount: number;
+  totalAmount: number;
+  paymentMethod: "cash" | "bank_transfer" | "card" | "cheque";
+  paymentReference?: string;
+  receiptURL?: string;
+  status: ExpenseStatus;
+  submittedBy: string;
+  submittedAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  paidAt?: string;
+}
+
+export interface ProfitLossReport {
+  id: string;
+  reportDate: string;
+  period: "monthly" | "quarterly" | "annual";
+  startDate: string;
+  endDate: string;
+  revenue: {
+    itConsulting: number;
+    networkServices: number;
+    hardwareSales: number;
+    branding: number;
+    softwareDev: number;
+    other: number;
+    total: number;
+  };
+  costOfSales: {
+    hardwareCost: number;
+    directCosts: number;
+    subcontractors: number;
+    total: number;
+  };
+  grossProfit: number;
+  grossMargin: number;
+  operatingExpenses: {
+    salaries: number;
+    rent: number;
+    internet: number;
+    fuel: number;
+    marketing: number;
+    professional: number;
+    utilities: number;
+    subscriptions: number;
+    other: number;
+    total: number;
+  };
+  netProfit: number;
+  netMargin: number;
+  generatedAt: string;
+  generatedBy: string;
+}
+
+export interface VATReturn {
+  id: string;
+  returnNumber: string;
+  period: string;
+  startDate: string;
+  endDate: string;
+  vatCollected: {
+    itServices: number;
+    hardwareSales: number;
+    branding: number;
+    other: number;
+    total: number;
+  };
+  vatPaid: {
+    purchases: number;
+    operatingExpenses: number;
+    capital: number;
+    total: number;
+  };
+  netVAT: number;
+  vatPayable: number;
+  vatRefundable: number;
+  status: "draft" | "filed" | "paid";
+  filedDate?: string;
+  paymentDate?: string;
+  paymentReference?: string;
+  createdAt: string;
+  createdBy: string;
 }

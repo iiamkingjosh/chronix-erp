@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +8,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createInvoice } from "@/lib/finance-service";
 import { logAuditEvent } from "@/lib/audit-service";
-import { generateInvoiceNumber, today, addDays, formatNaira, VAT_RATE, COMPANY } from "@/types/finance";
+import { today, addDays, formatNaira, VAT_RATE, COMPANY } from "@/types/finance";
+import { getNextInvoiceNumber, previewNextInvoiceNumber } from "@/lib/invoiceCounter";
 import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
@@ -65,11 +66,12 @@ function NewInvoiceForm() {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      invoiceNumber: generateInvoiceNumber(),
+      invoiceNumber: "",
       invoiceDate:   today(),
       dueDate:       addDays(today(), 30),
       salesperson:   profile?.displayName ?? "",
@@ -79,6 +81,10 @@ function NewInvoiceForm() {
       items:         [{ name: prefillDescription, unitPrice: prefillAmount, quantity: 1 }],
     },
   });
+
+  useEffect(() => {
+    previewNextInvoiceNumber().then((num) => setValue("invoiceNumber", num));
+  }, [setValue]);
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const watchedItems = useWatch({ control, name: "items" });
@@ -103,8 +109,9 @@ function NewInvoiceForm() {
 
       const isDraft     = submitMode === "draft";
       const approvalStatus = canApprove ? "approved" : isDraft ? "draft" : "pending_approval";
+      const invoiceNumber = await getNextInvoiceNumber();
       const inv = await createInvoice({
-        invoiceNumber: data.invoiceNumber,
+        invoiceNumber,
         invoiceDate:   data.invoiceDate,
         dueDate:       data.dueDate,
         status:        "pending",

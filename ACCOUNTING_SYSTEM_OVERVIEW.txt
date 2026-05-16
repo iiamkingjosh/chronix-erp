@@ -1,0 +1,211 @@
+CHRONIX TECHNOLOGY LIMITED — ACCOUNTING SYSTEM OVERVIEW
+What You Will Get When the 4-Week Plan Is Implemented
+Generated: 14 May 2026
+================================================================
+
+
+SUMMARY
+-------
+A complete, FIRS-compliant double-entry accounting system built directly
+into your existing Chronix ERP. No third-party accounting software needed.
+Everything lives in your Firestore database and your existing codebase.
+
+
+================================================================
+WEEK 1 — FOUNDATION
+================================================================
+
+What gets built:
+- New data types added to your codebase:
+    * Chart of Accounts
+    * Journal Entries (double-entry bookkeeping)
+    * Expenses (with approval workflow)
+    * Profit & Loss Report structure
+    * VAT Return structure
+
+- Chart of Accounts (35 accounts) tailored for Chronix:
+    * Assets      : Cash in Bank, Petty Cash, Accounts Receivable,
+                    Inventory, Computer Equipment, etc.
+    * Liabilities : Accounts Payable, VAT Payable, WHT Payable, PAYE
+    * Equity      : Share Capital (Moses 90%, Obadoni 5%, Seyi 5%),
+                    Retained Earnings
+    * Revenue     : IT Consulting, Network Services, Hardware Sales,
+                    Branding, Software Development
+    * Expenses    : Salaries, Rent, Internet, Fuel, Marketing,
+                    Professional Fees, Utilities, Subscriptions, etc.
+
+- Sequential numbering systems:
+    * Journal Entries  : JE260514-001, JE260514-002…
+    * Expenses         : EXP260514-001, EXP260514-002…
+
+What you can do after Week 1:
+- View all 35 accounts in Firestore
+- The system is ready to record transactions
+
+
+================================================================
+WEEK 2 — AUTOMATION
+================================================================
+
+What gets built:
+- Automatic journal entries when invoices are created:
+    Debit  Accounts Receivable  (full invoice amount)
+    Credit Revenue Account      (subtotal)
+    Credit VAT Payable          (7.5% VAT)
+
+- Automatic journal entries when payments are received:
+    Debit  Cash in Bank         (amount received)
+    Credit Accounts Receivable  (clears the debt)
+
+- Full Expense Management:
+    * Staff submit expense claims
+    * CFO/CEO approves or rejects
+    * On approval, journal entry is auto-created:
+        Debit  Expense Account  (e.g. Rent 6020)
+        Debit  VAT Recoverable  (if VAT was paid)
+        Credit Cash in Bank     (money paid out)
+
+- Profit & Loss calculator that reads journal entries
+
+What you can do after Week 2:
+- Every invoice you create automatically updates your books
+- Every payment recorded automatically clears receivables
+- Staff can submit expense claims for approval
+- You can generate a P&L for any date range
+
+
+================================================================
+WEEK 3 — REPORTING
+================================================================
+
+What gets built:
+- VAT Return generator (FIRS-compliant):
+    * Calculates Output VAT (collected from customers)
+    * Calculates Input VAT (paid to suppliers)
+    * Shows Net VAT payable to FIRS
+    * Shows due date (21st of following month)
+    * Can be marked as Filed and Paid
+
+- Balance Sheet generator:
+    * Calculates Assets = Liabilities + Equity
+    * Shows if your books are balanced
+    * Current assets, fixed assets, liabilities, equity
+
+- Printed/Exportable Report Components:
+    * Profit & Loss Statement (professional format)
+    * VAT Return Report (ready to submit to FIRS)
+    * Shows your company details, TIN, RC number
+
+What you can do after Week 3:
+- Generate a monthly Profit & Loss statement
+- Generate a Balance Sheet at any date
+- Generate a VAT return ready to file with FIRS
+- See if you owe FIRS money or are owed a refund
+
+
+================================================================
+WEEK 4 — UI & FINAL INTEGRATION
+================================================================
+
+What gets built:
+- Financial Dashboard page showing:
+    * Revenue Month-to-Date
+    * Net Profit Month-to-Date with margin %
+    * VAT Payable (with alert if amount is due)
+    * Pending expense approvals count
+    * Revenue breakdown by service type (bar chart)
+    * Pending expenses table for quick approval
+
+- Expense Entry Form:
+    * Date, Vendor, Vendor TIN
+    * Category, Account Code dropdown
+    * Amount + VAT toggle (auto-calculates 7.5%)
+    * Payment method
+    * Submits for approval workflow
+
+- Report Pages:
+    * /finance/reports/profit-loss → Full P&L
+    * /finance/reports/vat-return → VAT Return
+
+- Updated Firestore Security Rules:
+    * Chart of Accounts: All staff can read
+    * Journal Entries: Finance team only, never deletable
+    * Expenses: Anyone can submit, CFO/CEO approves
+    * VAT Returns: Finance team only
+
+What you can do after Week 4:
+- Full end-to-end accounting system is live
+- Dashboard gives you instant financial health snapshot
+- Staff submit expenses through the UI
+- CFO approves expenses through the UI
+- Generate and print P&L and VAT returns
+
+
+================================================================
+COMPLETE PICTURE — WHAT YOU WILL HAVE
+================================================================
+
+AUTOMATED BOOKKEEPING
+    Every invoice created → books updated automatically
+    Every payment received → books updated automatically
+    Every expense approved → books updated automatically
+    No manual data entry needed
+
+FIRS COMPLIANCE
+    Sequential invoice numbers: CT260514-001, CT260514-002
+    VAT collected tracked per invoice
+    VAT paid on expenses tracked
+    Monthly VAT return ready to submit
+    WHT and PAYE accounts tracked
+
+FINANCIAL REPORTS (available anytime)
+    Profit & Loss Statement (monthly, quarterly, annual)
+    Balance Sheet (as of any date)
+    VAT Return (monthly, for FIRS filing)
+    Revenue breakdown by service type
+
+EXPENSE MANAGEMENT
+    Staff submit claims through the ERP
+    CFO/CEO approves or rejects with reason
+    Approved expenses auto-posted to accounts
+    Full audit trail of who approved what
+
+CHART OF ACCOUNTS
+    35 accounts covering all Chronix operations
+    Asset accounts including your Fidelity bank account
+    Equity split 90%/5%/5% per shareholding
+    Revenue accounts per service line
+
+SECURITY
+    Role-based access (CEO, CFO, Accountant, Staff)
+    Journal entries can never be deleted
+    Audit trail on all transactions
+    Firestore rules enforce permissions
+
+
+================================================================
+WHAT THIS DOES NOT INCLUDE
+================================================================
+- Bank reconciliation (matching bank statements to records)
+- Payroll processing (separate from expense recording)
+- Multi-currency support
+- Budget vs actual tracking
+- Cash flow forecasting
+- Integration with external accounting software
+- Tax filing (it generates the return but you still file it)
+
+
+================================================================
+NUMBERS AT A GLANCE
+================================================================
+Files to create       : ~15 new files
+Files to modify       : ~4 existing files
+Firestore collections : chart_of_accounts, journal_entries,
+                        expenses, vat_returns, metadata
+Accounts in CoA       : 35
+Build time estimate   : 4 weeks (15-20 min each with Claude)
+
+
+================================================================
+END OF OVERVIEW
+================================================================

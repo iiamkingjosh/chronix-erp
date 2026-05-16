@@ -1,3 +1,5 @@
+import path from "path";
+import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
@@ -9,19 +11,25 @@ import { logAuditEvent } from "@/lib/audit-service";
 import { formatNaira, formatDate } from "@/types/finance";
 import type { Invoice } from "@/types/finance";
 
-// Next.js 16 compiles server-side JSX with React 19's transitional element format
-// ($$typeof = Symbol.for("react.transitional.element")).  @react-pdf/reconciler's
-// React 18 reconciler only understands Symbol.for("react.element") and throws
-// React error #31 on the unknown type.
-//
-// Both createElement() and the JSX in invoice-pdf.tsx are aliased by Next.js's
-// webpack to its bundled React 19, so every element in the tree is "transitional".
-// Calling InvoicePDFDocument() directly (as a plain function) and then recursively
-// rewriting every $$typeof before handing the tree to renderToBuffer fixes this
-// without touching any reconciler internals.
+// Read image files once at module load. react-pdf accepts { data: Buffer, format: string }
+// which bypasses all network/file fetching in its image loader — no fetch() calls at render time.
+function readImg(filename: string): { data: Buffer; format: string } | undefined {
+  try {
+    const data = fs.readFileSync(path.join(process.cwd(), "public", "images", filename));
+    return { data, format: "png" };
+  } catch (e) {
+    console.error(`[send] Could not read ${filename}:`, e);
+    return undefined;
+  }
+}
+const LOGO_IMG      = readImg("invoice-logo.png");
+const WATERMARK_IMG = readImg("invoice-watermark.png");
+
+// Next.js 16 bundles React 19 ($$typeof = react.transitional.element).
+// @react-pdf/reconciler uses React 18 and only understands react.element.
+// normalizeTree rewrites the entire JSX tree before passing to renderToBuffer.
 const REACT_ELEMENT      = Symbol.for("react.element");
 const REACT_TRANSITIONAL = Symbol.for("react.transitional.element");
-
 function normalizeTree(node: unknown): unknown {
   if (node === null || node === undefined || typeof node !== "object") return node;
   if (Array.isArray(node)) return node.map(normalizeTree);
@@ -61,13 +69,13 @@ export async function POST(
 
     const invoice = { id: snap.id, ...snap.data() } as Invoice;
 
-    /* Generate PDF — call component directly and normalise the element tree so
-       React 19 transitional elements become React 18 elements before the
-       @react-pdf/reconciler (React 18 reconciler) processes them. */
-    const pdfElement = normalizeTree(InvoicePDFDocument({ invoice })) as ReactElement<DocumentProps>;
-    const pdfBuffer  = await renderToBuffer(pdfElement);
+    // Images are passed as { data: Buffer, format: 'png' } — react-pdf reads directly
+    // from the buffer with no network or filesystem calls during rendering.
+    const pdfElement = normalizeTree(
+      InvoicePDFDocument({ invoice, logoSrc: LOGO_IMG, watermarkSrc: WATERMARK_IMG })
+    ) as ReactElement<DocumentProps>;
+    const pdfBuffer = await renderToBuffer(pdfElement);
 
-    /* Send email with PDF attachment */
     const result = await sendEmail(
       [clientEmail],
       `Invoice ${invoice.invoiceNumber} from Chronix Technology Limited`,
@@ -84,11 +92,9 @@ export async function POST(
       return NextResponse.json({ error: result.error ?? result.skipped ?? "Failed to send email" }, { status: 500 });
     }
 
-    /* Mark invoice as sent in Firestore */
     const now = new Date().toISOString();
     await db.collection("invoices").doc(id).update({ sentAt: now, sentTo: clientEmail });
 
-    /* Audit log */
     const callerSnap = await db.collection("users").doc(decoded.uid).get();
     const caller = callerSnap.data();
     logAuditEvent({

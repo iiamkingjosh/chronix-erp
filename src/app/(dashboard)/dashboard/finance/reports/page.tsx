@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { getInvoices, getPayments } from "@/lib/finance-service";
 import { getExpenses } from "@/lib/expense-service";
 import { formatNaira, formatDate } from "@/types/finance";
@@ -215,6 +216,22 @@ export default function FinancialReportsPage() {
             Export PDF
           </button>
         </div>
+      </div>
+
+      {/* Accounting Reports Links */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: "P&L Statement",    sub: "From journal entries", href: "/dashboard/finance/reports/profit-loss" },
+          { label: "VAT Return",       sub: "FIRS-ready filing",    href: "/dashboard/finance/reports/vat-return" },
+          { label: "Balance Sheet",    sub: "Assets = L + E",       href: "/dashboard/finance/reports/balance-sheet" },
+          { label: "Journal Entries",  sub: "Double-entry ledger",  href: "/dashboard/finance/reports/journal-entries" },
+        ].map((r) => (
+          <Link key={r.href} href={r.href}
+            className="surface-card p-4 hover:border-accent/30 border border-transparent transition-colors group">
+            <p className="font-orbitron text-xs font-bold text-white group-hover:text-accent transition-colors">{r.label}</p>
+            <p className="text-[10px] text-white/30 font-helvetica mt-1">{r.sub}</p>
+          </Link>
+        ))}
       </div>
 
       {/* Tabs */}

@@ -12,13 +12,19 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Invoice, Payment, InvoiceStatus, ApprovalStatus } from "@/types/finance";
+import { createInvoiceJournalEntry, createPaymentJournalEntry } from "@/lib/accounting/auto-journal";
 
 const INV = "invoices";
 const PAY = "payments";
 
 export async function createInvoice(data: Omit<Invoice, "id">): Promise<Invoice> {
-  const ref = await addDoc(collection(db, INV), data);
-  return { ...data, id: ref.id };
+  const ref     = await addDoc(collection(db, INV), data);
+  const invoice = { ...data, id: ref.id };
+  // Auto-post journal entry — fire-and-forget so invoice creation never fails
+  createInvoiceJournalEntry(invoice, data.createdBy).catch((e) =>
+    console.error("[accounting] Failed to create invoice journal entry:", e)
+  );
+  return invoice;
 }
 
 export async function getInvoices(): Promise<Invoice[]> {
@@ -41,7 +47,7 @@ export async function deleteInvoice(id: string): Promise<void> {
 }
 
 export async function createPayment(data: Omit<Payment, "id">): Promise<Payment> {
-  const batch = writeBatch(db);
+  const batch      = writeBatch(db);
   const paymentRef = doc(collection(db, PAY));
   const invoiceRef = doc(db, INV, data.invoiceId);
 
@@ -50,7 +56,12 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
 
   await batch.commit();
 
-  return { ...data, id: paymentRef.id };
+  const payment = { ...data, id: paymentRef.id };
+  // Auto-post journal entry — fire-and-forget
+  createPaymentJournalEntry(payment, data.recordedBy).catch((e) =>
+    console.error("[accounting] Failed to create payment journal entry:", e)
+  );
+  return payment;
 }
 
 export async function getPayments(): Promise<Payment[]> {

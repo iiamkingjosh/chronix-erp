@@ -496,6 +496,37 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /* ── Chart of Accounts ───────────────────────────── */
+    match /chart_of_accounts/{accountId} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && (isRootAdmin() || isCFO() || isSystemAdmin());
+      allow update: if isAuth() && (isRootAdmin() || isCFO() || isSystemAdmin());
+      allow delete: if false;
+    }
+
+    /* ── Journal Entries ─────────────────────────────── */
+    match /journal_entries/{entryId} {
+      allow read:   if isAuth() && hasViewFinance();
+      allow create: if isAuth() && (canManageFinance() || isSalesRep());
+      allow update: if false; // Never allow updates - void instead
+      allow delete: if false; // Never allow deletes - void instead
+    }
+
+    /* ── VAT Returns ─────────────────────────────────── */
+    match /vat_returns/{returnId} {
+      allow read:   if isAuth() && hasViewFinance();
+      allow create: if isAuth() && (isRootAdmin() || isCFO());
+      allow update: if isAuth() && (isRootAdmin() || isCFO());
+      allow delete: if false;
+    }
+
+    /* ── Metadata Counters (invoice, journal, expense numbers) ── */
+    // runTransaction requires both read + write on the counter doc.
+    // Finance team and sales reps generate numbers client-side.
+    match /metadata/{docId} {
+      allow read:   if isAuth() && (canManageFinance() || isSalesRep());
+      allow write:  if isAuth() && (canManageFinance() || isSalesRep());
+    }
     match /{document=**} {
       allow read, write: if isAuth() && isRootAdmin();
     }

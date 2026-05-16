@@ -1,3 +1,5 @@
+import path from "path";
+import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
@@ -6,6 +8,23 @@ import { InvoicePDFDocument } from "@/lib/invoice-pdf";
 import type { Invoice } from "@/types/finance";
 import type { DocumentProps } from "@react-pdf/renderer";
 
+// Read image files once at module load. react-pdf accepts { data: Buffer, format: string }
+// which bypasses all network/file fetching in its image loader — no fetch() calls at render time.
+function readImg(filename: string): { data: Buffer; format: string } | undefined {
+  try {
+    const data = fs.readFileSync(path.join(process.cwd(), "public", "images", filename));
+    return { data, format: "png" };
+  } catch (e) {
+    console.error(`[pdf] Could not read ${filename}:`, e);
+    return undefined;
+  }
+}
+const LOGO_IMG      = readImg("invoice-logo.png");
+const WATERMARK_IMG = readImg("invoice-watermark.png");
+
+// Next.js 16 bundles React 19 ($$typeof = react.transitional.element).
+// @react-pdf/reconciler uses React 18 and only understands react.element.
+// normalizeTree rewrites the entire JSX tree before passing to renderToBuffer.
 const REACT_ELEMENT      = Symbol.for("react.element");
 const REACT_TRANSITIONAL = Symbol.for("react.transitional.element");
 function normalizeTree(node: unknown): unknown {
@@ -43,8 +62,13 @@ export async function GET(
 
     const invoice = { id: snap.id, ...snap.data() } as Invoice;
 
-    const pdfElement = normalizeTree(InvoicePDFDocument({ invoice })) as ReactElement<DocumentProps>;
-    const buffer     = await renderToBuffer(pdfElement);
+    console.log("[pdf] building element...");
+    const raw = InvoicePDFDocument({ invoice, logoSrc: LOGO_IMG, watermarkSrc: WATERMARK_IMG });
+    console.log("[pdf] normalizing tree...");
+    const pdfElement = normalizeTree(raw) as ReactElement<DocumentProps>;
+    console.log("[pdf] calling renderToBuffer...");
+    const buffer = await renderToBuffer(pdfElement);
+    console.log("[pdf] renderToBuffer done, size:", buffer.length);
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
@@ -56,6 +80,6 @@ export async function GET(
     });
   } catch (err) {
     console.error("[invoices/pdf] error:", err);
-    return NextResponse.json({ error: "Failed to generate PDF" }, { status: 500 });
+    return NextResponse.json({ error: `Failed to generate PDF — ${err instanceof Error ? err.message : String(err)}` }, { status: 500 });
   }
 }
