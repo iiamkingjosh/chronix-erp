@@ -63,7 +63,7 @@ service cloud.firestore {
 
     /** ROLE_PERMISSIONS — manage:crm */
     function canManageCRM() {
-      return isRootAdmin() || isSystemAdmin() || isBrandLead() || isSocialLead();
+      return isRootAdmin() || isSystemAdmin() || isBrandLead() || isSocialLead() || isSalesRep();
     }
 
     /** ROLE_PERMISSIONS — manage:hr */

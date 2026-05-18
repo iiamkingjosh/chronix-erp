@@ -85,7 +85,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
   [ROLES.SYSTEM_ADMIN]: [
     "view:all",
     "manage:staff",       "manage:settings",    "manage:hr",
-    "view:finance",       "manage:tickets",     "manage:crm",
+    "view:finance",       "manage:finance",     "manage:tickets",     "manage:crm",
     "manage:projects",    "manage:procurement",
     "manage:subscriptions",
     "view:analytics",     "view:notifications",

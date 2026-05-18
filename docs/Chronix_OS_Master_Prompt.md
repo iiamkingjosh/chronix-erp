@@ -117,6 +117,52 @@ Extra **`ROLE_NAV`** keys for raw legacy strings: **`Admin`**, **`Manager`**, **
 
 ---
 
+## ACCOUNTING SYSTEM (`src/lib/accounting/`)
+
+A full **double-entry accounting engine** is implemented in `src/lib/accounting/`. All journal entries are **immutable** — Firestore rules enforce `allow update: if false` on `journal_entries`.
+
+### Collections added
+
+| Collection | Purpose |
+|---|---|
+| `chart_of_accounts` | 35 accounts (assets, liabilities, equity, revenue, expenses). Readable by all authenticated users. |
+| `journal_entries` | Immutable double-entry records. Finance team creates; **no one can update or delete** — corrections must be voiding entries. |
+| `vat_returns` | Monthly VAT return records (Output VAT − Input VAT = Net payable to FIRS). |
+| `metadata` | Sequential counters for journal entry numbers (`JE260514-001`) and expense numbers (`EXP260514-001`). Finance + Sales Rep can read/write via `runTransaction`. |
+
+### Auto-journal wiring (`auto-journal.ts`)
+
+| Trigger | Debit | Credit |
+|---|---|---|
+| Invoice created | 1100 Accounts Receivable (full total) | 40XX Revenue per item (each `item.lineTotal` → correct revenue account) + 2100 VAT Payable |
+| Payment received | 1010 Cash in Bank | 1100 Accounts Receivable |
+
+Revenue account lookup (`revenueAccount()`) maps item names to accounts 4010–4050 by keyword. Each invoice item gets its **own** credit line with the correct revenue account code — not one line for the whole subtotal.
+
+### Financial report pages
+
+| Route | Report |
+|---|---|
+| `/dashboard/finance/reports/profit-loss` | P&L Statement (revenue − expenses by date range) |
+| `/dashboard/finance/reports/balance-sheet` | Balance Sheet (assets = liabilities + equity) |
+| `/dashboard/finance/reports/vat-return` | VAT Return (FIRS-compliant, output vs input VAT) |
+| `/dashboard/finance/reports/journal-entries` | Journal entry ledger with search/filter |
+
+### Chart of Accounts (key codes)
+
+| Code | Account |
+|---|---|
+| 1010 | Cash in Bank — Fidelity |
+| 1100 | Accounts Receivable |
+| 2100 | VAT Payable (7.5%) |
+| 4010 | IT Consulting Services Revenue |
+| 4020 | Network Infrastructure Revenue |
+| 4030 | Hardware Sales Revenue |
+| 4040 | Branding & Design Revenue |
+| 4050 | Software Development Revenue |
+
+---
+
 ## FIREBASE SETUP
 
 ### User profile (`users/{uid}`)
@@ -140,6 +186,10 @@ Role-based redirects use **`ROLE_REDIRECTS`** after login.
 Core ERP:
 
 `users`, `invoices`, `payments`, `expenses`, `tickets`, `leads`, `clients`, `projects`, `vendors`, `purchase_orders`, `employees`, `payroll_runs`, `subscriptions`, `notifications`
+
+Accounting:
+
+`chart_of_accounts`, `journal_entries` (**immutable** — no update/delete), `vat_returns`, `metadata`
 
 Tax:
 
@@ -167,6 +217,7 @@ Assets:
 |------|----------------|----------------------|
 | Auth | `/login` | Form uses POST-style submission; middleware-style helpers may strip `email`/`password` query params (`src/proxy.ts` when integrated). |
 | Finance | `/dashboard/finance` | Tabs in layout: Overview, Invoices, Payments. Expenses under `/dashboard/finance/expenses`. |
+| Financial Reports | `/dashboard/finance/reports` | Sub-pages: `profit-loss`, `balance-sheet`, `vat-return`, `journal-entries`. |
 | Tickets | `/dashboard/tickets` | List, new, detail; SLA concepts in UI/services. |
 | CRM | `/dashboard/crm` | Leads, clients, follow-ups, pipeline-style views. |
 | Projects | `/dashboard/projects` | Tasks embedded on projects. |
@@ -179,6 +230,15 @@ Assets:
 | Assets / Time / Knowledge / Incidents / Changes / On-call / Brand / Audit / Settings | Matching `/dashboard/...` routes | See Sidebar list. |
 | Staff directory | `/dashboard/staff` | Internal user listing (where permitted). |
 | Client portal | **`/portal`**, `/portal/login` | Separate route tree from dashboard. |
+
+---
+
+## RBAC FIXES APPLIED (May 2026)
+
+Two inconsistencies between `ROLE_PERMISSIONS` (app layer) and `firestore.rules` (database layer) were corrected:
+
+1. **Sales Rep — CRM write access**: `canManageCRM()` in Firestore rules now includes `isSalesRep()`. Previously Sales Reps had `manage:crm` in `ROLE_PERMISSIONS` but Firestore would block their writes to `leads` and `clients`.
+2. **System Admin — `manage:finance`**: Added `"manage:finance"` to `ROLE_PERMISSIONS[SYSTEM_ADMIN]`. Previously System Admin was in Firestore's `canManageFinance()` but `hasPermission(role, 'manage:finance')` would return false for them.
 
 ---
 
