@@ -1,4 +1,4 @@
-declare module "@vercel/speed-insights/next" {
+declare module "@vercel/speed-insights/react" {
   interface SpeedInsightsProps {
     dsn?: string;
     sampleRate?: number;
