@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { getOnCallSlots, createOnCallSlot, deleteOnCallSlot, getCurrentOnCall } from "@/lib/oncall-service";
@@ -76,7 +76,7 @@ export default function OnCallPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <div>
           <h1 className="font-orbitron text-2xl font-bold text-white">On-Call Schedule</h1>

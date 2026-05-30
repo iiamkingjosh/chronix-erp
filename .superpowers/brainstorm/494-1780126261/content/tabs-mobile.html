@@ -1,0 +1,70 @@
+<h2>Module Tab Bars on Mobile</h2>
+<p class="subtitle">Finance, HR, Tax, Analytics and others have a row of tabs (e.g. "Invoices | Payments | Expenses | Reports"). On a phone screen these overflow. Pick the treatment.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Horizontally Scrollable Tabs (Recommended)</h3>
+      <p>The tab bar scrolls horizontally with <code>overflow-x: auto</code> and hidden scrollbar. Tabs stay full-size, user swipes to see more. A fade hint on the right edge indicates overflow.</p>
+      <div style="margin-top:12px;max-width:220px">
+        <div style="background:#091d2e;border-radius:8px 8px 0 0;border:1px solid rgba(255,255,255,0.1);border-bottom:none">
+          <div style="display:flex;overflow:hidden;position:relative;border-bottom:1px solid rgba(255,255,255,0.1)">
+            <div style="padding:8px 12px;font-size:9px;font-weight:600;color:#f97316;border-bottom:2px solid #f97316;white-space:nowrap">Invoices</div>
+            <div style="padding:8px 12px;font-size:9px;color:rgba(255,255,255,0.4);white-space:nowrap">Payments</div>
+            <div style="padding:8px 12px;font-size:9px;color:rgba(255,255,255,0.4);white-space:nowrap">Expenses</div>
+            <div style="position:absolute;right:0;top:0;bottom:0;width:24px;background:linear-gradient(to right,transparent,#091d2e)"></div>
+          </div>
+        </div>
+        <div style="background:#091d2e;border:1px solid rgba(255,255,255,0.1);border-top:none;border-radius:0 0 8px 8px;padding:8px;font-size:8px;color:rgba(255,255,255,0.3)">← swipe tabs →</div>
+      </div>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros"><h4>Pros</h4><ul><li>Minimal code change</li><li>Familiar pattern</li><li>All tabs accessible</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Hidden tabs not obvious</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Dropdown Select on Mobile</h3>
+      <p>Tabs collapse into a native <code>&lt;select&gt;</code> or styled dropdown on mobile. User taps to pick the section. Clean but loses the "tab" feel.</p>
+      <div style="margin-top:12px;max-width:220px">
+        <div style="background:#091d2e;border-radius:8px;border:1px solid rgba(255,255,255,0.15);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:10px">
+          <span style="color:#f97316;font-weight:600">Invoices</span>
+          <span style="color:rgba(255,255,255,0.4);font-size:8px">▼</span>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros"><h4>Pros</h4><ul><li>Works with many tabs</li><li>No overflow</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Breaks visual language</li><li>More complex code</li><li>Less scannable</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Wrap to Two Rows</h3>
+      <p>Tabs wrap naturally when they overflow — no special treatment. The tab bar may use 1–2 rows on mobile.</p>
+      <div style="margin-top:12px;max-width:220px">
+        <div style="background:#091d2e;border-radius:8px 8px 0 0;border:1px solid rgba(255,255,255,0.1);border-bottom:none">
+          <div style="display:flex;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,0.1)">
+            <div style="padding:7px 10px;font-size:9px;font-weight:600;color:#f97316;border-bottom:2px solid #f97316;white-space:nowrap">Invoices</div>
+            <div style="padding:7px 10px;font-size:9px;color:rgba(255,255,255,0.4);white-space:nowrap">Payments</div>
+            <div style="padding:7px 10px;font-size:9px;color:rgba(255,255,255,0.4);white-space:nowrap">Expenses</div>
+            <div style="padding:7px 10px;font-size:9px;color:rgba(255,255,255,0.4);white-space:nowrap">Reports</div>
+          </div>
+        </div>
+        <div style="background:#091d2e;border:1px solid rgba(255,255,255,0.1);border-top:none;border-radius:0 0 8px 8px;padding:8px;font-size:8px;color:rgba(255,255,255,0.3)">Content area</div>
+      </div>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros"><h4>Pros</h4><ul><li>Zero extra code</li><li>All tabs always visible</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Looks broken / unintentional</li><li>Wastes vertical space</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>

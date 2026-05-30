@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -111,7 +111,7 @@ export default function DashboardHome() {
   const roleColor = ROLE_COLORS[canonical] ?? "bg-white/10 text-white/50 border-white/20";
 
   return (
-    <div className="p-8 max-w-6xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto animate-fade-in">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-1">
           <h1 className="font-orbitron text-2xl font-bold text-white">

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -51,7 +51,7 @@ export default function NewExpensePage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto animate-fade-in">
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors">
           <BackIcon />

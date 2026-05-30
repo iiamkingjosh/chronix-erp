@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash \"C:/Users/pc/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh\" --project-dir \"c:/Users/pc/Documents/chronix-os\")",
+      "Bash(not exist *)",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\pc\\\\Documents\\\\chronix-os\\\\docs\\\\superpowers\\\\specs\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(grep -rn \"overflow\" src/app/globals.css)",
+      "Bash(grep -rn \"overflow\" src/styles/)",
+      "Bash(cat src/app/layout.tsx)",
+      "Bash(cat src/app/\\\\\\(dashboard\\\\\\)/layout.tsx)"
+    ]
+  }
+}

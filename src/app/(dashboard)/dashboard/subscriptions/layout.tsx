@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -16,7 +16,7 @@ export default function SubscriptionsLayout({ children }: { children: React.Reac
 
   return (
     <ProtectedRoute requiredPermission="view:subscriptions">
-      <div className="p-8 max-w-7xl mx-auto animate-fade-in">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
         <div className="mb-6">
           <h1 className="font-orbitron text-2xl font-bold text-white">Subscriptions & Expiry</h1>
           <p className="text-white/40 text-sm font-helvetica mt-1">

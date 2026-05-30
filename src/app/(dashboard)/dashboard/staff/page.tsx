@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
@@ -124,7 +124,7 @@ export default function StaffPage() {
 
   return (
     <ProtectedRoute requiredAnyPermission={["manage:staff", "manage:hr"]}>
-      <div className="p-8 max-w-5xl mx-auto animate-fade-in">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto animate-fade-in">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="font-orbitron text-2xl font-bold text-white">Staff</h1>

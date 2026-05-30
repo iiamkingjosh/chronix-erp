@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -74,7 +74,7 @@ export default function SettingsPage() {
 
   return (
     <ProtectedRoute requiredAnyPermission={["manage:settings", "view:settings"]}>
-      <div className="p-8 max-w-4xl mx-auto animate-fade-in">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto animate-fade-in">
         <div className="mb-6">
           <h1 className="font-orbitron text-2xl font-bold text-white">Settings</h1>
           <p className="text-white/40 text-sm font-helvetica mt-1">Platform configuration and administration</p>
