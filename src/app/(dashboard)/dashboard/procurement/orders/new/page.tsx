@@ -82,7 +82,7 @@ export default function NewPOPage() {
         total: subtotal,
         status:       "pending",
         deliveryDate: data.deliveryDate,
-        notes:        data.notes || undefined,
+        ...(data.notes?.trim() ? { notes: data.notes.trim() } : {}),
         createdAt:    now,
         createdBy:    profile.uid,
         updatedAt:    now,
