@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { createPO, getVendors } from "@/lib/procurement-service";
-import { generatePONumber, formatProcDate } from "@/types/procurement";
+import { generatePONumber } from "@/types/procurement";
 import type { Vendor, POItem } from "@/types/procurement";
 import { formatNaira } from "@/types/finance";
 
@@ -147,26 +147,15 @@ export default function NewPOPage() {
                 {fields.map((field, i) => {
                   const total = calcItemTotal(watchedItems?.[i]?.quantity ?? 0, watchedItems?.[i]?.unitPrice ?? 0);
                   return (
-                    <div key={field.id} className="grid grid-cols-1 sm:grid-cols-[1fr_80px_120px_110px_36px] gap-2 items-start">
-                      {/* Name + mobile delete button */}
-                      <div className="flex gap-2">
-                        <input {...register(`items.${i}.name`)} placeholder="Item name" className="flex-1 input-field py-2.5 text-sm" />
-                        <button type="button" onClick={() => remove(i)} disabled={fields.length === 1}
-                          className="sm:hidden w-9 h-9 flex items-center justify-center text-white/20 hover:text-red-400 disabled:opacity-20 transition-colors rounded-lg border border-white/5 hover:border-red-500/20 shrink-0">
-                          <TrashIcon />
-                        </button>
+                    <div key={field.id} className="grid grid-cols-[1fr_64px_96px_36px] sm:grid-cols-[1fr_80px_120px_110px_36px] gap-2 items-start">
+                      <input {...register(`items.${i}.name`)} placeholder="Item name" className="input-field py-2.5 text-sm" />
+                      <input {...register(`items.${i}.quantity`)} type="number" min="1" placeholder="1" className="input-field py-2.5 text-sm text-center" />
+                      <input {...register(`items.${i}.unitPrice`)} type="number" min="0" step="any" placeholder="0.00" className="input-field py-2.5 text-sm text-right" />
+                      <div className="hidden sm:flex input-field py-2.5 text-sm text-right pointer-events-none text-white/50 items-center justify-end">
+                        {formatNaira(total)}
                       </div>
-                      {/* Qty / Price / Total — 3-col subgrid on mobile, slots into parent grid on desktop */}
-                      <div className="grid grid-cols-3 gap-2 sm:contents">
-                        <input {...register(`items.${i}.quantity`)} type="number" min="1" placeholder="Qty" className="input-field py-2.5 text-sm text-center" />
-                        <input {...register(`items.${i}.unitPrice`)} type="number" min="0" step="any" placeholder="0.00" className="input-field py-2.5 text-sm text-right" />
-                        <div className="input-field py-2.5 text-sm text-right pointer-events-none text-white/50 flex items-center justify-end">
-                          {formatNaira(total)}
-                        </div>
-                      </div>
-                      {/* Delete — desktop only */}
                       <button type="button" onClick={() => remove(i)} disabled={fields.length === 1}
-                        className="hidden sm:flex w-9 h-9 items-center justify-center text-white/20 hover:text-red-400 disabled:opacity-20 transition-colors rounded-lg border border-white/5 hover:border-red-500/20 shrink-0">
+                        className="w-9 h-9 flex items-center justify-center text-white/20 hover:text-red-400 disabled:opacity-20 transition-colors rounded-lg border border-white/5 hover:border-red-500/20 shrink-0">
                         <TrashIcon />
                       </button>
                     </div>
