@@ -53,13 +53,13 @@ function KPICard({ label, value, accent = "text-white", sub, href, icon }: {
   label: string; value: string; accent?: string; sub?: string; href?: string; icon: string;
 }) {
   const body = (
-    <div className="surface-card p-5 flex flex-col gap-2 min-h-[100px] hover:border-white/20 transition-colors">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-white/40 uppercase tracking-widest font-helvetica">{label}</span>
-        <span className="text-xl">{icon}</span>
+    <div className="surface-card p-5 flex flex-col gap-2 min-h-[100px] overflow-hidden hover:border-white/20 transition-colors">
+      <div className="flex items-center justify-between gap-2 min-w-0">
+        <span className="text-[10px] text-white/40 uppercase tracking-widest font-helvetica leading-tight">{label}</span>
+        <span className="text-xl shrink-0">{icon}</span>
       </div>
-      <p className={cn("font-orbitron text-2xl font-bold tabular-nums leading-none", accent)}>{value}</p>
-      {sub && <p className="text-xs text-white/30 font-helvetica">{sub}</p>}
+      <p className={cn("font-orbitron text-xl font-bold tabular-nums leading-none truncate", accent)}>{value}</p>
+      {sub && <p className="text-xs text-white/30 font-helvetica truncate">{sub}</p>}
     </div>
   );
   return href ? <Link href={href} className="block">{body}</Link> : body;

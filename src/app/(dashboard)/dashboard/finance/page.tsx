@@ -31,15 +31,15 @@ function StatCard({
   icon: React.ReactNode; iconClass: string; valueClass: string;
 }) {
   return (
-    <div className="surface-card p-5">
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-white/40 text-xs uppercase tracking-wider font-helvetica">{label}</p>
+    <div className="surface-card p-5 overflow-hidden">
+      <div className="flex items-start justify-between gap-2 mb-3 min-w-0">
+        <p className="text-white/40 text-xs uppercase tracking-wider font-helvetica leading-tight">{label}</p>
         <div className={cn("w-8 h-8 rounded-lg border flex items-center justify-center shrink-0", iconClass)}>
           {icon}
         </div>
       </div>
-      <p className={cn("font-orbitron text-xl font-bold", valueClass)}>{value}</p>
-      <p className="text-white/30 text-xs font-helvetica mt-1">{sub}</p>
+      <p className={cn("font-orbitron text-xl font-bold truncate", valueClass)}>{value}</p>
+      <p className="text-white/30 text-xs font-helvetica mt-1 truncate">{sub}</p>
     </div>
   );
 }

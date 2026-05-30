@@ -64,17 +64,17 @@ interface KPIProps {
 function KPI({ label, value, icon, accent = "text-white", sub, href }: KPIProps) {
   const card = (
     <div className={cn(
-      "surface-card p-5 flex flex-col gap-2 min-h-[100px]",
+      "surface-card p-5 flex flex-col gap-2 min-h-[100px] overflow-hidden",
       href && "hover:border-accent/30 transition-colors cursor-pointer"
     )}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 min-w-0">
         <span className="text-[10px] text-white/40 uppercase tracking-widest font-helvetica leading-tight">{label}</span>
-        <span className="text-xl leading-none">{icon}</span>
+        <span className="text-xl leading-none shrink-0">{icon}</span>
       </div>
-      <p className={cn("font-orbitron text-2xl font-bold leading-none tabular-nums", accent)}>
+      <p className={cn("font-orbitron text-xl font-bold leading-none tabular-nums truncate", accent)}>
         {value === "" || value === undefined || value === null ? "—" : value}
       </p>
-      {sub && <p className="text-xs text-white/30 font-helvetica">{sub}</p>}
+      {sub && <p className="text-xs text-white/30 font-helvetica truncate">{sub}</p>}
     </div>
   );
   return href ? <Link href={href} className="block">{card}</Link> : card;
