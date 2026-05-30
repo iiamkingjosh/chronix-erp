@@ -172,7 +172,7 @@ function CEODashboard() {
     ]).then(([invoices, tickets, clients, projects, subs, pos, users]) => {
       const now = new Date();
       const revenueMTD    = invoices.filter((i) => i.status === "paid" && String(i.invoiceDate ?? "").startsWith(thisM)).reduce((s, i) => s + (Number(i.total) || 0), 0);
-      const expenses      = pos.filter((p) => p.status === "approved" || p.status === "delivered").reduce((s, p) => s + (Number(p.total) || 0), 0);
+      const expenses      = pos.filter((p) => p.status === "approved" || p.status === "delivered" || p.status === "paid").reduce((s, p) => s + (Number(p.total) || 0), 0);
       const outstanding   = invoices.filter((i) => i.status === "pending" || i.status === "overdue").reduce((s, i) => s + (Number(i.total) || 0), 0);
       const openTickets   = tickets.filter((t) => t.status === "open" || t.status === "in_progress").length;
       const expiringSubs30 = subs.filter((s) => {
@@ -244,7 +244,7 @@ function CFODashboard() {
       safeDocs("purchase_orders"),
     ]).then(([invoices, pos]) => {
       const revenueMTD  = invoices.filter((i) => i.status === "paid" && String(i.invoiceDate ?? "").startsWith(thisM)).reduce((s, i) => s + (Number(i.total) || 0), 0);
-      const expenses    = pos.filter((p) => p.status === "approved" || p.status === "delivered").reduce((s, p) => s + (Number(p.total) || 0), 0);
+      const expenses    = pos.filter((p) => p.status === "approved" || p.status === "delivered" || p.status === "paid").reduce((s, p) => s + (Number(p.total) || 0), 0);
       const outstanding = invoices.filter((i) => i.status === "pending").reduce((s, i) => s + (Number(i.total) || 0), 0);
       const overdueDocs = invoices.filter((i) => i.status === "pending" && String(i.dueDate ?? "") < today);
       setM({

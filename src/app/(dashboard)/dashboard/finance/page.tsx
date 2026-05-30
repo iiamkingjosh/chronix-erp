@@ -57,7 +57,7 @@ export default function FinanceDashboard() {
           .filter((e) => e.status === "approved" || e.status === "paid")
           .reduce((s, e) => s + e.amount, 0);
         const poTotal = pos
-          .filter((p) => p.status === "approved" || p.status === "delivered")
+          .filter((p) => p.status === "approved" || p.status === "delivered" || p.status === "paid")
           .reduce((s, p) => s + p.total, 0);
         setTotalExpenses(claimsTotal + poTotal);
       })
