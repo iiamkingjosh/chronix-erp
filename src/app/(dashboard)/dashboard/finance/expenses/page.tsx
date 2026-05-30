@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getExpenses, getMyExpenses, updateExpenseStatus } from "@/lib/expense-service";
+import { getExpenses, getMyExpenses, updateExpenseStatus, deleteExpense } from "@/lib/expense-service";
 import { formatNaira } from "@/types/finance";
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_STATUS_STYLES } from "@/types/expense";
 import type { Expense, ExpenseStatus } from "@/types/expense";
@@ -24,6 +24,9 @@ export default function ExpensesPage() {
   const [rejectId, setRejectId]   = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [acting, setActing]       = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const canDelete = profile ? isRootAdmin(profile.role) : false;
 
   const canManage  = profile
     ? isRootAdmin(profile.role) || hasPermission(profile.role, "manage:finance") || profile.role === "CEO"
@@ -59,6 +62,14 @@ export default function ExpensesPage() {
     setActing(null);
     setRejectId(null);
     setRejectReason("");
+  }
+
+  async function handleDelete(id: string) {
+    setActing(id);
+    await deleteExpense(id);
+    setExpenses((prev) => prev.filter((e) => e.id !== id));
+    setConfirmDeleteId(null);
+    setActing(null);
   }
 
   async function handleMarkPaid(id: string) {
@@ -191,6 +202,26 @@ export default function ExpensesPage() {
                               className="text-xs text-blue-400 border border-blue-500/20 hover:bg-blue-500/10 px-2.5 py-1 rounded-lg font-helvetica transition-colors disabled:opacity-40">
                               {acting === exp.id ? "…" : "Mark Paid"}
                             </button>
+                          )}
+                          {canDelete && (
+                            confirmDeleteId === exp.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-red-400 font-helvetica">Delete?</span>
+                                <button onClick={() => handleDelete(exp.id)} disabled={acting === exp.id}
+                                  className="text-xs text-red-400 border border-red-500/30 hover:bg-red-500/15 px-2.5 py-1 rounded-lg font-helvetica transition-colors disabled:opacity-40">
+                                  {acting === exp.id ? "…" : "Confirm"}
+                                </button>
+                                <button onClick={() => setConfirmDeleteId(null)}
+                                  className="text-xs text-white/30 hover:text-white font-helvetica transition-colors px-1">
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button onClick={() => setConfirmDeleteId(exp.id)}
+                                className="text-xs text-red-400/60 border border-red-500/15 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 px-2.5 py-1 rounded-lg font-helvetica transition-colors">
+                                Delete
+                              </button>
+                            )
                           )}
                         </div>
                       </td>

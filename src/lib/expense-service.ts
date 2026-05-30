@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs,
-  updateDoc, query, orderBy, where,
+  updateDoc, deleteDoc, query, orderBy, where,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Expense, ExpenseStatus } from "@/types/expense";
@@ -41,4 +41,8 @@ export async function updateExpenseStatus(
   if (status === "rejected") { update.rejectedBy = actorName; update.rejectedAt = now; update.rejectionReason = extra?.rejectionReason ?? ""; }
   if (status === "paid")     { update.paidAt = now; }
   await updateDoc(doc(db, COL, id), update);
+}
+
+export async function deleteExpense(id: string): Promise<void> {
+  await deleteDoc(doc(db, COL, id));
 }
