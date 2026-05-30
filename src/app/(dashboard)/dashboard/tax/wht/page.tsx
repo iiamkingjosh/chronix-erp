@@ -15,7 +15,7 @@ import { hasPermission } from "@/types/roles";
 import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_WHT_RATE = 5;
+const DEFAULT_WHT_RATE = 7.5;
 
 type PeriodOption = { label: string; value: string };
 
@@ -306,7 +306,7 @@ export default function WHTPage() {
             <div>
               <label className="field-label">WHT Rate (%)</label>
               <input type="number" min="0" max="20" step="0.5" value={form.whtRate} onChange={(e) => setForm((p) => ({ ...p, whtRate: e.target.value }))} className="input-field" />
-              <p className="mt-1 text-[10px] text-white/20 font-helvetica">5% services/contracts · 10% rent/dividends/interest</p>
+              <p className="mt-1 text-[10px] text-white/20 font-helvetica">7.5% default (VAT rate) · adjust as needed</p>
             </div>
             <div>
               <label className="field-label">WHT Amount (auto)</label>
