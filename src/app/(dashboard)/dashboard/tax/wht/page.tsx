@@ -6,7 +6,9 @@ import {
 } from "@/lib/tax-service";
 import { generateWHTId, WHT_CERT_STYLES, formatTaxDate, currentPeriod } from "@/types/tax";
 import type { WHTRecord } from "@/types/tax";
+import { getInvoices } from "@/lib/finance-service";
 import { formatNaira } from "@/types/finance";
+import type { Invoice } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
@@ -96,11 +98,19 @@ export default function WHTPage() {
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
+
   const canManage     = profile ? hasPermission(profile.role, "manage:tax") : false;
   const periodOptions = buildPeriodOptions();
 
   useEffect(() => {
-    getWHTRecords().then(setAllRecords).finally(() => setLoading(false));
+    Promise.all([getWHTRecords(), getInvoices()])
+      .then(([recs, invs]) => {
+        setAllRecords(recs);
+        setInvoices(invs.filter((i) => i.status === "paid" || i.approvalStatus === "approved"));
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const filteredRecords = allRecords.filter((r) => r.paymentDate.startsWith(period));
@@ -130,6 +140,7 @@ export default function WHTPage() {
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT record logged: ₦${rec.whtAmount.toLocaleString()} deducted from ${rec.vendorName}`, timestamp: new Date().toISOString() });
       setAllRecords((prev) => [rec, ...prev]);
       setShowForm(false);
+      setSelectedInvoiceId("");
       setForm({ vendorName: "", invoiceAmount: "", whtRate: String(DEFAULT_WHT_RATE), paymentDate: new Date().toISOString().split("T")[0], sourceRef: "", notes: "" });
 
       /* Push + email notification (best-effort) */
@@ -249,9 +260,43 @@ export default function WHTPage() {
       {showForm && canManage && (
         <div className="surface-card p-6 border border-accent/20 animate-fade-in">
           <h3 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">New WHT Record</h3>
+
+          {/* Invoice auto-fill */}
+          <div className="mb-5 p-4 bg-secondary/5 border border-secondary/15 rounded-xl">
+            <label className="field-label">Auto-fill from Invoice (optional)</label>
+            <select
+              value={selectedInvoiceId}
+              onChange={(e) => {
+                const inv = invoices.find((i) => i.id === e.target.value);
+                setSelectedInvoiceId(e.target.value);
+                if (inv) {
+                  setForm((p) => ({
+                    ...p,
+                    vendorName:    inv.client.name,
+                    invoiceAmount: String(Math.round(inv.subtotal || inv.total / 1.075)),
+                    sourceRef:     inv.invoiceNumber,
+                  }));
+                }
+              }}
+              className="input-field"
+            >
+              <option value="">— Select an invoice to auto-fill fields below —</option>
+              {invoices.map((inv) => (
+                <option key={inv.id} value={inv.id} className="bg-primary-dark">
+                  {inv.invoiceNumber} · {inv.client.name} · {formatNaira(inv.subtotal || inv.total)}
+                </option>
+              ))}
+            </select>
+            {selectedInvoiceId && (
+              <p className="mt-1.5 text-[10px] text-secondary/70 font-helvetica">
+                Fields pre-filled — you can still edit them below before saving.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div>
-              <label className="field-label">Vendor / Supplier Name</label>
+              <label className="field-label">Vendor / Client Name</label>
               <input value={form.vendorName} onChange={(e) => setForm((p) => ({ ...p, vendorName: e.target.value }))} placeholder="e.g. Vendor Ltd" className="input-field" />
             </div>
             <div>
@@ -284,7 +329,7 @@ export default function WHTPage() {
             <button onClick={handleCreate} disabled={saving || !form.vendorName || !form.invoiceAmount} className="btn-primary text-xs px-5 py-2.5">
               {saving ? "Saving…" : "Log WHT Record"}
             </button>
-            <button onClick={() => setShowForm(false)} className="text-xs text-white/40 hover:text-white font-helvetica transition-colors px-3">Cancel</button>
+            <button onClick={() => { setShowForm(false); setSelectedInvoiceId(""); }} className="text-xs text-white/40 hover:text-white font-helvetica transition-colors px-3">Cancel</button>
           </div>
         </div>
       )}

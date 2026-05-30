@@ -7,7 +7,11 @@ import { formatNaira } from "@/types/finance";
 import { ytdStart } from "@/types/tax";
 import { cn } from "@/lib/utils";
 
-const CIT_RATE = 0.30;
+function getCITRate(revenue: number): { rate: number; label: string } {
+  if (revenue < 25_000_000)   return { rate: 0,    label: "0% — Small company (< ₦25M)" };
+  if (revenue <= 100_000_000) return { rate: 0.20, label: "20% — Medium company (₦25M–₦100M)" };
+  return                             { rate: 0.30, label: "30% — Large company (> ₦100M)" };
+}
 
 interface CITData {
   ytdRevenue:     number;
@@ -16,12 +20,15 @@ interface CITData {
   taxableProfit:  number;
   estimatedCIT:   number;
   effectiveRate:  number;
+  citRate:        number;
+  citRateLabel:   string;
   year:           number;
 }
 
 const ZERO: CITData = {
   ytdRevenue: 0, ytdExpenses: 0, grossProfit: 0,
   taxableProfit: 0, estimatedCIT: 0, effectiveRate: 0,
+  citRate: 0, citRateLabel: "0% — Small company (< ₦25M)",
   year: new Date().getFullYear(),
 };
 
@@ -36,20 +43,34 @@ export default function CorporateTaxPage() {
     Promise.all([
       getDocs(collection(db, "invoices")).catch(() => ({ docs: [] })),
       getDocs(collection(db, "purchase_orders")).catch(() => ({ docs: [] })),
-    ]).then(([invSnap, poSnap]) => {
+      getDocs(collection(db, "expenses")).catch(() => ({ docs: [] })),
+    ]).then(([invSnap, poSnap, expSnap]) => {
       const invoices = invSnap.docs.map((d) => d.data()) as Record<string, unknown>[];
       const pos      = poSnap.docs.map((d) => d.data()) as Record<string, unknown>[];
+      const exps     = expSnap.docs.map((d) => d.data()) as Record<string, unknown>[];
 
+      // Revenue: use subtotal (pre-VAT); only fall back to total/1.075 if subtotal is absent
       const ytdRevenue = invoices
         .filter((i) => i.status === "paid" && String(i.invoiceDate ?? "") >= ytd)
-        .reduce((s, i) => s + (Number(i.subtotal) || Number(i.total as number) / 1.075 || 0), 0);
+        .reduce((s, i) => {
+          const sub = i.subtotal != null ? Number(i.subtotal) : Number(i.total as number) / 1.075;
+          return s + (sub || 0);
+        }, 0);
 
-      const ytdExpenses = pos
-        .filter((p) => (p.status === "approved" || p.status === "delivered") && String(p.createdAt ?? "") >= ytd)
+      // PO expenses: approved, delivered, or paid
+      const poExpenses = pos
+        .filter((p) => (p.status === "approved" || p.status === "delivered" || p.status === "paid") && String(p.createdAt ?? "") >= ytd)
         .reduce((s, p) => s + (Number(p.total) || 0), 0);
 
+      // Expense claims: approved or paid
+      const claimExpenses = exps
+        .filter((e) => (e.status === "approved" || e.status === "paid") && String(e.submittedAt ?? e.date ?? "") >= ytd)
+        .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+      const ytdExpenses   = poExpenses + claimExpenses;
       const taxableProfit = Math.max(ytdRevenue - ytdExpenses, 0);
-      const estimatedCIT  = taxableProfit * CIT_RATE;
+      const { rate, label } = getCITRate(ytdRevenue);
+      const estimatedCIT  = taxableProfit * rate;
 
       setData({
         ytdRevenue,
@@ -58,6 +79,8 @@ export default function CorporateTaxPage() {
         taxableProfit,
         estimatedCIT,
         effectiveRate: ytdRevenue > 0 ? (estimatedCIT / ytdRevenue) * 100 : 0,
+        citRate:       rate,
+        citRateLabel:  label,
         year,
       });
     }).finally(() => setLoading(false));
@@ -85,7 +108,7 @@ export default function CorporateTaxPage() {
             Financial Year {d.year} — YTD Summary
           </h2>
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica bg-accent/15 text-accent border-accent/30">
-            {CIT_RATE * 100}% CIT Rate
+            {d.citRateLabel}
           </span>
         </div>
 
@@ -93,7 +116,7 @@ export default function CorporateTaxPage() {
         <div className="space-y-3">
           {[
             { label: "Total Revenue (YTD)",       value: formatNaira(d.ytdRevenue),    accent: "text-emerald-400", sub: "paid invoices, excl. VAT" },
-            { label: "Total Expenses (YTD)",      value: formatNaira(d.ytdExpenses),   accent: "text-white/70",  sub: "approved purchase orders" },
+            { label: "Total Expenses (YTD)",      value: formatNaira(d.ytdExpenses),   accent: "text-white/70",  sub: "POs (approved/delivered/paid) + expense claims" },
             { label: "Gross Profit",              value: formatNaira(d.grossProfit),   accent: d.grossProfit >= 0 ? "text-secondary" : "text-red-400", sub: "revenue − expenses" },
             { label: "Est. Taxable Profit",       value: formatNaira(d.taxableProfit), accent: "text-white",     sub: "simplified — see disclaimer above" },
           ].map((row) => (
@@ -113,7 +136,7 @@ export default function CorporateTaxPage() {
         <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">Estimated Corporate Income Tax</p>
         <p className="font-orbitron text-4xl font-bold text-accent tabular-nums">{formatNaira(d.estimatedCIT)}</p>
         <p className="text-white/30 text-sm font-helvetica mt-2">
-          Based on {CIT_RATE * 100}% of estimated taxable profit of {formatNaira(d.taxableProfit)} — Nigeria standard CIT rate (CITA).
+          Based on {d.citRate * 100}% of estimated taxable profit of {formatNaira(d.taxableProfit)} — Nigeria tiered CIT rate (CITA).
         </p>
         {d.effectiveRate > 0 && (
           <p className="text-white/20 text-xs font-helvetica mt-1">
