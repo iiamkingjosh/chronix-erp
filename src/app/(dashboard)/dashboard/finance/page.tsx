@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getInvoices } from "@/lib/finance-service";
 import { getExpenses } from "@/lib/expense-service";
+import { getPOs } from "@/lib/procurement-service";
 import { formatNaira, formatDate } from "@/types/finance";
 import type { Invoice } from "@/types/finance";
 import { cn } from "@/lib/utils";
@@ -49,13 +50,16 @@ export default function FinanceDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getInvoices(), getExpenses()])
-      .then(([invs, exps]) => {
+    Promise.all([getInvoices(), getExpenses(), getPOs()])
+      .then(([invs, exps, pos]) => {
         setInvoices(invs);
-        const expTotal = exps
+        const claimsTotal = exps
           .filter((e) => e.status === "approved" || e.status === "paid")
           .reduce((s, e) => s + e.amount, 0);
-        setTotalExpenses(expTotal);
+        const poTotal = pos
+          .filter((p) => p.status === "approved" || p.status === "delivered")
+          .reduce((s, p) => s + p.total, 0);
+        setTotalExpenses(claimsTotal + poTotal);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -92,7 +96,7 @@ export default function FinanceDashboard() {
         <StatCard
           label="Total Expenses"
           value={formatNaira(totalExpenses)}
-          sub="approved + paid claims"
+          sub="expense claims + purchase orders"
           icon={<ExpensesIcon />}
           iconClass="bg-red-500/10 border-red-500/20 text-red-400"
           valueClass="text-red-400"
