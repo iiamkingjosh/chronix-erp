@@ -25,7 +25,7 @@ export default function CRMLayout({ children }: { children: React.ReactNode }) {
           </p>
         </div>
 
-        <div className="flex mb-8 border-b border-white/10">
+        <div className="flex mb-8 border-b border-white/10 overflow-x-auto scrollbar-hide">
           {TABS.map((tab) => {
             const active =
               tab.href === "/dashboard/crm"
@@ -36,7 +36,7 @@ export default function CRMLayout({ children }: { children: React.ReactNode }) {
                 key={tab.href}
                 href={tab.href}
                 className={cn(
-                  "px-5 py-2.5 text-sm font-medium font-helvetica transition-all border-b-2 -mb-px",
+                  "px-5 py-2.5 text-sm font-medium font-helvetica transition-all border-b-2 -mb-px shrink-0",
                   active
                     ? "text-accent border-accent"
                     : "text-white/40 border-transparent hover:text-white hover:border-white/20"
