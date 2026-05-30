@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getInvoices } from "@/lib/finance-service";
+import { getExpenses } from "@/lib/expense-service";
 import { formatNaira, formatDate } from "@/types/finance";
 import type { Invoice } from "@/types/finance";
 import { cn } from "@/lib/utils";
@@ -44,10 +45,19 @@ function StatCard({
 
 export default function FinanceDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [totalExpenses, setTotalExpenses] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getInvoices().then(setInvoices).finally(() => setLoading(false));
+    Promise.all([getInvoices(), getExpenses()])
+      .then(([invs, exps]) => {
+        setInvoices(invs);
+        const expTotal = exps
+          .filter((e) => e.status === "approved" || e.status === "paid")
+          .reduce((s, e) => s + e.amount, 0);
+        setTotalExpenses(expTotal);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const paid    = invoices.filter((i) => i.status === "paid");
@@ -57,6 +67,7 @@ export default function FinanceDashboard() {
   const totalRevenue = paid.reduce((s, i) => s + i.total, 0);
   const totalPending = pending.reduce((s, i) => s + i.total, 0);
   const totalOverdue = overdue.reduce((s, i) => s + i.total, 0);
+  const netBalance   = totalRevenue - totalExpenses;
 
   if (loading) {
     return (
@@ -69,14 +80,30 @@ export default function FinanceDashboard() {
   return (
     <div className="animate-fade-in">
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
         <StatCard
           label="Total Revenue"
           value={formatNaira(totalRevenue)}
-          sub={`${paid.length} invoice${paid.length !== 1 ? "s" : ""} paid`}
+          sub={`${paid.length} paid invoice${paid.length !== 1 ? "s" : ""}`}
           icon={<RevenueIcon />}
           iconClass="bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
           valueClass="text-emerald-400"
+        />
+        <StatCard
+          label="Total Expenses"
+          value={formatNaira(totalExpenses)}
+          sub="approved + paid claims"
+          icon={<ExpensesIcon />}
+          iconClass="bg-red-500/10 border-red-500/20 text-red-400"
+          valueClass="text-red-400"
+        />
+        <StatCard
+          label="Net Balance"
+          value={formatNaira(Math.abs(netBalance))}
+          sub={netBalance >= 0 ? "surplus" : "deficit"}
+          icon={<BalanceIcon />}
+          iconClass={netBalance >= 0 ? "bg-secondary/10 border-secondary/20 text-secondary" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}
+          valueClass={netBalance >= 0 ? "text-secondary" : "text-amber-400"}
         />
         <StatCard
           label="Pending"
@@ -99,8 +126,8 @@ export default function FinanceDashboard() {
           value={String(invoices.length)}
           sub="all time"
           icon={<InvoicesIcon />}
-          iconClass="bg-secondary/10 border-secondary/20 text-secondary"
-          valueClass="text-secondary"
+          iconClass="bg-white/5 border-white/10 text-white/40"
+          valueClass="text-white"
         />
       </div>
 
@@ -114,6 +141,12 @@ export default function FinanceDashboard() {
           className="flex items-center gap-2 px-5 py-3 border border-white/10 rounded-xl text-white/60 hover:text-white hover:border-white/20 text-sm font-helvetica transition-all"
         >
           Record Payment
+        </Link>
+        <Link
+          href="/dashboard/finance/expenses/new"
+          className="flex items-center gap-2 px-5 py-3 border border-white/10 rounded-xl text-white/60 hover:text-white hover:border-white/20 text-sm font-helvetica transition-all"
+        >
+          Log Expense
         </Link>
       </div>
 
@@ -193,6 +226,12 @@ export default function FinanceDashboard() {
   );
 }
 
+function ExpensesIcon() {
+  return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/><line x1="5" y1="5" x2="19" y2="19" strokeWidth="1.5" strokeLinecap="round"/></svg>;
+}
+function BalanceIcon() {
+  return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
+}
 function RevenueIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
 }
