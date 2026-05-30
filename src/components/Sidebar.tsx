@@ -81,13 +81,23 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   // Lock body scroll on mobile when the drawer is open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && window.innerWidth < 1024) {
       document.body.classList.add("overflow-hidden");
     } else {
       document.body.classList.remove("overflow-hidden");
     }
     return () => { document.body.classList.remove("overflow-hidden"); };
   }, [isOpen]);
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!profile) return;
