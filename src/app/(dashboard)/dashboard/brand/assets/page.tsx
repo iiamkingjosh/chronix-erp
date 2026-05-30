@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { getBrandAssets, createBrandAsset, deleteBrandAsset } from "@/lib/brand-service";

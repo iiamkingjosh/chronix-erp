@@ -29,7 +29,11 @@ Thumbs.db
 
 # Local editor / build artifacts
 .claude/settings.local.json
+.claude/settings.json
 *.tsbuildinfo
+
+# Superpowers brainstorm artifacts
+.superpowers/
 
 .vercel
 .env*.local

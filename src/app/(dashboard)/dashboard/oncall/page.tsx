@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { getOnCallSlots, createOnCallSlot, deleteOnCallSlot, getCurrentOnCall } from "@/lib/oncall-service";

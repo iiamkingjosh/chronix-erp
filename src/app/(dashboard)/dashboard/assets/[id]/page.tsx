@@ -65,7 +65,7 @@ export default function AssetDetailPage() {
   if (!asset)  return <div className="p-8 text-white/40 font-helvetica">Asset not found. <button onClick={() => router.back()} className="text-accent hover:underline">Go back</button></div>;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto animate-fade-in">
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => router.back()} className="text-white/40 hover:text-white"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6"/></svg></button>
         <div>

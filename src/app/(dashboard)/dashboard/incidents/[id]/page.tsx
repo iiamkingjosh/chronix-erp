@@ -57,7 +57,7 @@ export default function IncidentDetailPage() {
   if (!incident) return <div className="p-8 text-white/40 font-helvetica">Incident not found. <button onClick={() => router.back()} className="text-accent hover:underline">Go back</button></div>;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto animate-fade-in">
       {/* RCA modal */}
       {showRCA && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">

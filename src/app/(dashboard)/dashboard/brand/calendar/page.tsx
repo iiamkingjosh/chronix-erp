@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { getContentPosts, createContentPost, updatePostStatus } from "@/lib/brand-service";

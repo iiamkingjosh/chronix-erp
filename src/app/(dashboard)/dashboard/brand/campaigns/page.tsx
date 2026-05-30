@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { getCampaigns, createCampaign, updateCampaignStatus } from "@/lib/brand-service";
