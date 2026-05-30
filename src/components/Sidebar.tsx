@@ -37,11 +37,6 @@ const ALL_NAV: NavItem[] = [
   { label: "Settings",      href: "/dashboard/settings",             icon: <SettingsIcon /> },
 ];
 
-/**
- * Sidebar visibility tracks `ROLE_PERMISSIONS` / `hasPermission` so legacy aliases
- * and roles like System Admin (view:all) stay aligned without duplicate lists.
- * `null` → always show for non-Client internal users (dashboard shell).
- */
 const NAV_GATE: Record<string, string[] | null> = {
   "/dashboard":                      null,
   "/dashboard/staff":                ["view:staff", "manage:staff", "manage:hr"],
@@ -74,10 +69,25 @@ function navHrefVisible(rawRole: string, href: string): boolean {
   return gate.some((p) => hasPermission(rawRole, p));
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const pathname             = usePathname();
   const [unread, setUnread]  = useState(0);
+
+  // Lock body scroll on mobile when the drawer is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add("overflow-hidden");
+    } else {
+      document.body.classList.remove("overflow-hidden");
+    }
+    return () => { document.body.classList.remove("overflow-hidden"); };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!profile) return;
@@ -93,66 +103,100 @@ export default function Sidebar() {
 
   if (!profile) return null;
 
-  const canonical    = resolveRole(profile.role);
-  const visibleNav   = ALL_NAV.filter((item) => navHrefVisible(profile.role, item.href));
-  const roleColor    = ROLE_COLORS[canonical] ?? "bg-white/10 text-white/50 border-white/20";
+  const canonical  = resolveRole(profile.role);
+  const visibleNav = ALL_NAV.filter((item) => navHrefVisible(profile.role, item.href));
+  const roleColor  = ROLE_COLORS[canonical] ?? "bg-white/10 text-white/50 border-white/20";
 
   return (
-    <aside className="w-60 shrink-0 bg-primary-dark border-r border-white/10 flex flex-col min-h-screen">
-      <Link href="/dashboard" className="px-5 py-5 border-b border-white/10 flex items-center gap-3 hover:bg-white/[0.03] transition-colors">
-        <ChronixLogo size={36} />
-        <div>
-          <p className="font-orbitron text-sm font-black tracking-[0.12em] text-white leading-none">CHRONIX</p>
-          <p className="font-orbitron text-[9px] tracking-[0.2em] text-secondary mt-0.5 leading-none">ERP {APP_VERSION_SHORT_LABEL}</p>
-        </div>
-      </Link>
+    <>
+      {/* Mobile backdrop — fades in/out, hidden on lg+ */}
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-black/60 lg:hidden transition-opacity duration-300",
+          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {visibleNav.map((item) => {
-          const active = item.href === "/dashboard"
-            ? pathname === "/dashboard"
-            : pathname.startsWith(item.href);
-          const isNotif = item.href === "/dashboard/notifications";
-          return (
-            <Link key={item.href} href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 font-helvetica",
-                active ? "bg-accent/15 text-accent border border-accent/15 font-semibold"
-                       : "text-white/40 hover:text-white hover:bg-white/5 border border-transparent"
-              )}>
-              <span className="w-4 h-4 shrink-0 relative">
-                {item.icon}
-                {isNotif && unread > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-accent rounded-full border border-primary-dark" />
+      {/* Sidebar — fixed drawer on mobile, static in-flow on desktop */}
+      <aside className={cn(
+        "w-60 bg-primary-dark border-r border-white/10 flex flex-col",
+        // Mobile: fixed overlay with slide transition
+        "fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-out",
+        isOpen ? "translate-x-0" : "-translate-x-full",
+        // Desktop: static in-flow, always visible, full height
+        "lg:static lg:translate-x-0 lg:z-auto lg:shrink-0 lg:min-h-screen"
+      )}>
+        <Link
+          href="/dashboard"
+          onClick={onClose}
+          className="px-5 py-5 border-b border-white/10 flex items-center gap-3 hover:bg-white/[0.03] transition-colors"
+        >
+          <ChronixLogo size={36} />
+          <div>
+            <p className="font-orbitron text-sm font-black tracking-[0.12em] text-white leading-none">CHRONIX</p>
+            <p className="font-orbitron text-[9px] tracking-[0.2em] text-secondary mt-0.5 leading-none">ERP {APP_VERSION_SHORT_LABEL}</p>
+          </div>
+        </Link>
+
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {visibleNav.map((item) => {
+            const active = item.href === "/dashboard"
+              ? pathname === "/dashboard"
+              : pathname.startsWith(item.href);
+            const isNotif = item.href === "/dashboard/notifications";
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 font-helvetica",
+                  active
+                    ? "bg-accent/15 text-accent border border-accent/15 font-semibold"
+                    : "text-white/40 hover:text-white hover:bg-white/5 border border-transparent"
                 )}
-              </span>
-              <span className="flex-1">{item.label}</span>
-              {isNotif && unread > 0 && (
-                <span className="ml-auto bg-accent/20 text-accent text-[9px] font-orbitron font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center tabular-nums">
-                  {unread > 99 ? "99+" : unread}
+              >
+                <span className="w-4 h-4 shrink-0 relative">
+                  {item.icon}
+                  {isNotif && unread > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-accent rounded-full border border-primary-dark" />
+                  )}
                 </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
+                <span className="flex-1">{item.label}</span>
+                {isNotif && unread > 0 && (
+                  <span className="ml-auto bg-accent/20 text-accent text-[9px] font-orbitron font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center tabular-nums">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
 
-      <div className="px-4 py-4 border-t border-white/10">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-full bg-secondary/20 border border-secondary/30 flex items-center justify-center text-xs font-bold text-white shrink-0 font-orbitron">
-            {(profile.displayName ?? profile.email ?? "?")[0].toUpperCase()}
+        <div className="px-4 py-4 border-t border-white/10">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-full bg-secondary/20 border border-secondary/30 flex items-center justify-center text-xs font-bold text-white shrink-0 font-orbitron">
+              {(profile.displayName ?? profile.email ?? "?")[0].toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white truncate font-helvetica">{profile.displayName ?? "User"}</p>
+              <p className="text-xs text-white/30 truncate font-helvetica">{profile.email}</p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-white truncate font-helvetica">{profile.displayName ?? "User"}</p>
-            <p className="text-xs text-white/30 truncate font-helvetica">{profile.email}</p>
-          </div>
+          <span className={cn("inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border mb-3 font-helvetica", roleColor)}>
+            {profile.role}
+          </span>
+          <button
+            onClick={() => { onClose(); signOut(); }}
+            className="w-full flex items-center gap-2 text-white/30 hover:text-red-400 text-xs font-helvetica transition-colors py-1.5 px-2 rounded-lg hover:bg-red-500/8"
+          >
+            <LogoutIcon /> Sign Out
+          </button>
         </div>
-        <span className={cn("inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border mb-3 font-helvetica", roleColor)}>{profile.role}</span>
-        <button onClick={signOut} className="w-full flex items-center gap-2 text-white/30 hover:text-red-400 text-xs font-helvetica transition-colors py-1.5 px-2 rounded-lg hover:bg-red-500/8">
-          <LogoutIcon /> Sign Out
-        </button>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 
