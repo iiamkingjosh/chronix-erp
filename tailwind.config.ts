@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 const config: Config = {
   content: [
@@ -29,7 +30,7 @@ const config: Config = {
         helvetica: ["Helvetica Neue", "Helvetica", "Arial", "sans-serif"],
       },
       backgroundImage: {
-        "primary-gradient": "linear-gradient(135deg, #001f3f 0%, #002a52 50%, #003366 100%)",
+        "primary-gradient":   "linear-gradient(135deg, #001f3f 0%, #002a52 50%, #003366 100%)",
         "primary-gradient-r": "linear-gradient(to right, #001f3f 0%, #003366 100%)",
       },
       animation: {
@@ -39,10 +40,10 @@ const config: Config = {
         "pulse-glow": "pulseGlow 2.5s ease-in-out infinite",
       },
       keyframes: {
-        fadeIn:     { "0%": { opacity: "0" },                                          "100%": { opacity: "1" } },
-        slideUp:    { "0%": { opacity: "0", transform: "translateY(18px)" },           "100%": { opacity: "1", transform: "translateY(0)" } },
-        slideRight: { "0%": { opacity: "0", transform: "translateX(-18px)" },          "100%": { opacity: "1", transform: "translateX(0)" } },
-        pulseGlow:  { "0%, 100%": { boxShadow: "0 0 0 0 rgba(255,118,27,0.35)" },     "50%": { boxShadow: "0 0 0 10px rgba(255,118,27,0)" } },
+        fadeIn:     { "0%": { opacity: "0" },                                         "100%": { opacity: "1" } },
+        slideUp:    { "0%": { opacity: "0", transform: "translateY(18px)" },          "100%": { opacity: "1", transform: "translateY(0)" } },
+        slideRight: { "0%": { opacity: "0", transform: "translateX(-18px)" },         "100%": { opacity: "1", transform: "translateX(0)" } },
+        pulseGlow:  { "0%, 100%": { boxShadow: "0 0 0 0 rgba(255,118,27,0.35)" },    "50%": { boxShadow: "0 0 0 10px rgba(255,118,27,0)" } },
       },
       boxShadow: {
         "glow-accent":  "0 0 24px rgba(255,118,27,0.25)",
@@ -51,7 +52,17 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(function({ addUtilities }) {
+      addUtilities({
+        ".scrollbar-hide": {
+          "-ms-overflow-style": "none",
+          "scrollbar-width": "none",
+          "&::-webkit-scrollbar": { display: "none" },
+        },
+      });
+    }),
+  ],
 };
 
 export default config;
