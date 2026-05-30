@@ -58,6 +58,7 @@ export default function BalanceSheetPage() {
             <p className="font-orbitron text-sm font-bold text-accent mb-4">ASSETS</p>
 
             <p className="text-xs text-white/30 uppercase tracking-wider font-helvetica mb-2">Current Assets</p>
+            <div className="overflow-x-auto">
             <table className="w-full mb-4">
               <tbody>
                 <Row label="Cash in Bank"         amount={report.assets.currentAssets.cash}               indent />
@@ -69,8 +70,10 @@ export default function BalanceSheetPage() {
                 <Subtotal label="Total Current Assets" amount={report.assets.currentAssets.total} />
               </tbody>
             </table>
+            </div>
 
             <p className="text-xs text-white/30 uppercase tracking-wider font-helvetica mb-2 mt-4">Fixed Assets</p>
+            <div className="overflow-x-auto">
             <table className="w-full mb-4">
               <tbody>
                 <Row label="Office Equipment"   amount={report.assets.fixedAssets.officeEquipment}   indent />
@@ -78,6 +81,7 @@ export default function BalanceSheetPage() {
                 <Subtotal label="Total Fixed Assets" amount={report.assets.fixedAssets.total} />
               </tbody>
             </table>
+            </div>
 
             <div className="bg-accent/10 border border-accent/20 rounded-xl px-4 py-3 flex justify-between">
               <span className="font-orbitron text-sm font-bold text-white">TOTAL ASSETS</span>
@@ -90,6 +94,7 @@ export default function BalanceSheetPage() {
             <div className="surface-card p-6">
               <p className="font-orbitron text-sm font-bold text-accent mb-4">LIABILITIES</p>
               <p className="text-xs text-white/30 uppercase tracking-wider font-helvetica mb-2">Current Liabilities</p>
+              <div className="overflow-x-auto">
               <table className="w-full mb-4">
                 <tbody>
                   <Row label="Accounts Payable" amount={report.liabilities.currentLiabilities.accountsPayable} indent />
@@ -99,10 +104,12 @@ export default function BalanceSheetPage() {
                   <Subtotal label="Total Liabilities" amount={report.liabilities.total} />
                 </tbody>
               </table>
+              </div>
             </div>
 
             <div className="surface-card p-6">
               <p className="font-orbitron text-sm font-bold text-accent mb-4">EQUITY</p>
+              <div className="overflow-x-auto">
               <table className="w-full mb-4">
                 <tbody>
                   <Row label="Share Capital"          amount={report.equity.shareCapital}      indent />
@@ -111,6 +118,7 @@ export default function BalanceSheetPage() {
                   <Subtotal label="Total Equity" amount={report.equity.total} />
                 </tbody>
               </table>
+              </div>
             </div>
 
             <div className={`rounded-xl px-4 py-3 flex justify-between border ${

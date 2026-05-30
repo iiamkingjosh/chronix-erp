@@ -57,6 +57,7 @@ export default function JournalEntriesPage() {
         </div>
       ) : (
         <div className="surface-card overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/10">
@@ -122,6 +123,7 @@ export default function JournalEntriesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

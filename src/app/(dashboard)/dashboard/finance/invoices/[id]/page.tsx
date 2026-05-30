@@ -368,6 +368,7 @@ export default function InvoiceViewPage() {
           {/* Items table */}
           <div className="mb-8">
             <div className="rounded-xl overflow-hidden border border-white/10">
+              <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-secondary/20">
@@ -392,6 +393,7 @@ export default function InvoiceViewPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
 
@@ -401,6 +403,7 @@ export default function InvoiceViewPage() {
             <div>
               <p className="text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica mb-3">Payment Details</p>
               <div className="rounded-xl overflow-hidden border border-white/10">
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs font-helvetica">
                   <thead>
                     <tr className="bg-secondary/20">
@@ -418,6 +421,7 @@ export default function InvoiceViewPage() {
                     </tr>
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
 
