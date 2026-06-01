@@ -3,16 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { useAuth } from "@/contexts/AuthContext";
+import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { label: "Overview",     href: "/dashboard/projects" },
-  { label: "All Projects", href: "/dashboard/projects/list" },
-  { label: "New Project",  href: "/dashboard/projects/new" },
-];
-
 export default function ProjectsLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname    = usePathname();
+  const { profile } = useAuth();
+
+  const canManage = profile ? hasPermission(profile.role, "manage:projects") : false;
+
+  const tabs = canManage
+    ? [
+        { label: "Overview",     href: "/dashboard/projects" },
+        { label: "All Projects", href: "/dashboard/projects/list" },
+        { label: "New Project",  href: "/dashboard/projects/new" },
+      ]
+    : [
+        { label: "Overview",    href: "/dashboard/projects" },
+        { label: "My Projects", href: "/dashboard/projects/list?view=mine" },
+      ];
 
   return (
     <ProtectedRoute requiredPermission="view:projects">
@@ -24,11 +34,12 @@ export default function ProjectsLayout({ children }: { children: React.ReactNode
           </p>
         </div>
         <div className="flex mb-8 border-b border-white/10 overflow-x-auto scrollbar-hide">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
+            const basePath = tab.href.split("?")[0];
             const active =
               tab.href === "/dashboard/projects"
                 ? pathname === "/dashboard/projects"
-                : pathname.startsWith(tab.href);
+                : pathname.startsWith(basePath);
             return (
               <Link
                 key={tab.href}
