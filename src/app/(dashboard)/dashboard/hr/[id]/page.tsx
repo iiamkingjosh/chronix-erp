@@ -14,6 +14,9 @@ import type { Ticket } from "@/types/tickets";
 import { PRIORITY_STYLES, PRIORITY_LABELS, STATUS_STYLES, STATUS_LABELS } from "@/types/tickets";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
+import { auth } from "@/lib/firebase";
+import { MONTHS } from "@/types/hr";
+import type { PayslipSummary } from "@/types/hr";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { ROLE_COLORS } from "@/types/roles";
@@ -43,6 +46,13 @@ export default function EmployeeProfilePage() {
   // Status / delete actions
   const [actionLoading, setActionLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const [activeTab, setActiveTab]             = useState<"profile" | "payslip">("profile");
+  const [payslips, setPayslips]               = useState<PayslipSummary[]>([]);
+  const [payslipLoading, setPayslipLoading]   = useState(false);
+  const [payslipError, setPayslipError]       = useState<string | null>(null);
+  const [selectedPayslip, setSelectedPayslip] = useState<PayslipSummary | null>(null);
+  const [pdfDownloading, setPdfDownloading]   = useState(false);
 
   const canManage  = profile ? hasPermission(profile.role, "manage:hr") : false;
   const isSelf     = profile?.uid === id;
@@ -114,6 +124,50 @@ export default function EmployeeProfilePage() {
     } finally {
       setActionLoading(false);
       setShowDeleteConfirm(false);
+    }
+  }
+
+  async function loadPayslips() {
+    if (!employee) return;
+    setPayslipLoading(true);
+    setPayslipError(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+      const res = await fetch(`/api/payslip?uid=${employee.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setPayslips(await res.json() as PayslipSummary[]);
+    } catch {
+      setPayslipError("Failed to load payslip data.");
+    } finally {
+      setPayslipLoading(false);
+    }
+  }
+
+  async function handlePayslipDownload(s: PayslipSummary) {
+    if (!employee) return;
+    setPdfDownloading(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+      const res = await fetch(
+        `/api/payslip/pdf?uid=${employee.uid}&year=${s.year}&month=${s.month}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) throw new Error("Failed");
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `payslip-${MONTHS[s.month - 1]}-${s.year}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Failed to download PDF.");
+    } finally {
+      setPdfDownloading(false);
     }
   }
 
@@ -221,6 +275,30 @@ export default function EmployeeProfilePage() {
         </div>
       </div>
 
+      {/* Tab navigation — managers only */}
+      {canManage && (
+        <div className="flex mb-6 border-b border-white/10">
+          {(["profile", "payslip"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => {
+                setActiveTab(t);
+                if (t === "payslip" && payslips.length === 0 && !payslipLoading) loadPayslips();
+              }}
+              className={cn(
+                "px-5 py-2.5 text-sm font-medium font-helvetica transition-all border-b-2 -mb-px capitalize",
+                activeTab === t
+                  ? "text-accent border-accent"
+                  : "text-white/40 border-transparent hover:text-white hover:border-white/20"
+              )}
+            >
+              {t === "profile" ? "Profile" : "Payslip"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "profile" && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-5">
 
@@ -350,6 +428,128 @@ export default function EmployeeProfilePage() {
           </div>
         </div>
       </div>
+      )}
+
+      {activeTab === "payslip" && canManage && (
+        <div>
+          {payslipLoading && (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          {payslipError && (
+            <p className="text-red-400 text-sm font-helvetica py-8 text-center">{payslipError}</p>
+          )}
+          {!payslipLoading && !payslipError && (
+            <div className="surface-card overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    {["Period", "Gross", "PAYE", "Net Pay", "Status", ""].map((h) => (
+                      <th key={h} className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica first:pl-6">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {(() => {
+                    const months: Array<{ month: number; year: number }> = [];
+                    let m = 5, y = 2026;
+                    const now = new Date();
+                    while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) {
+                      months.push({ month: m, year: y });
+                      m++; if (m > 12) { m = 1; y++; }
+                    }
+                    return months.reverse().map(({ month, year }) => {
+                      const s = payslips.find((x) => x.month === month && x.year === year) ?? null;
+                      return (
+                        <tr key={`${year}-${month}`} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-4 font-helvetica text-sm text-white font-semibold">{MONTHS[month - 1]} {year}</td>
+                          <td className="px-5 py-4 text-sm font-helvetica text-white/70">
+                            {s ? formatNaira(s.baseSalary) : <span className="text-white/20">—</span>}
+                          </td>
+                          <td className="px-5 py-4 text-sm font-helvetica text-red-400/80">
+                            {s ? `−${formatNaira(s.payeAmount)}` : <span className="text-white/20">—</span>}
+                          </td>
+                          <td className="px-5 py-4 text-sm font-helvetica font-semibold text-white">
+                            {s ? formatNaira(s.netPay) : <span className="text-white/20">—</span>}
+                          </td>
+                          <td className="px-5 py-4">
+                            {s ? (
+                              <span className={cn(
+                                "text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica",
+                                s.status === "paid"
+                                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                                  : "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                              )}>
+                                {s.status === "paid" ? "Paid" : "Pending"}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-white/20 font-helvetica">Not generated</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            {s && (
+                              <button
+                                onClick={() => setSelectedPayslip(s)}
+                                className="text-xs text-accent hover:text-accent/80 font-helvetica transition-colors"
+                              >
+                                View
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {selectedPayslip && employee && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={() => setSelectedPayslip(null)}>
+              <div className="bg-primary-dark border border-white/10 rounded-2xl w-full max-w-lg p-6 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-orbitron text-base font-bold text-white">
+                    {MONTHS[selectedPayslip.month - 1]} {selectedPayslip.year} — {employee.fullName}
+                  </h2>
+                  <button onClick={() => setSelectedPayslip(null)} className="text-white/40 hover:text-white text-xl leading-none">×</button>
+                </div>
+                <div className="space-y-0 text-sm font-helvetica mb-4">
+                  <div className="flex justify-between py-2.5 border-b border-white/5">
+                    <span className="text-white/50">Gross Salary</span>
+                    <span className="text-white">{formatNaira(selectedPayslip.baseSalary)}</span>
+                  </div>
+                  <div className="flex justify-between py-2.5 border-b border-white/5">
+                    <span className="text-white/50">PAYE</span>
+                    <span className="text-red-400">−{formatNaira(selectedPayslip.payeAmount)}</span>
+                  </div>
+                  {selectedPayslip.deductions > 0 && (
+                    <div className="flex justify-between py-2.5 border-b border-white/5">
+                      <span className="text-white/50">Other Deductions</span>
+                      <span className="text-red-400">−{formatNaira(selectedPayslip.deductions)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between py-3">
+                    <span className="font-orbitron text-sm font-bold text-white">NET PAY</span>
+                    <span className="font-orbitron text-xl font-bold text-accent">{formatNaira(selectedPayslip.netPay)}</span>
+                  </div>
+                </div>
+                <p className="text-xs font-helvetica text-white/30 mb-4">
+                  Ref: <span className="text-accent font-orbitron">{selectedPayslip.referenceNumber}</span>
+                </p>
+                <button
+                  onClick={() => handlePayslipDownload(selectedPayslip)}
+                  disabled={pdfDownloading}
+                  className="btn-primary w-full text-sm py-2.5 disabled:opacity-50"
+                >
+                  {pdfDownloading ? "Generating PDF…" : "↓ Download as PDF"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
