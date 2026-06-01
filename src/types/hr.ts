@@ -84,6 +84,74 @@ export interface PayslipSummary {
   employeeNumber?:    string;
 }
 
+export interface KPIScores {
+  taskCompletionRate:       number; // 0–100, auto-populated (locked)
+  ticketResolutionRate:     number; // 0–100, auto-populated (locked)
+  attendancePunctuality:    number; // 0–100, manual
+  qualityOfWork:            number; // 0–100, manual
+  communicationTeamwork:    number; // 0–100, manual
+  initiativeProblemSolving: number; // 0–100, manual
+}
+
+export type PerformanceEntitlement =
+  | "Exceptional"        // 90–100
+  | "Above Target"       // 75–89
+  | "On Target"          // 60–74
+  | "Below Target"       // 45–59
+  | "Needs Improvement"; // < 45
+
+export interface PerformanceReview {
+  id:            string;
+  employeeId:    string;           // uid of reviewed employee
+  reviewPeriod:  string;           // "YYYY-MM" e.g. "2026-06"
+  kpiScores:     KPIScores;
+  overallScore:  number;           // Math.round(average of all 6)
+  entitlement:   PerformanceEntitlement;
+  comments:      string;
+  createdBy:     string;
+  createdByName: string;
+  createdAt:     string;           // ISO 8601
+}
+
+export function calcOverallScore(scores: KPIScores): number {
+  const vals = Object.values(scores) as number[];
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+}
+
+export function calcEntitlement(score: number): PerformanceEntitlement {
+  if (score >= 90) return "Exceptional";
+  if (score >= 75) return "Above Target";
+  if (score >= 60) return "On Target";
+  if (score >= 45) return "Below Target";
+  return "Needs Improvement";
+}
+
+export const ENTITLEMENT_STYLES: Record<PerformanceEntitlement, string> = {
+  "Exceptional":      "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  "Above Target":     "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  "On Target":        "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  "Below Target":     "bg-orange-500/15 text-orange-400 border-orange-500/30",
+  "Needs Improvement":"bg-red-500/15 text-red-400 border-red-500/30",
+};
+
+export const KPI_LABELS: Record<keyof KPIScores, string> = {
+  taskCompletionRate:       "Task Completion Rate",
+  ticketResolutionRate:     "Ticket Resolution Rate",
+  attendancePunctuality:    "Attendance & Punctuality",
+  qualityOfWork:            "Quality of Work",
+  communicationTeamwork:    "Communication & Teamwork",
+  initiativeProblemSolving: "Initiative & Problem Solving",
+};
+
+export const KPI_LOCKED: Record<keyof KPIScores, boolean> = {
+  taskCompletionRate:       true,
+  ticketResolutionRate:     true,
+  attendancePunctuality:    false,
+  qualityOfWork:            false,
+  communicationTeamwork:    false,
+  initiativeProblemSolving: false,
+};
+
 /* ── Labels & Styles ── */
 export const MONTHS = [
   "January","February","March","April","May","June",
