@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getProjects } from "@/lib/projects-service";
@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
-export default function ProjectsListPage() {
+function ProjectsListContent() {
   const { profile } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -26,15 +26,27 @@ export default function ProjectsListPage() {
   const viewMine     = !canSeeAll || searchParams.get("view") === "mine";
 
   useEffect(() => {
-    getProjects().then((all) => {
-      if (viewMine) {
-        setProjects(all.filter((p) =>
-          p.team.some((m) => m.uid === profile?.uid) || p.createdBy === profile?.uid
-        ));
-      } else {
-        setProjects(all);
-      }
-    }).finally(() => setLoading(false));
+    if (!profile?.uid) return;
+    let cancelled = false;
+    setLoading(true);
+    getProjects()
+      .then((all) => {
+        if (cancelled) return;
+        if (viewMine) {
+          setProjects(all.filter((p) =>
+            p.team.some((m) => m.uid === profile.uid) || p.createdBy === profile.uid
+          ));
+        } else {
+          setProjects(all);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setProjects([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [profile?.uid, viewMine]);
 
   const filtered = projects.filter((p) => {
@@ -169,3 +181,15 @@ export default function ProjectsListPage() {
 
 function SearchIcon() { return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>; }
 function PlusIcon()   { return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>; }
+
+export default function ProjectsListPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <ProjectsListContent />
+    </Suspense>
+  );
+}
