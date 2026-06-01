@@ -68,6 +68,22 @@ export interface PayrollRun {
   completedAt?:     string;
 }
 
+export interface PayslipSummary {
+  month:              number;           // 1–12
+  year:               number;
+  baseSalary:         number;
+  payeAmount:         number;           // PAYE income tax deducted
+  deductions:         number;           // other deductions
+  netPay:             number;
+  status:             PayrollEntryStatus;
+  paidAt?:            string;           // ISO 8601
+  referenceNumber:    string;           // PSL-{YYYY}-{MM}-{employeeNumber|uid[-4:]}
+  employeeName:       string;
+  employeeRole:       string;
+  employeeDepartment: string;
+  employeeNumber?:    string;
+}
+
 /* ── Labels & Styles ── */
 export const MONTHS = [
   "January","February","March","April","May","June",
