@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   getProject, updateProjectStatus, addProjectActivity,
-  updateTasks, completeMilestone,
+  updateTasks, completeMilestone, addProjectFile, removeProjectFile,
 } from "@/lib/projects-service";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "@/lib/firebase";
 import { notifyMilestoneComplete } from "@/lib/notifications-service";
 import { getStaffList, type StaffMember } from "@/lib/tickets-service";
 import { getInvoices } from "@/lib/finance-service";
@@ -14,8 +16,9 @@ import {
   PROJECT_TYPE_LABELS, TASK_STATUS_LABELS, TASK_STATUS_STYLES,
   TASK_PRIORITY_LABELS, TASK_PRIORITY_STYLES,
   formatProjDate, formatProjDateTime, calcProgress,
+  ACCEPTED_FILE_MIME, MAX_FILE_SIZE, formatFileSize,
 } from "@/types/projects";
-import type { Project, Task, TaskStatus, TaskPriority, ProjectStatus, ProjectActivity } from "@/types/projects";
+import type { Project, Task, TaskStatus, TaskPriority, ProjectStatus, ProjectActivity, ProjectFile } from "@/types/projects";
 import type { Invoice } from "@/types/finance";
 import { formatNaira, formatDate } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,6 +50,66 @@ export default function ProjectDetailPage() {
   // Note
   const [noteText, setNoteText]         = useState("");
   const [addingNote, setAddingNote]     = useState(false);
+
+  const fileInputRef                  = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading]     = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !project || !profile) return;
+
+    if (!ACCEPTED_FILE_MIME.includes(file.type)) {
+      setUploadError("File type not allowed. Accepted: PDF, Word, Excel, PowerPoint, PNG, JPG, ZIP.");
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError("File exceeds the 20 MB limit.");
+      return;
+    }
+
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const fileId      = crypto.randomUUID();
+      const path        = `projects/${project.id}/${fileId}_${file.name}`;
+      const sRef        = storageRef(storage, path);
+      const snapshot    = await uploadBytes(sRef, file);
+      const downloadUrl = await getDownloadURL(snapshot.ref);
+
+      const projectFile: ProjectFile = {
+        id:             fileId,
+        name:           file.name,
+        storagePath:    path,
+        downloadUrl,
+        size:           file.size,
+        mimeType:       file.type,
+        uploadedBy:     profile.uid,
+        uploadedByName: profile.displayName ?? profile.email,
+        uploadedAt:     new Date().toISOString(),
+      };
+
+      await addProjectFile(project.id, projectFile);
+      setProject((prev) => prev ? { ...prev, files: [...(prev.files ?? []), projectFile] } : prev);
+    } catch {
+      setUploadError("Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDeleteFile(file: ProjectFile) {
+    if (!project || !profile) return;
+    try {
+      await removeProjectFile(project.id, file, project.files ?? []);
+      setProject((prev) =>
+        prev ? { ...prev, files: (prev.files ?? []).filter((f) => f.id !== file.id) } : prev
+      );
+    } catch {
+      setUploadError("Failed to delete file. Please try again.");
+    }
+  }
 
   const canManage = profile ? hasPermission(profile.role, "manage:projects") : false;
   const isOnTeam  = project?.team.some((m) => m.uid === profile?.uid) ?? false;
@@ -183,6 +246,73 @@ export default function ProjectDetailPage() {
           <div className="surface-card p-6">
             <h3 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Description</h3>
             <p className="text-white/70 text-sm font-helvetica leading-relaxed">{project.description}</p>
+          </div>
+
+          {/* Files */}
+          <div className="surface-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest">
+                Files ({(project.files ?? []).length})
+              </h3>
+              {canEdit && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="text-xs text-accent hover:text-accent/80 font-helvetica transition-colors flex items-center gap-1.5 disabled:opacity-40"
+                  >
+                    {uploading ? <><Spinner /> Uploading…</> : "+ Attach File"}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.zip"
+                    onChange={handleFileUpload}
+                  />
+                </>
+              )}
+            </div>
+
+            {uploadError && (
+              <p className="text-xs text-red-400 font-helvetica mb-3">{uploadError}</p>
+            )}
+
+            {(project.files ?? []).length === 0 ? (
+              <p className="text-white/20 text-sm font-helvetica">No files attached yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {(project.files ?? []).map((file) => (
+                  <div key={file.id} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/8 bg-white/[0.02]">
+                    <FileTypeChip mimeType={file.mimeType} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-helvetica truncate">{file.name}</p>
+                      <p className="text-[10px] text-white/30 font-helvetica">
+                        {file.uploadedByName} · {formatProjDateTime(file.uploadedAt)} · {formatFileSize(file.size)}
+                      </p>
+                    </div>
+                    <a
+                      href={file.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-accent border border-accent/20 px-2 py-1 rounded-lg font-helvetica hover:bg-accent/10 transition-colors shrink-0"
+                    >
+                      Download
+                    </a>
+                    {canManage && (
+                      <button
+                        onClick={() => handleDeleteFile(file)}
+                        className="text-white/20 hover:text-red-400 transition-colors shrink-0 ml-1"
+                        title="Delete file"
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Milestones */}
@@ -412,3 +542,29 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 function BackIcon()  { return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6"/></svg>; }
 function CheckIcon() { return <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m20 6-11 11-5-5"/></svg>; }
 function Spinner()   { return <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>; }
+
+function FileTypeChip({ mimeType }: { mimeType: string }) {
+  const label =
+    mimeType.includes("pdf")                                              ? "PDF"  :
+    mimeType.includes("word")                                             ? "DOC"  :
+    mimeType.includes("sheet") || mimeType.includes("excel")             ? "XLS"  :
+    mimeType.includes("presentation") || mimeType.includes("powerpoint") ? "PPT"  :
+    mimeType.includes("image")                                            ? "IMG"  :
+    mimeType.includes("zip")                                              ? "ZIP"  : "FILE";
+  return (
+    <div className="w-9 h-9 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+      <span className="text-[8px] font-bold text-white/40 font-orbitron">{label}</span>
+    </div>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6M14 11v6"/>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+    </svg>
+  );
+}
