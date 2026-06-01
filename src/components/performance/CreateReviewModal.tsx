@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,6 +21,8 @@ interface Props {
   onClose:         () => void;
 }
 
+const KPI_KEYS = Object.keys(KPI_LABELS) as Array<keyof KPIScores>;
+
 const DEFAULT_MANUAL: Omit<KPIScores, "taskCompletionRate" | "ticketResolutionRate"> = {
   attendancePunctuality:    80,
   qualityOfWork:            80,
@@ -39,6 +41,7 @@ export default function CreateReviewModal({
   const [year,     setYear]     = useState(now.getFullYear());
   const [locked,   setLocked]   = useState({ taskCompletionRate: 0, ticketResolutionRate: 0 });
   const [computing, setComputing] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const [manual,   setManual]   = useState({ ...DEFAULT_MANUAL });
   const [comments, setComments] = useState("");
   const [saving,   setSaving]   = useState(false);
@@ -46,18 +49,30 @@ export default function CreateReviewModal({
 
   const fetchLocked = useCallback(async (uid: string, m: number, y: number) => {
     if (!uid) return;
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setComputing(true);
     try {
       const token = await auth.currentUser?.getIdToken();
-      if (!token) return;
+      if (!token) {
+        setError("Authentication error. Please refresh and try again.");
+        return;
+      }
       const res = await fetch(
         `/api/performance/compute?uid=${uid}&month=${m}&year=${y}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
       );
       if (res.ok) {
         const data = await res.json() as { taskCompletionRate: number; ticketResolutionRate: number };
         setLocked(data);
+      } else {
+        setError("Could not load automated KPIs. Please retry.");
       }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return; // expected — ignore
+      setError("Could not load automated KPIs. Please retry.");
     } finally {
       setComputing(false);
     }
@@ -110,8 +125,6 @@ export default function CreateReviewModal({
       setSaving(false);
     }
   }
-
-  const kpiKeys = Object.keys(KPI_LABELS) as Array<keyof KPIScores>;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -170,7 +183,7 @@ export default function CreateReviewModal({
             <div className="space-y-3">
               <p className="font-orbitron text-[10px] text-white/30 uppercase tracking-widest">KPI Scores</p>
 
-              {kpiKeys.map((k) => {
+              {KPI_KEYS.map((k) => {
                 const isLocked = KPI_LOCKED[k];
                 const value    = isLocked ? locked[k as "taskCompletionRate" | "ticketResolutionRate"] : manual[k as keyof typeof manual];
                 return (
@@ -193,7 +206,9 @@ export default function CreateReviewModal({
                           max={100}
                           value={value}
                           onChange={(e) => {
-                            const v = Math.min(100, Math.max(0, Number(e.target.value)));
+                            const parsed = Number(e.target.value);
+                            if (isNaN(parsed)) return;
+                            const v = Math.min(100, Math.max(0, parsed));
                             setManual((prev) => ({ ...prev, [k]: v }));
                           }}
                           className="w-14 bg-white/05 border border-white/12 rounded text-center text-sm font-bold text-white py-0.5"
@@ -229,7 +244,7 @@ export default function CreateReviewModal({
             <div className="bg-black/20 border border-white/06 rounded-lg p-4">
               <p className="font-orbitron text-[9px] text-white/30 uppercase tracking-widest mb-3">Breakdown</p>
               <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs font-helvetica">
-                {kpiKeys.map((k) => {
+                {KPI_KEYS.map((k) => {
                   const isLocked = KPI_LOCKED[k];
                   const value    = isLocked ? locked[k as "taskCompletionRate" | "ticketResolutionRate"] : manual[k as keyof typeof manual];
                   return (
