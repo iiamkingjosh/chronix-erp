@@ -54,6 +54,7 @@ export default function ProjectDetailPage() {
   const fileInputRef                  = useRef<HTMLInputElement>(null);
   const [uploading, setUploading]     = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -73,7 +74,8 @@ export default function ProjectDetailPage() {
     setUploading(true);
     try {
       const fileId      = crypto.randomUUID();
-      const path        = `projects/${project.id}/${fileId}_${file.name}`;
+      const safeName    = file.name.replace(/[#?[\]*]/g, "_");
+      const path        = `projects/${project.id}/${fileId}_${safeName}`;
       const sRef        = storageRef(storage, path);
       const snapshot    = await uploadBytes(sRef, file);
       const downloadUrl = await getDownloadURL(snapshot.ref);
@@ -100,14 +102,18 @@ export default function ProjectDetailPage() {
   }
 
   async function handleDeleteFile(file: ProjectFile) {
-    if (!project || !profile) return;
+    if (!project || !profile || deletingFileId) return;
+    setDeletingFileId(file.id);
     try {
       await removeProjectFile(project.id, file, project.files ?? []);
       setProject((prev) =>
         prev ? { ...prev, files: (prev.files ?? []).filter((f) => f.id !== file.id) } : prev
       );
+      setUploadError(null);
     } catch {
       setUploadError("Failed to delete file. Please try again.");
+    } finally {
+      setDeletingFileId(null);
     }
   }
 
@@ -303,8 +309,10 @@ export default function ProjectDetailPage() {
                     {canManage && (
                       <button
                         onClick={() => handleDeleteFile(file)}
-                        className="text-white/20 hover:text-red-400 transition-colors shrink-0 ml-1"
+                        disabled={deletingFileId === file.id}
+                        className="text-white/20 hover:text-red-400 transition-colors shrink-0 ml-1 disabled:opacity-40"
                         title="Delete file"
+                        aria-label={`Delete ${file.name}`}
                       >
                         <TrashIcon />
                       </button>
