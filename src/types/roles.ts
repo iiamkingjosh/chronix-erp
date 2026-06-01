@@ -70,6 +70,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
 
   /* ── CFO ─────────────────────────────────────────────── */
   [ROLES.CFO]: [
+    "view:own",
     "view:finance",       "view:reports",       "manage:finance",
     "view:staff",         "view:tickets",       "manage:tickets",
     "view:crm",           "view:projects",      "view:procurement",
@@ -96,6 +97,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
 
   /* ── Brand Lead ──────────────────────────────────────── */
   [ROLES.BRAND_LEAD]: [
+    "view:own",
     "view:brand",         "manage:brand",       "view:reports",
     "view:tickets",       "view:crm",
     "manage:crm",         "manage:projects",    "view:projects",
@@ -105,6 +107,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
 
   /* ── Social Media Lead ───────────────────────────────── */
   [ROLES.SOCIAL_MEDIA_LEAD]: [
+    "view:own",
     "view:social",        "manage:social",      "view:brand",
     "view:reports",       "view:tickets",       "view:crm",
     "manage:crm",         "view:projects",
@@ -114,6 +117,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
 
   /* ── HR ──────────────────────────────────────────────── */
   [ROLES.HR]: [
+    "view:own",
     "view:staff",         "manage:hr",          "view:reports",
     "view:tickets",       "view:hr",
     "view:analytics",     "view:notifications",
@@ -138,6 +142,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
 
   /* ── Sales Rep — CRM + invoice creation ──────────────── */
   [ROLES.SALES_REP]: [
+    "view:own",
     "view:crm",           "manage:crm",
     "view:finance",       "create:invoices",
     "view:projects",      "view:subscriptions",
@@ -147,6 +152,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
 
   /* ── Project Manager — full project ops ──────────────── */
   [ROLES.PROJECT_MANAGER]: [
+    "view:own",
     "view:projects",      "manage:projects",
     "view:tickets",       "manage:tickets",
     "view:crm",           "manage:time",
@@ -157,6 +163,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
 
   /* ── Finance Officer — invoice/payment/expense ops ───── */
   [ROLES.FINANCE_OFFICER]: [
+    "view:own",
     "view:finance",       "manage:finance",
     "view:reports",       "view:tax",
     "view:procurement",   "view:subscriptions",
@@ -166,6 +173,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
 
   /* ── IT Manager — assets, incidents, changes, oncall ─── */
   [ROLES.IT_MANAGER]: [
+    "view:own",
     "view:tickets",       "manage:tickets",
     "manage:assets",      "view:assets",
     "manage:knowledge",   "view:knowledge",

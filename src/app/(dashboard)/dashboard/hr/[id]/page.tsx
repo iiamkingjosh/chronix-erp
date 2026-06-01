@@ -54,9 +54,12 @@ export default function EmployeeProfilePage() {
   const [selectedPayslip, setSelectedPayslip] = useState<PayslipSummary | null>(null);
   const [pdfDownloading, setPdfDownloading]   = useState(false);
 
-  const canManage  = profile ? hasPermission(profile.role, "manage:hr") : false;
-  const isSelf     = profile?.uid === id;
-  const canView    = canManage || isSelf;
+  const canManage        = profile ? hasPermission(profile.role, "manage:hr") : false;
+  const isSelf           = profile?.uid === id;
+  const canView          = canManage || isSelf;
+  const canViewPayslipTab = profile
+    ? hasPermission(profile.role, "manage:hr") || hasPermission(profile.role, "view:all")
+    : false;
 
   useEffect(() => {
     if (!canView && !canManage) { router.replace("/dashboard"); return; }
@@ -275,8 +278,8 @@ export default function EmployeeProfilePage() {
         </div>
       </div>
 
-      {/* Tab navigation — managers only */}
-      {canManage && (
+      {/* Tab navigation — managers + CEO */}
+      {canViewPayslipTab && (
         <div className="flex mb-6 border-b border-white/10">
           {(["profile", "payslip"] as const).map((t) => (
             <button
@@ -430,7 +433,7 @@ export default function EmployeeProfilePage() {
       </div>
       )}
 
-      {activeTab === "payslip" && canManage && (
+      {activeTab === "payslip" && canViewPayslipTab && (
         <div>
           {payslipLoading && (
             <div className="flex items-center justify-center py-16">
