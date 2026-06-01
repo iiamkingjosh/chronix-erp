@@ -1,159 +1,334 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getEmployees, addPerformanceNote } from "@/lib/hr-service";
-import type { Employee, PerformanceNote } from "@/types/hr";
-import { PERFORMANCE_PERIODS, formatHrDateTime } from "@/types/hr";
+import { useEffect, useState, useMemo } from "react";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { useRouter } from "next/navigation";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/types/roles";
+import { getEmployees } from "@/lib/hr-service";
+import { MONTHS, ENTITLEMENT_STYLES, calcEntitlement } from "@/types/hr";
+import type { Employee, PerformanceReview } from "@/types/hr";
 import { cn } from "@/lib/utils";
+import CreateReviewModal from "@/components/performance/CreateReviewModal";
+
+function periodLabel(p: string): string {
+  const [y, m] = p.split("-");
+  return `${MONTHS[parseInt(m, 10) - 1]} ${y}`;
+}
+
+function generatePeriods(): string[] {
+  const result: string[] = [];
+  let m = 5, y = 2026;
+  const now = new Date();
+  while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) {
+    result.push(`${y}-${String(m).padStart(2, "0")}`);
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return result.reverse();
+}
+
+function getTrend(empUid: string, reviews: PerformanceReview[]): "up" | "down" | "flat" {
+  const sorted = reviews
+    .filter((r) => r.employeeId === empUid)
+    .sort((a, b) => b.reviewPeriod.localeCompare(a.reviewPeriod));
+  if (sorted.length < 2) return "flat";
+  if (sorted[0].overallScore > sorted[1].overallScore) return "up";
+  if (sorted[0].overallScore < sorted[1].overallScore) return "down";
+  return "flat";
+}
 
 export default function PerformancePage() {
-  const { profile } = useAuth();
-  const [employees, setEmployees]   = useState<Employee[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [selEmp, setSelEmp]         = useState("");
-  const [selPeriod, setSelPeriod]   = useState(PERFORMANCE_PERIODS[0]);
-  const [rating, setRating]         = useState(4);
-  const [notes, setNotes]           = useState("");
-  const [saving, setSaving]         = useState(false);
-  const [filterEmp, setFilterEmp]   = useState("all");
+  const { profile }   = useAuth();
+  const router        = useRouter();
+  const canManage     = profile
+    ? hasPermission(profile.role, "manage:hr") || hasPermission(profile.role, "view:all")
+    : false;
 
-  const canManage = profile ? hasPermission(profile.role, "manage:hr") : false;
+  const [employees,   setEmployees]   = useState<Employee[]>([]);
+  const [reviews,     setReviews]     = useState<PerformanceReview[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showModal,   setShowModal]   = useState(false);
+  const [modalEmpUid, setModalEmpUid] = useState<string | undefined>(undefined);
+
+  const periods = useMemo(() => generatePeriods(), []);
+  const [filterPeriod, setFilterPeriod] = useState(periods[0] ?? "");
+  const [filterDept,   setFilterDept]   = useState("all");
+  const [filterScore,  setFilterScore]  = useState("all");
 
   useEffect(() => {
-    getEmployees().then((emps) => {
+    let cancelled = false;
+    async function load() {
+      const [emps, snap] = await Promise.all([
+        getEmployees(),
+        getDocs(query(collection(db, "performance_reviews"), orderBy("reviewPeriod", "desc"))),
+      ]);
+      if (cancelled) return;
       setEmployees(emps);
-      if (emps.length > 0) setSelEmp(emps[0].uid);
-    }).finally(() => setLoading(false));
+      setReviews(snap.docs.map((d) => ({ id: d.id, ...d.data() } as PerformanceReview)));
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
   }, []);
 
-  async function handleSave() {
-    if (!profile || !selEmp || !notes.trim()) return;
-    const emp = employees.find((e) => e.uid === selEmp);
-    if (!emp) return;
-    setSaving(true);
-    try {
-      const note: PerformanceNote = {
-        id:          Date.now().toString(),
-        period:      selPeriod,
-        rating,
-        notes:       notes.trim(),
-        addedBy:     profile.uid,
-        addedByName: profile.displayName ?? profile.email,
-        createdAt:   new Date().toISOString(),
-      };
-      await addPerformanceNote(emp.uid, note);
-      setEmployees((prev) =>
-        prev.map((e) => e.uid === emp.uid ? { ...e, performanceNotes: [...(e.performanceNotes ?? []), note] } : e)
-      );
-      setNotes("");
-    } finally { setSaving(false); }
-  }
+  const periodReviews = useMemo(
+    () => reviews.filter((r) => r.reviewPeriod === filterPeriod),
+    [reviews, filterPeriod]
+  );
 
-  // Flatten all performance notes with employee name
-  type FlatNote = PerformanceNote & { empName: string; empUid: string };
-  const allNotes: FlatNote[] = employees
-    .filter((e) => filterEmp === "all" || e.uid === filterEmp)
-    .flatMap((e) => (e.performanceNotes ?? []).map((n) => ({ ...n, empName: e.fullName, empUid: e.uid })))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const periodReviewMap = useMemo(() => {
+    const map = new Map<string, PerformanceReview>();
+    periodReviews.forEach((r) => map.set(r.employeeId, r));
+    return map;
+  }, [periodReviews]);
+
+  const departments = useMemo(
+    () => ["all", ...Array.from(new Set(employees.map((e) => e.department).filter(Boolean)))],
+    [employees]
+  );
+
+  const filtered = useMemo(() => {
+    return employees.filter((emp) => {
+      if (filterDept !== "all" && emp.department !== filterDept) return false;
+      const rev = periodReviewMap.get(emp.uid);
+      if (filterScore === "exceptional" && (!rev || rev.overallScore < 90)) return false;
+      if (filterScore === "above"       && (!rev || rev.overallScore < 75)) return false;
+      if (filterScore === "attention"   && (!rev || rev.overallScore >= 60)) return false;
+      return true;
+    });
+  }, [employees, filterDept, filterScore, periodReviewMap]);
+
+  const avgScore = periodReviews.length
+    ? Math.round(periodReviews.reduce((s, r) => s + r.overallScore, 0) / periodReviews.length)
+    : null;
+  const topCount      = periodReviews.filter((r) => r.overallScore >= 90).length;
+  const attentionCount = periodReviews.filter((r) => r.overallScore < 60).length;
 
   if (loading) {
-    return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
   if (!canManage) {
-    return <div className="py-16 text-center"><p className="text-white/40 font-helvetica">Access restricted to HR managers.</p></div>;
+    return (
+      <div className="py-16 text-center">
+        <p className="text-white/40 font-helvetica">Access restricted to HR managers.</p>
+      </div>
+    );
   }
 
   return (
     <div className="animate-fade-in">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Add note form */}
-        <div className="lg:col-span-1">
-          <div className="surface-card p-6 sticky top-8">
-            <h3 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">Add Performance Note</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="field-label">Employee</label>
-                <select value={selEmp} onChange={(e) => setSelEmp(e.target.value)} className="input-field">
-                  {employees.map((e) => <option key={e.uid} value={e.uid} className="bg-primary-dark">{e.fullName}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="field-label">Period</label>
-                <select value={selPeriod} onChange={(e) => setSelPeriod(e.target.value)} className="input-field">
-                  {PERFORMANCE_PERIODS.map((p) => <option key={p} value={p} className="bg-primary-dark">{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="field-label">Rating</label>
-                <div className="flex items-center gap-1 h-10">
-                  {[1,2,3,4,5].map((s) => (
-                    <button key={s} type="button" onClick={() => setRating(s)}
-                      className={cn("text-2xl transition-colors", s <= rating ? "text-amber-400" : "text-white/15 hover:text-white/40")}>
-                      ★
-                    </button>
-                  ))}
-                  <span className="text-sm text-amber-400 font-orbitron font-bold ml-2">{rating}/5</span>
-                </div>
-              </div>
-              <div>
-                <label className="field-label">Notes</label>
-                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={5} placeholder="Key achievements, areas for improvement, targets for next period…" className="input-field resize-none" />
-              </div>
-              <button onClick={handleSave} disabled={saving || !selEmp || !notes.trim()} className="btn-primary w-full">
-                {saving ? "Saving…" : "Add Note"}
-              </button>
-            </div>
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          {
+            label: "Total Reviewed",
+            value: String(periodReviews.length),
+            sub:   periodLabel(filterPeriod),
+            color: "text-white",
+          },
+          {
+            label: "Avg Score",
+            value: avgScore != null ? `${avgScore}%` : "—",
+            sub:   avgScore != null ? calcEntitlement(avgScore) : "no data",
+            color: avgScore != null
+              ? avgScore >= 75 ? "text-emerald-400" : avgScore >= 60 ? "text-amber-400" : "text-red-400"
+              : "text-white/30",
+          },
+          {
+            label: "Top Performers",
+            value: String(topCount),
+            sub:   "≥ 90% Exceptional",
+            color: "text-emerald-400",
+          },
+          {
+            label: "Needs Attention",
+            value: String(attentionCount),
+            sub:   "below 60%",
+            color: attentionCount > 0 ? "text-red-400" : "text-white/40",
+          },
+        ].map((c) => (
+          <div key={c.label} className="surface-card p-5">
+            <p className="font-orbitron text-[10px] text-white/30 uppercase tracking-widest mb-2">{c.label}</p>
+            <p className={cn("text-2xl font-black", c.color)}>{c.value}</p>
+            <p className="text-xs text-white/30 font-helvetica mt-1">{c.sub}</p>
           </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Notes history */}
-        <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-            <h3 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest">
-              Review History ({allNotes.length})
-            </h3>
-            <select value={filterEmp} onChange={(e) => setFilterEmp(e.target.value)} className="input-field py-2 w-48">
-              <option value="all" className="bg-primary-dark">All employees</option>
-              {employees.map((e) => <option key={e.uid} value={e.uid} className="bg-primary-dark">{e.fullName}</option>)}
-            </select>
-          </div>
+      {/* Filter bar */}
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
+        <select
+          value={filterPeriod}
+          onChange={(e) => setFilterPeriod(e.target.value)}
+          className="input-field py-2 w-40"
+        >
+          {periods.map((p) => (
+            <option key={p} value={p} className="bg-primary-dark">{periodLabel(p)}</option>
+          ))}
+        </select>
+        <select
+          value={filterDept}
+          onChange={(e) => setFilterDept(e.target.value)}
+          className="input-field py-2 w-44"
+        >
+          {departments.map((d) => (
+            <option key={d} value={d} className="bg-primary-dark">
+              {d === "all" ? "All Departments" : d}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filterScore}
+          onChange={(e) => setFilterScore(e.target.value)}
+          className="input-field py-2 w-44"
+        >
+          <option value="all"         className="bg-primary-dark">All Scores</option>
+          <option value="exceptional" className="bg-primary-dark">≥ 90% Exceptional</option>
+          <option value="above"       className="bg-primary-dark">≥ 75% Above Target</option>
+          <option value="attention"   className="bg-primary-dark">Below 60%</option>
+        </select>
+        <div className="flex-1" />
+        <button
+          onClick={() => { setModalEmpUid(undefined); setShowModal(true); }}
+          className="btn-primary"
+        >
+          + Create Review
+        </button>
+      </div>
 
-          {allNotes.length === 0 ? (
-            <div className="surface-card px-6 py-16 text-center">
-              <p className="text-white/20 text-sm font-helvetica">No performance notes yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {allNotes.map((note) => (
-                <div key={`${note.empUid}-${note.id}`} className="surface-card p-5">
-                  <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-secondary/20 border border-secondary/30 flex items-center justify-center text-xs font-bold text-secondary shrink-0">
-                        {note.empName[0]?.toUpperCase()}
+      {/* Staff table */}
+      <div className="surface-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/08">
+                {["Employee", "Department", "Score", "Entitlement", "Trend", "Period", ""].map((h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left font-orbitron text-[10px] text-white/30 uppercase tracking-widest"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((emp) => {
+                const rev   = periodReviewMap.get(emp.uid);
+                const trend = getTrend(emp.uid, reviews);
+                const isRed = rev && rev.overallScore < 60;
+                return (
+                  <tr
+                    key={emp.uid}
+                    className={cn(
+                      "border-b border-white/04 transition-colors cursor-pointer",
+                      isRed ? "bg-red-500/05 hover:bg-red-500/10" : "hover:bg-white/03"
+                    )}
+                    onClick={() => router.push(`/dashboard/hr/performance/${emp.uid}`)}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-secondary/20 border border-secondary/30 flex items-center justify-center text-xs font-bold text-secondary shrink-0">
+                          {emp.fullName[0]?.toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-white font-semibold font-helvetica">{emp.fullName}</p>
+                          <p className="text-white/30 text-xs font-helvetica">{emp.role}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white font-helvetica">{note.empName}</p>
-                        <p className="text-[10px] text-white/30 font-helvetica">{note.addedByName}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-orbitron text-xs text-accent">{note.period}</span>
-                      <div className="text-amber-400 text-base mt-0.5">
-                        {"★".repeat(note.rating)}{"☆".repeat(5 - note.rating)}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-white/60 font-helvetica leading-relaxed">{note.notes}</p>
-                  <p className="text-[10px] text-white/20 font-helvetica mt-2">{formatHrDateTime(note.createdAt)}</p>
-                </div>
-              ))}
-            </div>
-          )}
+                    </td>
+                    <td className="px-4 py-3 text-white/40 font-helvetica">{emp.department || "—"}</td>
+                    <td className="px-4 py-3">
+                      {rev ? (
+                        <span className={cn(
+                          "text-base font-black",
+                          rev.overallScore >= 90 ? "text-emerald-400"
+                            : rev.overallScore >= 75 ? "text-blue-400"
+                            : rev.overallScore >= 60 ? "text-amber-400"
+                            : "text-red-400"
+                        )}>
+                          {rev.overallScore}%
+                        </span>
+                      ) : (
+                        <span className="text-white/20">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {rev ? (
+                        <span className={cn(
+                          "text-xs font-semibold px-2 py-0.5 rounded border",
+                          ENTITLEMENT_STYLES[rev.entitlement]
+                        )}>
+                          {rev.entitlement}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-white/20 border border-white/08 px-2 py-0.5 rounded font-helvetica">
+                          Not reviewed
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={
+                        trend === "up" ? "text-emerald-400"
+                          : trend === "down" ? "text-red-400"
+                          : "text-white/30"
+                      }>
+                        {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-white/30 font-helvetica text-xs">
+                      {rev ? periodLabel(rev.reviewPeriod) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      {rev ? (
+                        <button
+                          onClick={() => router.push(`/dashboard/hr/performance/${emp.uid}`)}
+                          className="text-xs border border-white/10 text-white/40 hover:text-white px-3 py-1 rounded transition-colors"
+                        >
+                          View
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModalEmpUid(emp.uid);
+                            setShowModal(true);
+                          }}
+                          className="text-xs border border-accent/30 text-accent hover:bg-accent/10 px-3 py-1 rounded transition-colors"
+                        >
+                          Review
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-16 text-center text-white/20 font-helvetica">
+                    No employees match the current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
+
+      {showModal && (
+        <CreateReviewModal
+          employees={employees}
+          defaultEmpUid={modalEmpUid}
+          existingReviews={reviews}
+          onSaved={(r) => setReviews((prev) => [r, ...prev])}
+          onClose={() => { setShowModal(false); setModalEmpUid(undefined); }}
+        />
+      )}
     </div>
   );
 }
