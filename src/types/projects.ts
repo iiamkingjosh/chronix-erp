@@ -58,6 +58,41 @@ export interface Project {
   createdAt: string;
   createdBy: string;
   updatedAt: string;
+  files?: ProjectFile[];
+}
+
+export interface ProjectFile {
+  id: string;
+  name: string;
+  storagePath: string;
+  downloadUrl: string;
+  size: number;
+  mimeType: string;
+  uploadedBy: string;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
+export const ACCEPTED_FILE_MIME: readonly string[] = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "image/png",
+  "image/jpeg",
+  "application/zip",
+  "application/x-zip-compressed",
+];
+
+export const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /* ── Labels ── */
