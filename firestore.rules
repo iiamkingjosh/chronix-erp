@@ -107,6 +107,20 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['files', 'updatedAt']);
     }
 
+    /** Allow any internal staff to update only the tasks array and computed progress. */
+    function isTeamMemberTaskUpdate() {
+      return isInternalStaff() && hasViewProjects() &&
+        request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['tasks', 'progress', 'updatedAt']);
+    }
+
+    /** Allow any internal staff to update only the project activity log. */
+    function isTeamMemberActivityUpdate() {
+      return isInternalStaff() && hasViewProjects() &&
+        request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['activity', 'updatedAt']);
+    }
+
     function hasViewFinance() {
       return hasViewAll() || isCFO() || isFinanceOfficer() || isSalesRep();
     }
@@ -303,7 +317,7 @@ service cloud.firestore {
       allow read: if hasViewProjects();
       allow create: if canManageProjects();
       allow update: if canManageProjects() || resource.data.createdBy == request.auth.uid
-        || isFilesOnlyUpdate();
+        || isFilesOnlyUpdate() || isTeamMemberTaskUpdate() || isTeamMemberActivityUpdate();
       allow delete: if false;
     }
 
