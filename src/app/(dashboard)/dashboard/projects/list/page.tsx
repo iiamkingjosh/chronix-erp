@@ -28,7 +28,6 @@ function ProjectsListContent() {
   useEffect(() => {
     if (!profile?.uid) return;
     let cancelled = false;
-    setLoading(true);
     getProjects()
       .then((all) => {
         if (cancelled) return;
