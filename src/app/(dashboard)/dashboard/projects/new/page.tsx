@@ -128,7 +128,7 @@ export default function NewProjectPage() {
       for (const file of pendingFiles) {
         try {
           const fileId      = crypto.randomUUID();
-          const safeName    = file.name.replace(/[#?[\]*]/g, "_");
+          const safeName    = file.name.replace(/[#?[\]*/\\]/g, "_");
           const path        = `projects/${proj.id}/${fileId}_${safeName}`;
           const sRef        = storageRef(storage, path);
           const snapshot    = await uploadBytes(sRef, file);

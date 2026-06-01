@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Project file attachments — internal authenticated users only
+    match /projects/{projectId}/{allPaths=**} {
+      allow read:   if request.auth != null;
+      allow write:  if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+    // Deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

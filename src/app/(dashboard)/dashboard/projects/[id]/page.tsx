@@ -74,7 +74,7 @@ export default function ProjectDetailPage() {
     setUploading(true);
     try {
       const fileId      = crypto.randomUUID();
-      const safeName    = file.name.replace(/[#?[\]*]/g, "_");
+      const safeName    = file.name.replace(/[#?[\]*/\\]/g, "_");
       const path        = `projects/${project.id}/${fileId}_${safeName}`;
       const sRef        = storageRef(storage, path);
       const snapshot    = await uploadBytes(sRef, file);
@@ -105,7 +105,7 @@ export default function ProjectDetailPage() {
     if (!project || !profile || deletingFileId) return;
     setDeletingFileId(file.id);
     try {
-      await removeProjectFile(project.id, file, project.files ?? []);
+      await removeProjectFile(project.id, file);
       setProject((prev) =>
         prev ? { ...prev, files: (prev.files ?? []).filter((f) => f.id !== file.id) } : prev
       );

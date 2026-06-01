@@ -101,6 +101,12 @@ service cloud.firestore {
       return isRootAdmin() || isSystemAdmin() || isBrandLead() || isProjectManager();
     }
 
+    /** Allow internal staff to update only the files array (for file attachments). */
+    function isFilesOnlyUpdate() {
+      return isInternalStaff() && hasViewProjects() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['files', 'updatedAt']);
+    }
+
     function hasViewFinance() {
       return hasViewAll() || isCFO() || isFinanceOfficer() || isSalesRep();
     }
@@ -296,7 +302,8 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read: if hasViewProjects();
       allow create: if canManageProjects();
-      allow update: if canManageProjects() || resource.data.createdBy == request.auth.uid;
+      allow update: if canManageProjects() || resource.data.createdBy == request.auth.uid
+        || isFilesOnlyUpdate();
       allow delete: if false;
     }
 

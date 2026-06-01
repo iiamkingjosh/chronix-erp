@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs,
-  updateDoc, query, orderBy, arrayUnion,
+  updateDoc, query, orderBy, arrayUnion, arrayRemove,
 } from "firebase/firestore";
 import { db, storage } from "./firebase";
 import { ref, deleteObject } from "firebase/storage";
@@ -107,13 +107,11 @@ export async function addProjectFile(projectId: string, file: ProjectFile): Prom
 
 export async function removeProjectFile(
   projectId: string,
-  file: ProjectFile,
-  currentFiles: ProjectFile[]
+  file: ProjectFile
 ): Promise<void> {
-  await deleteObject(ref(storage, file.storagePath));
-  const updatedFiles = currentFiles.filter((f) => f.id !== file.id);
   await updateDoc(doc(db, PROJ, projectId), {
-    files:     updatedFiles,
+    files:     arrayRemove(file),
     updatedAt: new Date().toISOString(),
   });
+  await deleteObject(ref(storage, file.storagePath));
 }
