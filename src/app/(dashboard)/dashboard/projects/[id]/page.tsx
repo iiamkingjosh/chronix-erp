@@ -331,7 +331,7 @@ export default function ProjectDetailPage() {
                 {project.milestones.map((ms) => (
                   <div key={ms.id} className={cn("flex items-center gap-3 px-4 py-3 rounded-xl border", ms.completedAt ? "border-emerald-500/20 bg-emerald-500/5" : "border-white/10 bg-white/[0.02]")}>
                     <button
-                      disabled={!!ms.completedAt || !canEdit}
+                      disabled={!!ms.completedAt || !canManage}
                       onClick={() => !ms.completedAt && handleMilestoneDone(ms.id)}
                       className={cn("w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors",
                         ms.completedAt ? "bg-emerald-500/30 border-emerald-500/50 text-emerald-400" : "border-white/20 hover:border-accent/50"
@@ -355,14 +355,14 @@ export default function ProjectDetailPage() {
               <h3 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest">
                 Tasks ({project.tasks.length})
               </h3>
-              {canEdit && (
+              {canManage && (
                 <button onClick={() => setShowTaskForm((v) => !v)} className="text-xs text-accent hover:text-accent/80 font-helvetica transition-colors">
                   {showTaskForm ? "Cancel" : "+ Add Task"}
                 </button>
               )}
             </div>
 
-            {showTaskForm && canEdit && (
+            {showTaskForm && canManage && (
               <div className="mb-5 p-4 bg-white/[0.03] border border-white/10 rounded-xl animate-slide-up">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div className="sm:col-span-2">
@@ -427,7 +427,7 @@ export default function ProjectDetailPage() {
                                 </span>
                               </div>
                             </div>
-                            {canEdit && col !== "done" && (
+                            {(canManage || task.assignedTo === profile?.uid) && col !== "done" && (
                               <div className="flex gap-1.5 shrink-0">
                                 {col === "todo" && (
                                   <button onClick={() => handleTaskStatusChange(task.id, "in_progress")} className="text-[10px] text-amber-400 border border-amber-500/20 px-2 py-1 rounded-lg font-helvetica hover:bg-amber-500/10 transition-colors">
