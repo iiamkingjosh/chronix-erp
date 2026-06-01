@@ -64,6 +64,7 @@ export function PayslipPDFDocument({
         {/* Header */}
         <View style={S.header}>
           <View>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
             {logoSrc && <Image src={logoSrc} style={S.logo} />}
             <Text style={S.coName}>Chronix Technology Limited</Text>
             <Text style={S.coDetail}>12 Admiralty Way, Lekki Phase 1, Lagos</Text>
