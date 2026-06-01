@@ -35,6 +35,7 @@ const ALL_NAV: NavItem[] = [
   { label: "Audit Log",     href: "/dashboard/audit",                icon: <AuditIcon /> },
   { label: "Notifications", href: "/dashboard/notifications",        icon: <BellIcon /> },
   { label: "My Payslip",    href: "/dashboard/payslip",              icon: <PayslipIcon /> },
+  { label: "My Performance", href: "/dashboard/my-performance",       icon: <PerformanceIcon /> },
   { label: "Settings",      href: "/dashboard/settings",             icon: <SettingsIcon /> },
 ];
 
@@ -60,6 +61,7 @@ const NAV_GATE: Record<string, string[] | null> = {
   "/dashboard/audit":                ["view:audit"],
   "/dashboard/notifications":        ["view:notifications"],
   "/dashboard/payslip":              ["view:own", "manage:hr"],
+  "/dashboard/my-performance":       ["view:own", "manage:hr"],
   "/dashboard/settings":             ["view:settings", "manage:settings"],
 };
 
@@ -243,6 +245,16 @@ function PayslipIcon() {
       <line x1="8" y1="13" x2="16" y2="13"/>
       <line x1="8" y1="17" x2="16" y2="17"/>
       <line x1="10" y1="9" x2="8" y2="9"/>
+    </svg>
+  );
+}
+
+function PerformanceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+      <line x1="18" y1="20" x2="18" y2="10"/>
+      <line x1="12" y1="20" x2="12" y2="4"/>
+      <line x1="6" y1="20" x2="6" y2="14"/>
     </svg>
   );
 }
