@@ -349,6 +349,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /* ── Performance Reviews ─────────────────────────────────── */
+    match /performance_reviews/{reviewId} {
+      allow read: if isAuth() && (
+        canManageHR() || isCEO() ||
+        request.auth.uid == resource.data.employeeId
+      );
+      allow write: if isAuth() && (canManageHR() || isCEO());
+      allow delete: if false;
+    }
+
     /* ── Subscriptions ────────────────────────────────────── */
     match /subscriptions/{subId} {
       allow read: if hasViewSubscriptions() || (
