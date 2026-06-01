@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
-import { createProject } from "@/lib/projects-service";
+import { createProject, addProjectFile } from "@/lib/projects-service";
 import { getStaffList, type StaffMember } from "@/lib/tickets-service";
 import { getClients } from "@/lib/crm-service";
 import { PROJECT_TYPE_LABELS, generateProjectId } from "@/types/projects";
@@ -16,7 +16,6 @@ import type { ProjectType, TeamMember, Milestone } from "@/types/projects";
 import type { Client } from "@/types/crm";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
-import { addProjectFile } from "@/lib/projects-service";
 import type { ProjectFile } from "@/types/projects";
 import { ACCEPTED_FILE_MIME, MAX_FILE_SIZE, formatFileSize } from "@/types/projects";
 
