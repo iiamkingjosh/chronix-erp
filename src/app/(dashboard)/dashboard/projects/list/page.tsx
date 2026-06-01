@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getProjects } from "@/lib/projects-service";
 import {
@@ -19,17 +20,22 @@ export default function ProjectsListPage() {
   const [search, setSearch]     = useState("");
   const [filter, setFilter]     = useState<"all" | ProjectStatus>("all");
 
-  const canManage = profile ? hasPermission(profile.role, "manage:projects") : false;
-  const canSeeAll = profile ? hasPermission(profile.role, "view:all") || canManage : false;
+  const canManage    = profile ? hasPermission(profile.role, "manage:projects") : false;
+  const canSeeAll    = profile ? hasPermission(profile.role, "view:all") || canManage : false;
+  const searchParams = useSearchParams();
+  const viewMine     = !canSeeAll || searchParams.get("view") === "mine";
 
   useEffect(() => {
     getProjects().then((all) => {
-      if (canSeeAll) { setProjects(all); return; }
-      setProjects(all.filter((p) =>
-        p.team.some((m) => m.uid === profile?.uid) || p.createdBy === profile?.uid
-      ));
+      if (viewMine) {
+        setProjects(all.filter((p) =>
+          p.team.some((m) => m.uid === profile?.uid) || p.createdBy === profile?.uid
+        ));
+      } else {
+        setProjects(all);
+      }
     }).finally(() => setLoading(false));
-  }, [profile?.uid, canSeeAll]);
+  }, [profile?.uid, viewMine]);
 
   const filtered = projects.filter((p) => {
     if (filter !== "all" && p.status !== filter) return false;
