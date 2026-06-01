@@ -184,6 +184,10 @@ export default function ProjectDetailPage() {
 
   async function handleTaskStatusChange(taskId: string, status: TaskStatus) {
     if (!project || !profile) return;
+    if (!canManage) {
+      const task = project.tasks.find((t) => t.id === taskId);
+      if (!task || task.assignedTo !== profile.uid) return;
+    }
     const now = new Date().toISOString();
     const newTasks = project.tasks.map((t) =>
       t.id === taskId ? { ...t, status, completedAt: status === "done" ? now : undefined } : t
@@ -427,7 +431,7 @@ export default function ProjectDetailPage() {
                                 </span>
                               </div>
                             </div>
-                            {(canManage || task.assignedTo === profile?.uid) && col !== "done" && (
+                            {profile && (canManage || task.assignedTo === profile.uid) && col !== "done" && (
                               <div className="flex gap-1.5 shrink-0">
                                 {col === "todo" && (
                                   <button onClick={() => handleTaskStatusChange(task.id, "in_progress")} className="text-[10px] text-amber-400 border border-amber-500/20 px-2 py-1 rounded-lg font-helvetica hover:bg-amber-500/10 transition-colors">
