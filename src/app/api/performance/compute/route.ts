@@ -25,9 +25,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "uid, month, year required" }, { status: 400 });
     }
 
+    if (month < 1 || month > 12 || year < 2000 || year > 2100) {
+      return NextResponse.json({ error: "month must be 1–12, year must be 2000–2100" }, { status: 400 });
+    }
+
     // Build ISO date range for the month
-    const rangeStart = new Date(year, month - 1, 1).toISOString();
-    const rangeEnd   = new Date(year, month, 0, 23, 59, 59).toISOString();
+    const rangeStart = new Date(Date.UTC(year, month - 1, 1)).toISOString();
+    const rangeEnd   = new Date(Date.UTC(year, month, 1)).toISOString();
 
     const db = getAdminDb();
 
@@ -47,7 +51,7 @@ export async function GET(req: NextRequest) {
         (t) =>
           t.assignedTo === uid &&
           t.createdAt >= rangeStart &&
-          t.createdAt <= rangeEnd
+          t.createdAt < rangeEnd
       );
       totalTasks += mine.length;
       doneTasks  += mine.filter((t) => t.status === "done").length;
@@ -64,7 +68,7 @@ export async function GET(req: NextRequest) {
 
     const monthTickets = ticketsSnap.docs.filter((d) => {
       const t = d.data().createdAt as string | undefined;
-      return t && t >= rangeStart && t <= rangeEnd;
+      return t && t >= rangeStart && t < rangeEnd;
     });
 
     const resolvedTickets = monthTickets.filter((d) => {
@@ -80,9 +84,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ taskCompletionRate, ticketResolutionRate });
   } catch (err) {
     console.error("[performance/compute] error:", err);
-    return NextResponse.json(
-      { error: `Internal error — ${err instanceof Error ? err.message : String(err)}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
