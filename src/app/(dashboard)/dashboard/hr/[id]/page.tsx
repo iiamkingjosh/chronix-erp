@@ -58,7 +58,7 @@ export default function EmployeeProfilePage() {
   const isSelf           = profile?.uid === id;
   const canView          = canManage || isSelf;
   const canViewPayslipTab = profile
-    ? hasPermission(profile.role, "manage:hr") || hasPermission(profile.role, "view:all")
+    ? hasPermission(profile.role, "manage:hr") || hasPermission(profile.role, "view:all") || isSelf
     : false;
 
   useEffect(() => {
