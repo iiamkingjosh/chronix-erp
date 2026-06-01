@@ -14,6 +14,11 @@ import { getClients } from "@/lib/crm-service";
 import { PROJECT_TYPE_LABELS, generateProjectId } from "@/types/projects";
 import type { ProjectType, TeamMember, Milestone } from "@/types/projects";
 import type { Client } from "@/types/crm";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "@/lib/firebase";
+import { addProjectFile } from "@/lib/projects-service";
+import type { ProjectFile } from "@/types/projects";
+import { ACCEPTED_FILE_MIME, MAX_FILE_SIZE, formatFileSize } from "@/types/projects";
 
 const milestoneSchema = z.object({
   title:   z.string().min(1, "Required"),
@@ -39,6 +44,24 @@ export default function NewProjectPage() {
   const [clients, setClients]   = useState<Client[]>([]);
   const [team, setTeam]         = useState<TeamMember[]>([]);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [fileError, setFileError]       = useState<string | null>(null);
+
+  function handlePendingFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!ACCEPTED_FILE_MIME.includes(file.type)) {
+      setFileError("File type not allowed. Accepted: PDF, Word, Excel, PowerPoint, PNG, JPG, ZIP.");
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setFileError("File exceeds the 20 MB limit.");
+      return;
+    }
+    setFileError(null);
+    setPendingFiles((prev) => [...prev, file]);
+  }
 
   const canManage = profile ? hasPermission(profile.role, "manage:projects") : false;
 
@@ -103,6 +126,30 @@ export default function NewProjectPage() {
         updatedAt:  now,
       });
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "projects", entityId: proj.id, entityRef: proj.projectId, details: `Project created: ${data.name} for ${data.clientName}`, timestamp: now });
+      for (const file of pendingFiles) {
+        try {
+          const fileId      = crypto.randomUUID();
+          const safeName    = file.name.replace(/[#?[\]*]/g, "_");
+          const path        = `projects/${proj.id}/${fileId}_${safeName}`;
+          const sRef        = storageRef(storage, path);
+          const snapshot    = await uploadBytes(sRef, file);
+          const downloadUrl = await getDownloadURL(snapshot.ref);
+          const projectFile: ProjectFile = {
+            id:             fileId,
+            name:           file.name,
+            storagePath:    path,
+            downloadUrl,
+            size:           file.size,
+            mimeType:       file.type,
+            uploadedBy:     profile.uid,
+            uploadedByName: profile.displayName ?? profile.email,
+            uploadedAt:     now,
+          };
+          await addProjectFile(proj.id, projectFile);
+        } catch {
+          // non-fatal — project is already created; file can be re-uploaded from the detail page
+        }
+      }
       router.push(`/dashboard/projects/${proj.id}`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create project");
@@ -218,6 +265,42 @@ export default function NewProjectPage() {
           <button type="button" onClick={() => appendMs({ title: "", dueDate: "" })} className="text-xs text-accent hover:text-accent/80 font-helvetica transition-colors flex items-center gap-1.5">
             <PlusSmIcon /> Add Milestone
           </button>
+        </div>
+
+        {/* Project Files */}
+        <div className="surface-card p-6">
+          <h3 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
+            Project Files{" "}
+            <span className="normal-case font-helvetica text-white/20 text-[10px] font-normal">(optional)</span>
+          </h3>
+          <div className="space-y-2">
+            {pendingFiles.map((f, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/8 bg-white/[0.02]">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white font-helvetica truncate">{f.name}</p>
+                  <p className="text-[10px] text-white/30 font-helvetica">{formatFileSize(f.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
+                  className="text-white/20 hover:text-red-400 transition-colors shrink-0"
+                >
+                  <TrashIcon />
+                </button>
+              </div>
+            ))}
+            <label className="flex items-center justify-center gap-2 px-4 py-4 rounded-xl border border-dashed border-white/10 hover:border-accent/30 cursor-pointer transition-colors text-sm text-white/30 hover:text-white/50 font-helvetica">
+              <PlusSmIcon />
+              Attach file
+              <input
+                type="file"
+                className="hidden"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.zip"
+                onChange={handlePendingFile}
+              />
+            </label>
+            {fileError && <p className="text-xs text-red-400 font-helvetica mt-1">{fileError}</p>}
+          </div>
         </div>
 
         {serverError && (
