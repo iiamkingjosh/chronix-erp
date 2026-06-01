@@ -2,9 +2,10 @@ import {
   collection, doc, addDoc, getDoc, getDocs,
   updateDoc, query, orderBy, arrayUnion,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, storage } from "./firebase";
+import { ref, deleteObject } from "firebase/storage";
 import type {
-  Project, Task, Milestone, ProjectActivity, ProjectStatus, TaskStatus,
+  Project, Task, Milestone, ProjectActivity, ProjectStatus, TaskStatus, ProjectFile,
 } from "@/types/projects";
 import { calcProgress, PROJECT_STATUS_LABELS } from "@/types/projects";
 
@@ -94,5 +95,25 @@ export async function completeMilestone(
     milestones: updated,
     activity:   arrayUnion(entry),
     updatedAt:  now,
+  });
+}
+
+export async function addProjectFile(projectId: string, file: ProjectFile): Promise<void> {
+  await updateDoc(doc(db, PROJ, projectId), {
+    files:     arrayUnion(file),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function removeProjectFile(
+  projectId: string,
+  file: ProjectFile,
+  currentFiles: ProjectFile[]
+): Promise<void> {
+  await deleteObject(ref(storage, file.storagePath));
+  const updatedFiles = currentFiles.filter((f) => f.id !== file.id);
+  await updateDoc(doc(db, PROJ, projectId), {
+    files:     updatedFiles,
+    updatedAt: new Date().toISOString(),
   });
 }
