@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  getWHTRecords, createWHTRecord, updateWHTCertStatus,
+  getWHTRecords, createWHTRecord, updateWHTCertStatus, updateWHTRecord,
 } from "@/lib/tax-service";
 import { generateWHTId, WHT_CERT_STYLES, formatTaxDate, currentPeriod } from "@/types/tax";
 import type { WHTRecord } from "@/types/tax";
@@ -102,6 +102,12 @@ export default function WHTPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
 
+  // Detail / edit modal
+  const [detailRec, setDetailRec]       = useState<WHTRecord | null>(null);
+  const [modalNotes, setModalNotes]     = useState("");
+  const [modalSaving, setModalSaving]   = useState(false);
+  const [modalError, setModalError]     = useState<string | null>(null);
+
   const canManage     = profile ? hasPermission(profile.role, "manage:tax") : false;
   const periodOptions = buildPeriodOptions();
 
@@ -119,6 +125,54 @@ export default function WHTPage() {
   const totalWHT        = filteredRecords.reduce((s, r) => s + r.whtAmount, 0);
   const pending         = filteredRecords.filter((r) => r.certStatus === "pending").length;
   const issued          = filteredRecords.filter((r) => r.certStatus === "issued").length;
+
+  function openDetail(rec: WHTRecord) {
+    setDetailRec(rec);
+    setModalNotes(rec.notes ?? "");
+    setModalError(null);
+  }
+
+  function closeDetail() {
+    setDetailRec(null);
+    setModalNotes("");
+    setModalError(null);
+    setModalSaving(false);
+  }
+
+  async function handleSaveNotes() {
+    if (!detailRec || !profile) return;
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await updateWHTRecord(detailRec.id, { notes: modalNotes.trim() || undefined });
+      const updated = { ...detailRec, notes: modalNotes.trim() || undefined };
+      setAllRecords((prev) => prev.map((r) => r.id === detailRec.id ? updated : r));
+      setDetailRec(updated);
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "invoices", entityId: detailRec.id, entityRef: detailRec.whtId, details: `WHT record notes updated`, timestamp: new Date().toISOString() });
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : "Failed to save notes");
+    } finally { setModalSaving(false); }
+  }
+
+  async function handleMarkError() {
+    if (!detailRec || !profile) return;
+    setModalSaving(true);
+    setModalError(null);
+    const existing = detailRec.notes?.trim();
+    const errorNote = existing && !existing.startsWith("LOGGED IN ERROR")
+      ? `LOGGED IN ERROR — ${existing}`
+      : "LOGGED IN ERROR";
+    try {
+      await updateWHTRecord(detailRec.id, { notes: errorNote });
+      const updated = { ...detailRec, notes: errorNote };
+      setAllRecords((prev) => prev.map((r) => r.id === detailRec.id ? updated : r));
+      setDetailRec(updated);
+      setModalNotes(errorNote);
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "invoices", entityId: detailRec.id, entityRef: detailRec.whtId, details: `WHT record flagged as logged in error`, timestamp: new Date().toISOString() });
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : "Failed to flag record");
+    } finally { setModalSaving(false); }
+  }
 
   async function handleCreate() {
     if (!profile || !form.vendorName || !form.invoiceAmount) return;
@@ -140,7 +194,6 @@ export default function WHTPage() {
       });
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT record logged: ₦${rec.whtAmount.toLocaleString()} deducted from ${rec.vendorName}`, timestamp: new Date().toISOString() });
 
-      // Post journal entry: DR 2010 AP / CR 2200 WHT Payable / CR 1010 Cash
       createJournalEntry({
         entryDate:     rec.paymentDate,
         description:   `WHT deducted — ${rec.vendorName}`,
@@ -148,9 +201,9 @@ export default function WHTPage() {
         referenceType: "manual",
         referenceId:   rec.id,
         lineItems: [
-          { accountCode: "2010", accountName: "Accounts Payable",         debit: round(rec.invoiceAmount),                      credit: 0,                                     description: `Vendor payment — ${rec.vendorName}` },
-          { accountCode: "2200", accountName: "WHT Payable",              debit: 0,                                             credit: round(rec.whtAmount),                  description: `WHT ${rec.whtRate}% withheld` },
-          { accountCode: "1010", accountName: "Cash in Bank — Fidelity",  debit: 0,                                             credit: round(rec.invoiceAmount - rec.whtAmount), description: `Net payment to ${rec.vendorName}` },
+          { accountCode: "2010", accountName: "Accounts Payable",         debit: round(rec.invoiceAmount),                         credit: 0,                                        description: `Vendor payment — ${rec.vendorName}` },
+          { accountCode: "2200", accountName: "WHT Payable",              debit: 0,                                                credit: round(rec.whtAmount),                     description: `WHT ${rec.whtRate}% withheld` },
+          { accountCode: "1010", accountName: "Cash in Bank — Fidelity",  debit: 0,                                                credit: round(rec.invoiceAmount - rec.whtAmount), description: `Net payment to ${rec.vendorName}` },
         ],
         status:    "posted",
         createdBy: profile.uid,
@@ -163,7 +216,6 @@ export default function WHTPage() {
       setSelectedInvoiceId("");
       setForm({ vendorName: "", invoiceAmount: "", whtRate: String(DEFAULT_WHT_RATE), paymentDate: new Date().toISOString().split("T")[0], sourceRef: "", notes: "" });
 
-      /* Push + email notification (best-effort) */
       auth.currentUser?.getIdToken().then((idToken) => {
         fetch("/api/notifications/send", {
           method:  "POST",
@@ -184,10 +236,12 @@ export default function WHTPage() {
     } finally { setSaving(false); }
   }
 
-  async function handleToggleCert(rec: WHTRecord) {
+  async function handleToggleCert(e: React.MouseEvent, rec: WHTRecord) {
+    e.stopPropagation();
     const next = rec.certStatus === "pending" ? "issued" : "pending";
     await updateWHTCertStatus(rec.id, next);
     setAllRecords((prev) => prev.map((r) => r.id === rec.id ? { ...r, certStatus: next } : r));
+    if (detailRec?.id === rec.id) setDetailRec((prev) => prev ? { ...prev, certStatus: next } : prev);
   }
 
   if (loading) return (
@@ -198,6 +252,110 @@ export default function WHTPage() {
 
   return (
     <div className="animate-fade-in space-y-5">
+
+      {/* Detail / edit modal */}
+      {detailRec && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={closeDetail}>
+          <div className="surface-card w-full max-w-lg p-6 mx-4 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <p className="font-orbitron text-xs font-semibold text-accent tracking-widest">{detailRec.whtId}</p>
+                <h3 className="font-orbitron text-sm font-bold text-white mt-0.5">{detailRec.vendorName}</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {detailRec.notes?.startsWith("LOGGED IN ERROR") ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/15 text-red-400 border-red-500/30 font-helvetica">Error</span>
+                ) : (
+                  <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica capitalize", WHT_CERT_STYLES[detailRec.certStatus])}>
+                    {detailRec.certStatus}
+                  </span>
+                )}
+                <button onClick={closeDetail} className="text-white/30 hover:text-white ml-1">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Detail grid */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 mb-5 text-sm font-helvetica">
+              <div>
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">Invoice Amount</p>
+                <p className="text-white">{formatNaira(detailRec.invoiceAmount)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">WHT Amount</p>
+                <p className="text-amber-400 font-semibold">{formatNaira(detailRec.whtAmount)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">WHT Rate</p>
+                <p className="text-white">{detailRec.whtRate}%</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">Payment Date</p>
+                <p className="text-white">{formatTaxDate(detailRec.paymentDate)}</p>
+              </div>
+              {detailRec.sourceRef && (
+                <div className="col-span-2">
+                  <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">Source Ref</p>
+                  <p className="text-white/70">{detailRec.sourceRef}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Notes editor */}
+            <div className="mb-4">
+              <label className="field-label">Notes</label>
+              <textarea
+                value={modalNotes}
+                onChange={(e) => setModalNotes(e.target.value)}
+                rows={3}
+                placeholder="Add notes about this WHT record…"
+                className="input-field resize-none"
+                disabled={!canManage}
+              />
+            </div>
+
+            {modalError && (
+              <p className="text-red-400 text-xs font-helvetica mb-3">{modalError}</p>
+            )}
+
+            {/* Actions */}
+            {canManage && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={handleSaveNotes}
+                  disabled={modalSaving}
+                  className="btn-primary text-xs px-4 py-2 disabled:opacity-50"
+                >
+                  {modalSaving ? "Saving…" : "Save Notes"}
+                </button>
+                <button
+                  onClick={() => handleToggleCert({ stopPropagation: () => {} } as React.MouseEvent, detailRec)}
+                  disabled={modalSaving}
+                  className={cn(
+                    "text-xs border px-3 py-2 rounded-lg font-helvetica transition-colors disabled:opacity-50",
+                    detailRec.certStatus === "pending"
+                      ? "text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"
+                      : "text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                  )}
+                >
+                  {detailRec.certStatus === "pending" ? "Mark Issued" : "Mark Pending"}
+                </button>
+                {!detailRec.notes?.startsWith("LOGGED IN ERROR") && (
+                  <button
+                    onClick={handleMarkError}
+                    disabled={modalSaving}
+                    className="text-xs border border-red-500/20 text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg font-helvetica transition-colors disabled:opacity-50 ml-auto"
+                  >
+                    Mark as Error
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {saveError && (
         <div className="flex items-center gap-3 px-4 py-3 bg-red-500/8 border border-red-500/20 rounded-xl">
@@ -377,38 +535,54 @@ export default function WHTPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {filteredRecords.map((rec) => (
-                  <tr key={rec.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-5 py-3.5 text-[10px] text-accent/70 font-orbitron">{rec.whtId}</td>
-                    <td className="px-5 py-3.5">
-                      <p className="text-sm font-semibold text-white font-helvetica">{rec.vendorName}</p>
-                      {rec.sourceRef && <p className="text-xs text-white/30 font-helvetica">{rec.sourceRef}</p>}
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-white/70 font-helvetica">{formatNaira(rec.invoiceAmount)}</td>
-                    <td className="px-5 py-3.5 text-sm text-white/70 font-helvetica">{rec.whtRate}%</td>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-amber-400 font-helvetica">{formatNaira(rec.whtAmount)}</td>
-                    <td className="px-5 py-3.5 text-xs text-white/40 font-helvetica">{formatTaxDate(rec.paymentDate)}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica capitalize", WHT_CERT_STYLES[rec.certStatus])}>
-                        {rec.certStatus}
-                      </span>
-                    </td>
-                    {canManage && (
+                {filteredRecords.map((rec) => {
+                  const isError = rec.notes?.startsWith("LOGGED IN ERROR");
+                  return (
+                    <tr
+                      key={rec.id}
+                      onClick={() => openDetail(rec)}
+                      className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                    >
+                      <td className="px-5 py-3.5 text-[10px] text-accent/70 font-orbitron">{rec.whtId}</td>
                       <td className="px-5 py-3.5">
-                        <button
-                          onClick={() => handleToggleCert(rec)}
-                          className={cn("text-xs border px-2.5 py-1 rounded-lg font-helvetica transition-colors",
-                            rec.certStatus === "pending"
-                              ? "text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"
-                              : "text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
-                          )}
-                        >
-                          {rec.certStatus === "pending" ? "Mark Issued" : "Mark Pending"}
-                        </button>
+                        <p className="text-sm font-semibold text-white font-helvetica">{rec.vendorName}</p>
+                        {rec.sourceRef && <p className="text-xs text-white/30 font-helvetica">{rec.sourceRef}</p>}
+                        {rec.notes && !isError && (
+                          <p className="text-[10px] text-white/20 font-helvetica truncate max-w-[180px]">{rec.notes}</p>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="px-5 py-3.5 text-sm text-white/70 font-helvetica">{formatNaira(rec.invoiceAmount)}</td>
+                      <td className="px-5 py-3.5 text-sm text-white/70 font-helvetica">{rec.whtRate}%</td>
+                      <td className="px-5 py-3.5 text-sm font-semibold text-amber-400 font-helvetica">{formatNaira(rec.whtAmount)}</td>
+                      <td className="px-5 py-3.5 text-xs text-white/40 font-helvetica">{formatTaxDate(rec.paymentDate)}</td>
+                      <td className="px-5 py-3.5">
+                        {isError ? (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/15 text-red-400 border-red-500/30 font-helvetica">
+                            Error
+                          </span>
+                        ) : (
+                          <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica capitalize", WHT_CERT_STYLES[rec.certStatus])}>
+                            {rec.certStatus}
+                          </span>
+                        )}
+                      </td>
+                      {canManage && (
+                        <td className="px-5 py-3.5">
+                          <button
+                            onClick={(e) => handleToggleCert(e, rec)}
+                            className={cn("text-xs border px-2.5 py-1 rounded-lg font-helvetica transition-colors",
+                              rec.certStatus === "pending"
+                                ? "text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"
+                                : "text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                            )}
+                          >
+                            {rec.certStatus === "pending" ? "Mark Issued" : "Mark Pending"}
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

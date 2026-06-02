@@ -2,22 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getInvoice, updateInvoiceStatus, deleteInvoice, updateInvoiceApproval } from "@/lib/finance-service";
+import { getInvoice, updateInvoiceStatus, deleteInvoice, updateInvoiceApproval, getPayments } from "@/lib/finance-service";
 import { auth } from "@/lib/firebase";
-import { formatNaira, formatDate, COMPANY, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS } from "@/types/finance";
-import type { Invoice } from "@/types/finance";
+import { formatNaira, formatDate, COMPANY, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS, today } from "@/types/finance";
+import type { Invoice, Payment } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission, canDeleteUnpaidInvoice, isRootAdmin } from "@/types/roles";
-import { cn } from "@/lib/utils";
+import { cn, round } from "@/lib/utils";
+import { getWHTRecords, createWHTRecord } from "@/lib/tax-service";
+import { generateWHTId } from "@/types/tax";
+import type { WHTRecord } from "@/types/tax";
 
 export default function InvoiceViewPage() {
   const { id }      = useParams() as { id: string };
   const router      = useRouter();
   const { profile } = useAuth();
 
-  const [invoice, setInvoice] = useState<Invoice | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [invoice, setInvoice]             = useState<Invoice | null>(null);
+  const [loading, setLoading]             = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting]           = useState(false);
   const [rejectModal, setRejectModal]     = useState(false);
@@ -29,14 +32,51 @@ export default function InvoiceViewPage() {
   const [sendError, setSendError]         = useState<string | null>(null);
   const [downloading, setDownloading]     = useState(false);
 
+  // Reopen invoice
+  const [reopenConfirm, setReopenConfirm] = useState(false);
+  const [reopening, setReopening]         = useState(false);
+
+  // WHT
+  const [whtRecords, setWhtRecords]       = useState<WHTRecord[]>([]);
+  const [invoicePayment, setInvoicePayment] = useState<Payment | null>(null);
+  const [showWhtForm, setShowWhtForm]     = useState(false);
+  const [whtVendorName, setWhtVendorName] = useState("");
+  const [whtInvoiceAmount, setWhtInvoiceAmount] = useState("");
+  const [whtRate, setWhtRate]             = useState("5");
+  const [whtPaymentDate, setWhtPaymentDate] = useState(today());
+  const [whtNotes, setWhtNotes]           = useState("");
+  const [whtSubmitting, setWhtSubmitting] = useState(false);
+  const [whtError, setWhtError]           = useState<string | null>(null);
+
   const canManage  = profile ? hasPermission(profile.role, "manage:finance") : false;
   const canDelete  = profile ? canDeleteUnpaidInvoice(profile.role) : false;
   const canApprove = profile ? (isRootAdmin(profile.role) || profile.role === "CFO" || profile.role === "CEO") : false;
 
   useEffect(() => {
     if (!id) return;
-    getInvoice(id).then(setInvoice).finally(() => setLoading(false));
+    Promise.all([getInvoice(id), getWHTRecords(), getPayments()])
+      .then(([inv, whts, pays]) => {
+        setInvoice(inv);
+        setWhtRecords(whts);
+        if (inv) {
+          const match = pays.find((p) => p.invoiceId === inv.id) ?? null;
+          setInvoicePayment(match);
+          if (inv.client?.name) setWhtVendorName(inv.client.name);
+          setWhtInvoiceAmount(String(inv.subtotal ?? 0));
+        }
+      })
+      .finally(() => setLoading(false));
   }, [id]);
+
+  // Derived WHT state
+  const whtLogged    = whtRecords.some((r) => r.sourceId === id);
+  const isVatDirect  = invoicePayment?.method === "vat_direct";
+  const derivedWhtAmt = round((Number(whtInvoiceAmount) || 0) * (Number(whtRate) || 0) / 100);
+
+  const showReopenBtn =
+    canManage &&
+    invoice?.status === "paid" &&
+    (invoice.approvalStatus === "approved" || invoice.approvalStatus === "draft");
 
   async function handleApprove() {
     if (!invoice || !profile) return;
@@ -67,6 +107,17 @@ export default function InvoiceViewPage() {
     setInvoice((prev) => prev ? { ...prev, status: "paid" } : prev);
   }
 
+  async function handleReopen() {
+    if (!invoice || !profile) return;
+    setReopening(true);
+    try {
+      await updateInvoiceStatus(invoice.id, "pending");
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "invoices", entityId: invoice.id, entityRef: invoice.invoiceNumber, details: "Invoice reopened for payment correction", timestamp: new Date().toISOString() });
+      setInvoice((prev) => prev ? { ...prev, status: "pending" } : prev);
+      setReopenConfirm(false);
+    } finally { setReopening(false); }
+  }
+
   async function handleDeleteInvoice() {
     if (!invoice || invoice.status === "paid" || !canDelete || !profile) return;
     setDeleting(true);
@@ -78,6 +129,40 @@ export default function InvoiceViewPage() {
       setDeleting(false);
       setDeleteConfirm(false);
     }
+  }
+
+  async function handleWhtSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!invoice || !profile) return;
+    setWhtSubmitting(true);
+    setWhtError(null);
+    try {
+      const rate   = Number(whtRate);
+      const amount = Number(whtInvoiceAmount);
+      if (!whtVendorName.trim() || !amount || !rate) {
+        setWhtError("Please fill in all required fields.");
+        return;
+      }
+      const record = await createWHTRecord({
+        whtId:         generateWHTId(),
+        vendorName:    whtVendorName.trim(),
+        invoiceAmount: amount,
+        whtRate:       rate,
+        whtAmount:     round(amount * rate / 100),
+        paymentDate:   whtPaymentDate,
+        sourceId:      invoice.id,
+        sourceRef:     invoice.invoiceNumber,
+        certStatus:    "pending",
+        notes:         whtNotes.trim() || undefined,
+        createdAt:     new Date().toISOString(),
+        createdBy:     profile.uid,
+      });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: record.id, entityRef: record.whtId, details: `WHT of ₦${record.whtAmount.toLocaleString()} logged for invoice ${invoice.invoiceNumber}`, timestamp: new Date().toISOString() });
+      setWhtRecords((prev) => [record, ...prev]);
+      setShowWhtForm(false);
+    } catch (err) {
+      setWhtError(err instanceof Error ? err.message : "Failed to save WHT record");
+    } finally { setWhtSubmitting(false); }
   }
 
   function handlePrint() {
@@ -194,6 +279,7 @@ export default function InvoiceViewPage() {
           </div>
         </div>
       )}
+
       {/* Reject modal */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -216,6 +302,34 @@ export default function InvoiceViewPage() {
           </div>
         </div>
       )}
+
+      {/* Reopen confirmation modal */}
+      {reopenConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="surface-card w-full max-w-md p-6 mx-4">
+            <h3 className="font-orbitron text-sm font-bold text-white mb-2">Reopen Invoice?</h3>
+            <p className="text-sm text-white/60 font-helvetica leading-relaxed mb-6">
+              This will reset the invoice to <span className="text-amber-400 font-semibold">Pending</span> and allow a corrected payment to be recorded. Are you sure?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setReopenConfirm(false)}
+                className="text-xs text-white/40 hover:text-white font-helvetica px-3 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReopen}
+                disabled={reopening}
+                className="flex items-center gap-2 px-5 py-2 text-sm text-amber-400 border border-amber-500/30 rounded-xl hover:bg-amber-500/10 font-helvetica transition-colors disabled:opacity-50"
+              >
+                {reopening ? "Reopening…" : "Reopen Invoice"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <button
@@ -250,6 +364,14 @@ export default function InvoiceViewPage() {
               className="flex items-center gap-2 px-4 py-2 text-sm text-emerald-400 border border-emerald-500/30 rounded-xl hover:bg-emerald-500/10 font-helvetica transition-colors"
             >
               <CheckIcon /> Mark as Paid
+            </button>
+          )}
+          {showReopenBtn && (
+            <button
+              onClick={() => setReopenConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-amber-400 border border-amber-500/30 rounded-xl hover:bg-amber-500/10 font-helvetica transition-colors"
+            >
+              <RefreshIcon /> Reopen Invoice
             </button>
           )}
           {canDelete && invoice.status !== "paid" && (
@@ -304,6 +426,134 @@ export default function InvoiceViewPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Post-payment banners ── */}
+      {invoice.status === "paid" && isVatDirect && (
+        <div className="mb-5 flex items-start gap-3 px-4 py-4 bg-blue-500/8 border border-blue-500/20 rounded-xl animate-fade-in">
+          <span className="text-blue-400 shrink-0 mt-0.5 text-base">ℹ</span>
+          <div>
+            <p className="text-blue-300 text-sm font-semibold font-helvetica mb-0.5">VAT Remitted Directly to FIRS</p>
+            <p className="text-blue-300/70 text-xs font-helvetica leading-relaxed">
+              VAT was remitted directly to FIRS by the client. Ensure you have received the FIRS remittance
+              confirmation from <span className="font-semibold text-blue-300">{invoice.client.name}</span> for your records.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {invoice.status === "paid" && !isVatDirect && (
+        whtLogged ? (
+          <div className="mb-5 flex items-center gap-3 px-4 py-3 bg-emerald-500/8 border border-emerald-500/20 rounded-xl animate-fade-in">
+            <span className="text-emerald-400 text-base shrink-0">✓</span>
+            <p className="text-emerald-300 text-sm font-helvetica font-semibold">WHT Logged</p>
+            <p className="text-emerald-300/60 text-xs font-helvetica">
+              A Withholding Tax record has been filed for this invoice.
+            </p>
+          </div>
+        ) : (
+          <div className="mb-5 bg-amber-500/8 border border-amber-500/20 rounded-xl animate-fade-in overflow-hidden">
+            <div className="flex items-start gap-3 px-4 py-4">
+              <span className="text-amber-400 shrink-0 mt-0.5 text-base">⚠</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-amber-300 text-sm font-semibold font-helvetica mb-0.5">Did the client deduct Withholding Tax?</p>
+                <p className="text-amber-300/70 text-xs font-helvetica leading-relaxed">
+                  Log a WHT record for this invoice to keep your tax records complete.
+                </p>
+              </div>
+              {canManage && (
+                <button
+                  onClick={() => setShowWhtForm((v) => !v)}
+                  className="shrink-0 text-xs text-amber-400 border border-amber-500/30 rounded-lg px-3 py-1.5 hover:bg-amber-500/10 font-helvetica transition-colors"
+                >
+                  {showWhtForm ? "Cancel" : "Log WHT"}
+                </button>
+              )}
+            </div>
+
+            {showWhtForm && canManage && (
+              <div className="border-t border-amber-500/15 px-4 py-4 bg-amber-500/5">
+                <form onSubmit={handleWhtSubmit} noValidate>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="field-label">Client / Vendor Name</label>
+                      <input
+                        type="text"
+                        value={whtVendorName}
+                        onChange={(e) => setWhtVendorName(e.target.value)}
+                        required
+                        className="input-field"
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label">Invoice Amount (pre-VAT)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={whtInvoiceAmount}
+                        onChange={(e) => setWhtInvoiceAmount(e.target.value)}
+                        required
+                        className="input-field"
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label">
+                        WHT Rate (%)
+                        <span className="ml-1 text-white/30 normal-case font-normal">5% services · 2.5% goods</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={whtRate}
+                        onChange={(e) => setWhtRate(e.target.value)}
+                        required
+                        className="input-field"
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label">WHT Amount (auto)</label>
+                      <div className="input-field bg-white/[0.02] text-white/50 pointer-events-none">
+                        {formatNaira(derivedWhtAmt)}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="field-label">Payment Date</label>
+                      <input
+                        type="date"
+                        value={whtPaymentDate}
+                        onChange={(e) => setWhtPaymentDate(e.target.value)}
+                        className="input-field"
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label">Notes (optional)</label>
+                      <input
+                        type="text"
+                        value={whtNotes}
+                        onChange={(e) => setWhtNotes(e.target.value)}
+                        placeholder="Any notes…"
+                        className="input-field"
+                      />
+                    </div>
+                  </div>
+                  {whtError && (
+                    <p className="text-red-400 text-xs font-helvetica mb-3">{whtError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={whtSubmitting}
+                    className="btn-primary text-xs px-5 disabled:opacity-50"
+                  >
+                    {whtSubmitting ? "Saving…" : "Save WHT Record"}
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        )
+      )}
 
       {/* Invoice card */}
       <div className="surface-card overflow-hidden">
@@ -831,6 +1081,9 @@ function PrintIcon() {
 }
 function CheckIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m20 6-11 11-5-5"/></svg>;
+}
+function RefreshIcon() {
+  return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>;
 }
 function DownloadIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;

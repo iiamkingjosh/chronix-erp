@@ -18,6 +18,12 @@ import { logAuditEvent } from "@/lib/audit-service";
 const INV = "invoices";
 const PAY = "payments";
 
+function stripUndefined<T extends object>(obj: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as Partial<T>;
+}
+
 export async function createInvoice(data: Omit<Invoice, "id">): Promise<Invoice> {
   const ref     = await addDoc(collection(db, INV), data);
   const invoice = { ...data, id: ref.id };
@@ -62,7 +68,7 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
   const paymentRef = doc(collection(db, PAY));
   const invoiceRef = doc(db, INV, data.invoiceId);
 
-  batch.set(paymentRef, data);
+  batch.set(paymentRef, stripUndefined(data));
   batch.update(invoiceRef, { status: "paid" as const });
 
   await batch.commit();

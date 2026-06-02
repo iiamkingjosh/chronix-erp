@@ -122,6 +122,16 @@ export async function updateWHTCertStatus(id: string, certStatus: "issued" | "pe
   await updateDoc(doc(db, WHT, id), { certStatus });
 }
 
+export async function updateWHTRecord(
+  id: string,
+  updates: Partial<Pick<WHTRecord, "notes" | "certStatus" | "whtRate">>
+): Promise<void> {
+  await updateDoc(doc(db, WHT, id), {
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 /* ── PAYE Records ───────────────────────────────────────────── */
 
 export async function getPAYERecords(period?: string): Promise<PAYERecord[]> {
