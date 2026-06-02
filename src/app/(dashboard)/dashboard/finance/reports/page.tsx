@@ -327,10 +327,11 @@ export default function FinancialReportsPage() {
       {/* Accounting Reports Links */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
         {[
-          { label: "P&L Statement",    sub: "From journal entries", href: "/dashboard/finance/reports/profit-loss" },
-          { label: "VAT Return",       sub: "FIRS-ready filing",    href: "/dashboard/finance/reports/vat-return" },
-          { label: "Balance Sheet",    sub: "Assets = L + E",       href: "/dashboard/finance/reports/balance-sheet" },
-          { label: "Journal Entries",  sub: "Double-entry ledger",  href: "/dashboard/finance/reports/journal-entries" },
+          { label: "P&L Statement",    sub: "From journal entries",           href: "/dashboard/finance/reports/profit-loss" },
+          { label: "VAT Return",       sub: "FIRS-ready filing",              href: "/dashboard/finance/reports/vat-return" },
+          { label: "Balance Sheet",    sub: "Assets = L + E",                 href: "/dashboard/finance/reports/balance-sheet" },
+          { label: "Journal Entries",  sub: "Double-entry ledger",            href: "/dashboard/finance/reports/journal-entries" },
+          { label: "Year-End Close",   sub: "Transfer P&L to Retained Earnings", href: "/dashboard/finance/reports/year-end" },
         ].map((r) => (
           <Link key={r.href} href={r.href}
             className="surface-card p-4 hover:border-accent/30 border border-transparent transition-colors group">

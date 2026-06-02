@@ -49,3 +49,7 @@ export async function updateSubscriptionNotes(subId: string, notes: string): Pro
 export async function toggleAutoRemind(subId: string, autoRemind: boolean): Promise<void> {
   await updateDoc(doc(db, SUBS, subId), { autoRemind, updatedAt: new Date().toISOString() });
 }
+
+export async function setVatApplicable(subId: string, vatApplicable: boolean): Promise<void> {
+  await updateDoc(doc(db, SUBS, subId), { vatApplicable, updatedAt: new Date().toISOString() });
+}

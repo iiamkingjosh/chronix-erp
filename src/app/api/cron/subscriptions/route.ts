@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
         id: string; subId: string; itemName: string; expiryDate: string;
         cancelled: boolean; autoRemind: boolean;
         renewalCost: number; clientName: string;
+        vatApplicable?: boolean;
       };
 
       if (sub.cancelled || !sub.autoRemind) continue;
@@ -82,7 +83,9 @@ export async function GET(req: NextRequest) {
             const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
             const invoiceNumber = `CT${yy}${mm}${dd}-${rand}`;
             const cost      = sub.renewalCost;
-            const vatAmount = Math.round(cost * 0.075 * 100) / 100;
+            const applyVat  = sub.vatApplicable !== false;
+            const vatAmount = applyVat ? Math.round(cost * 0.075 * 100) / 100 : 0;
+            const vatRate   = applyVat ? 0.075 : 0;
             const total     = Math.round((cost + vatAmount) * 100) / 100;
             const invoiceDate = d.toISOString().split("T")[0];
 
@@ -102,7 +105,7 @@ export async function GET(req: NextRequest) {
                 lineTotal: cost,
               }],
               subtotal:             cost,
-              vatRate:              0.075,
+              vatRate,
               vatAmount,
               total,
               notes:                `Auto-generated renewal invoice for subscription ${sub.subId ?? sub.id}.`,
@@ -133,12 +136,12 @@ export async function GET(req: NextRequest) {
                 referenceType: "invoice",
                 referenceId:   invRef.id,
                 lineItems: [
-                  { accountCode: "1100", accountName: "Accounts Receivable",        debit: total,      credit: 0,          description: `Invoice to ${sub.clientName ?? "Unknown"}` },
-                  { accountCode: "4010", accountName: "IT Consulting Services Revenue", debit: 0,      credit: cost,       description: `${sub.itemName} — Subscription Renewal` },
-                  { accountCode: "2100", accountName: "VAT Payable (7.5%)",          debit: 0,         credit: vatAmount,  description: "VAT 7.5% collected" },
+                  { accountCode: "1100", accountName: "Accounts Receivable",           debit: total, credit: 0,         description: `Invoice to ${sub.clientName ?? "Unknown"}` },
+                  { accountCode: "4010", accountName: "IT Consulting Services Revenue", debit: 0,     credit: cost,      description: `${sub.itemName} — Subscription Renewal` },
+                  ...(vatAmount > 0 ? [{ accountCode: "2100", accountName: "VAT Payable (7.5%)", debit: 0, credit: vatAmount, description: "VAT 7.5% collected" }] : []),
                 ],
                 totalDebit:  total,
-                totalCredit: Math.round((cost + vatAmount) * 100) / 100,
+                totalCredit: total,
                 status:      "posted",
                 createdBy:   "cron",
                 postedBy:    "cron",

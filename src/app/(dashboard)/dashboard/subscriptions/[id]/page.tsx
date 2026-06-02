@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getSubscription, renewSubscription,
-  cancelSubscription, updateSubscriptionNotes, toggleAutoRemind,
+  cancelSubscription, updateSubscriptionNotes, toggleAutoRemind, setVatApplicable,
 } from "@/lib/subscriptions-service";
 import {
   SUB_TYPE_LABELS, SUB_PROVIDER_LABELS,
@@ -70,16 +70,18 @@ export default function SubscriptionDetailPage() {
       const amount = Number(renewAmount) || 0;
       if (amount > 0) {
         try {
-          const d          = new Date();
-          const yy         = String(d.getFullYear()).slice(2);
-          const mm         = String(d.getMonth() + 1).padStart(2, "0");
-          const dd         = String(d.getDate()).padStart(2, "0");
-          const rand       = Math.random().toString(36).slice(2, 6).toUpperCase();
-          const invNumber  = `CT${yy}${mm}${dd}-${rand}`;
-          const subtotal   = round(amount);
-          const vatAmount  = round(subtotal * 0.075);
-          const total      = round(subtotal + vatAmount);
-          const inv        = await createInvoice({
+          const d            = new Date();
+          const yy           = String(d.getFullYear()).slice(2);
+          const mm           = String(d.getMonth() + 1).padStart(2, "0");
+          const dd           = String(d.getDate()).padStart(2, "0");
+          const rand         = Math.random().toString(36).slice(2, 6).toUpperCase();
+          const invNumber    = `CT${yy}${mm}${dd}-${rand}`;
+          const subtotal     = round(amount);
+          const applyVat     = sub.vatApplicable !== false;
+          const vatAmount    = applyVat ? round(subtotal * 0.075) : 0;
+          const vatRate      = applyVat ? 0.075 : 0;
+          const total        = round(subtotal + vatAmount);
+          const inv          = await createInvoice({
             invoiceNumber:  invNumber,
             invoiceDate:    d.toISOString().split("T")[0],
             dueDate:        newExpiry,
@@ -89,7 +91,7 @@ export default function SubscriptionDetailPage() {
             salesperson:    profile.displayName ?? profile.email,
             items: [{ id: "1", name: `${sub.itemName} — Renewal`, unitPrice: subtotal, quantity: 1, lineTotal: subtotal }],
             subtotal,
-            vatRate:    0.075,
+            vatRate,
             vatAmount,
             total,
             notes:      `Auto-generated from subscription renewal ${sub.subId ?? sub.id}`,
@@ -131,6 +133,13 @@ export default function SubscriptionDetailPage() {
     setSub((prev) => prev ? { ...prev, autoRemind: !prev.autoRemind } : prev);
   }
 
+  async function handleToggleVat() {
+    if (!sub || !canManage) return;
+    const next = sub.vatApplicable === false;
+    await setVatApplicable(sub.id, next);
+    setSub((prev) => prev ? { ...prev, vatApplicable: next } : prev);
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;
   }
@@ -165,6 +174,15 @@ export default function SubscriptionDetailPage() {
               {sub.autoRemind && (
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica bg-secondary/10 text-secondary border-secondary/20">
                   Auto-remind on
+                </span>
+              )}
+              {sub.vatApplicable !== false ? (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                  VAT Applied
+                </span>
+              ) : (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica bg-amber-500/10 text-amber-400 border-amber-500/20">
+                  VAT Exempt
                 </span>
               )}
             </div>
@@ -315,6 +333,22 @@ export default function SubscriptionDetailPage() {
               <p className="text-white/60"><span className="text-white/30">Start: </span>{formatSubDate(sub.startDate)}</p>
               <p className="text-white/60"><span className="text-white/30">Expiry: </span>{formatSubDate(sub.expiryDate)}</p>
               <p className="text-white/60"><span className="text-white/30">Cost: </span><span className="text-accent font-semibold">{formatNaira(sub.renewalCost)}</span></p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-white/60">
+                  <span className="text-white/30">VAT: </span>
+                  {sub.vatApplicable !== false
+                    ? <span className="text-emerald-400">Applied (7.5%)</span>
+                    : <span className="text-amber-400">Exempt</span>}
+                </p>
+                {canManage && (
+                  <button
+                    onClick={handleToggleVat}
+                    className="text-[10px] text-white/30 hover:text-white font-helvetica border border-white/10 hover:border-white/20 px-2 py-0.5 rounded transition-colors"
+                  >
+                    Toggle
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

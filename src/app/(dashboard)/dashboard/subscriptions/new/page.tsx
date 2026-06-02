@@ -22,15 +22,16 @@ const COMMON_PROVIDERS: SubProvider[] = [
 ];
 
 const schema = z.object({
-  itemName:    z.string().min(2, "Required"),
-  clientName:  z.string().optional(),
-  type:        z.enum(["domain","license","contract","service","ssl","other"]),
-  provider:    z.string().min(1, "Required"),
-  startDate:   z.string().min(1, "Required"),
-  expiryDate:  z.string().min(1, "Required"),
-  renewalCost: z.coerce.number().min(0),
-  autoRemind:  z.boolean(),
-  notes:       z.string().optional(),
+  itemName:      z.string().min(2, "Required"),
+  clientName:    z.string().optional(),
+  type:          z.enum(["domain","license","contract","service","ssl","other"]),
+  provider:      z.string().min(1, "Required"),
+  startDate:     z.string().min(1, "Required"),
+  expiryDate:    z.string().min(1, "Required"),
+  renewalCost:   z.coerce.number().min(0),
+  vatApplicable: z.boolean(),
+  autoRemind:    z.boolean(),
+  notes:         z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -47,16 +48,19 @@ export default function NewSubscriptionPage() {
   const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      type:       "domain",
-      provider:   "namecheap",
-      startDate:  new Date().toISOString().split("T")[0],
-      autoRemind: true,
-      renewalCost: 0,
+      type:          "domain",
+      provider:      "namecheap",
+      startDate:     new Date().toISOString().split("T")[0],
+      autoRemind:    true,
+      vatApplicable: true,
+      renewalCost:   0,
     },
   });
 
-  const autoRemindValue = useWatch({ control, name: "autoRemind" });
-  const autoRemindOn = !!autoRemindValue;
+  const autoRemindValue    = useWatch({ control, name: "autoRemind" });
+  const vatApplicableValue = useWatch({ control, name: "vatApplicable" });
+  const autoRemindOn    = !!autoRemindValue;
+  const vatApplicableOn = vatApplicableValue !== false;
 
   useEffect(() => {
     getClients().then(setClients).catch((e) => console.error("Failed to load clients:", e));
@@ -68,21 +72,22 @@ export default function NewSubscriptionPage() {
     try {
       const now = new Date().toISOString();
       const sub = await createSubscription({
-        subId:       generateSubId(),
-        itemName:    data.itemName,
-        clientName:  data.clientName ?? "",
-        type:        data.type as SubType,
-        provider:    data.provider,
-        startDate:   data.startDate,
-        expiryDate:  data.expiryDate,
-        renewalCost: data.renewalCost,
-        autoRemind:  data.autoRemind,
-        notes:       data.notes ?? "",
-        renewalLog:  [],
-        cancelled:   false,
-        createdAt:   now,
-        createdBy:   profile.uid,
-        updatedAt:   now,
+        subId:         generateSubId(),
+        itemName:      data.itemName,
+        clientName:    data.clientName ?? "",
+        type:          data.type as SubType,
+        provider:      data.provider,
+        startDate:     data.startDate,
+        expiryDate:    data.expiryDate,
+        renewalCost:   data.renewalCost,
+        vatApplicable: data.vatApplicable,
+        autoRemind:    data.autoRemind,
+        notes:         data.notes ?? "",
+        renewalLog:    [],
+        cancelled:     false,
+        createdAt:     now,
+        createdBy:     profile.uid,
+        updatedAt:     now,
       });
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "subscriptions", entityId: sub.id, entityRef: sub.itemName, details: `Subscription created: ${data.itemName} (${data.type}) via ${data.provider}, expires ${data.expiryDate}`, timestamp: now });
       router.push(`/dashboard/subscriptions/${sub.id}`);
@@ -214,6 +219,19 @@ export default function NewSubscriptionPage() {
             <div>
               <p className="text-sm text-white font-helvetica">Auto Reminders</p>
               <p className="text-xs text-white/30 font-helvetica">Alert at 60, 30, 7 and 1 day before expiry</p>
+            </div>
+          </label>
+
+          <label className="flex items-center gap-3 mt-3 cursor-pointer group">
+            <div className="relative">
+              <input {...register("vatApplicable")} type="checkbox" className="sr-only" />
+              <div className={`w-10 h-5 rounded-full border transition-colors ${vatApplicableOn ? "bg-emerald-500/30 border-emerald-500/50" : "bg-white/10 border-white/20"}`}>
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${vatApplicableOn ? "left-5 bg-emerald-400" : "left-0.5 bg-white/30"}`} />
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-white font-helvetica">Apply VAT (7.5%) on renewal invoices</p>
+              <p className="text-xs text-white/30 font-helvetica">Disable for foreign/exempt vendors (Microsoft 365, AWS, etc.)</p>
             </div>
           </label>
         </div>

@@ -24,8 +24,9 @@ export interface Subscription {
   provider:     string;   // SubProvider or custom string
   startDate:    string;
   expiryDate:   string;
-  renewalCost:  number;   // ₦
-  autoRemind:   boolean;
+  renewalCost:   number;   // ₦
+  vatApplicable: boolean;  // true = apply 7.5% VAT on renewal invoices
+  autoRemind:    boolean;
   notes:        string;
   renewalLog:   RenewalLog[];
   cancelled:    boolean;
