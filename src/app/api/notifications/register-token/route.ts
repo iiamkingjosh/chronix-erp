@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
-import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,10 +10,15 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ error: "token required" }, { status: 400 });
 
     const decoded = await getAdminAuth().verifyIdToken(idToken);
-    await getAdminDb()
-      .collection("users")
-      .doc(decoded.uid)
-      .update({ fcmTokens: FieldValue.arrayUnion(token) });
+    const uid     = decoded.uid;
+    const db      = getAdminDb();
+
+    const ref      = db.collection("push_tokens").doc(uid);
+    const snap     = await ref.get();
+    const existing: string[] = snap.exists ? (snap.data()?.tokens ?? []) : [];
+    if (!existing.includes(token)) {
+      await ref.set({ tokens: [...existing, token], updatedAt: new Date().toISOString() });
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -15,6 +15,7 @@ import type { Invoice, Payment, InvoiceStatus, ApprovalStatus } from "@/types/fi
 import { createInvoiceJournalEntry, createPaymentJournalEntry } from "@/lib/accounting/auto-journal";
 import { logAuditEvent } from "@/lib/audit-service";
 import { createNotification } from "@/lib/notifications-service";
+import { validateAmount } from "@/lib/utils";
 
 const INV = "invoices";
 const PAY = "payments";
@@ -26,6 +27,8 @@ function stripUndefined<T extends object>(obj: T): Partial<T> {
 }
 
 export async function createInvoice(data: Omit<Invoice, "id">): Promise<Invoice> {
+  validateAmount(data.subtotal, "subtotal");
+  validateAmount(data.total, "total");
   const ref     = await addDoc(collection(db, INV), data);
   const invoice = { ...data, id: ref.id };
   try {
@@ -65,6 +68,7 @@ export async function deleteInvoice(id: string): Promise<void> {
 }
 
 export async function createPayment(data: Omit<Payment, "id">): Promise<Payment> {
+  validateAmount(data.amount);
   const batch      = writeBatch(db);
   const paymentRef = doc(collection(db, PAY));
   const invoiceRef = doc(db, INV, data.invoiceId);

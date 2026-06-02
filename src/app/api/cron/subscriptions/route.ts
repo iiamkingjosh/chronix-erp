@@ -4,7 +4,6 @@ import { sendPushToTokens } from "@/lib/push-service";
 import { sendEmail, subscriptionAlertEmail } from "@/lib/email-service";
 
 function isCronRequest(req: NextRequest): boolean {
-  if (req.headers.get("x-vercel-cron") === "1") return true;
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
   return !!secret && secret === process.env.CRON_SECRET;
 }
@@ -24,14 +23,16 @@ export async function GET(req: NextRequest) {
       db.collection("users").get(),
     ]);
 
-    const users = usersSnap.docs
-      .map((d) => d.data() as { email: string; role: string; fcmTokens?: string[] })
-      .filter((u) => TARGET_ROLES.includes(u.role));
-    const tokens = users.flatMap((u) => u.fcmTokens ?? []);
-    const emails = [...new Set(users.map((u) => u.email).filter(Boolean))];
+    const targetDocs = usersSnap.docs.filter((d) =>
+      TARGET_ROLES.includes((d.data() as { role: string }).role)
+    );
+    const emails = [...new Set(targetDocs.map((d) => (d.data() as { email: string }).email).filter(Boolean))];
+    const ptSnaps = await Promise.all(
+      targetDocs.map((d) => db.collection("push_tokens").doc(d.id).get())
+    );
+    const tokens = ptSnaps.flatMap((s) => (s.exists ? (s.data()?.tokens ?? []) : []));
 
     let sent = 0;
-
     let invoicesCreated = 0;
 
     for (const subDoc of subsSnap.docs) {
@@ -104,15 +105,15 @@ export async function GET(req: NextRequest) {
                 quantity:  1,
                 lineTotal: cost,
               }],
-              subtotal:             cost,
+              subtotal:              cost,
               vatRate,
               vatAmount,
               total,
-              notes:                `Auto-generated renewal invoice for subscription ${sub.subId ?? sub.id}.`,
-              subscriptionId:       sub.id,
+              notes:                 `Auto-generated renewal invoice for subscription ${sub.subId ?? sub.id}.`,
+              subscriptionId:        sub.id,
               subscriptionDedupeKey: invDedupeKey,
-              createdAt:            new Date().toISOString(),
-              createdBy:            "cron",
+              createdAt:             new Date().toISOString(),
+              createdBy:             "cron",
             });
 
             // Post journal entry: DR 1100 AR / CR 4010 Revenue / CR 2100 VAT

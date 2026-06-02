@@ -7,10 +7,12 @@ import type { Expense, ExpenseStatus } from "@/types/expense";
 import { createExpenseJournalEntry } from "@/lib/accounting/auto-journal";
 import { logAuditEvent } from "@/lib/audit-service";
 import { createNotification, notifyAssignment } from "@/lib/notifications-service";
+import { validateAmount } from "@/lib/utils";
 
 const COL = "expenses";
 
 export async function createExpense(data: Omit<Expense, "id">): Promise<Expense> {
+  validateAmount(data.amount);
   const ref = await addDoc(collection(db, COL), data);
   const expense = { ...data, id: ref.id };
 
@@ -59,7 +61,6 @@ export async function updateExpenseStatus(
   if (status === "paid")     { update.paidAt = now; }
   await updateDoc(doc(db, COL, id), update);
 
-  // Audit log
   logAuditEvent({
     actorUid: extra?.actorUid ?? actorName, actorName, actorRole: "Finance",
     action: status === "approved" ? "approve" : status === "rejected" ? "reject" : "update",
@@ -68,7 +69,6 @@ export async function updateExpenseStatus(
     timestamp: now,
   }).catch(() => {});
 
-  // Submitter notifications
   if (status === "approved" || status === "rejected") {
     const expense = await getExpense(id);
     if (expense?.submittedByUid) {

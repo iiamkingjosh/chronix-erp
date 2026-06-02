@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
+import { isRateLimited } from "@/lib/rate-limit";
 import type { PayslipSummary } from "@/types/hr";
 
 const MANAGER_ROLES = new Set(["HR", "CEO", "Root Admin", "System Admin"]);
 
 export async function GET(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+  if (isRateLimited(`payslip:${ip}`, 20, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const idToken = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!idToken) return NextResponse.json({ error: "unauthorized" }, { status: 401 });

@@ -4,7 +4,6 @@ import { sendPushToTokens } from "@/lib/push-service";
 import { sendEmail, taxReminderEmail } from "@/lib/email-service";
 
 function isCronRequest(req: NextRequest): boolean {
-  if (req.headers.get("x-vercel-cron") === "1") return true;
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
   return !!secret && secret === process.env.CRON_SECRET;
 }
@@ -111,17 +110,26 @@ export async function GET(req: NextRequest) {
     if (!reminders.length) return NextResponse.json({ sent: 0, period });
 
     /* Fetch target users once */
-    const allRoles  = [...new Set(reminders.flatMap((r) => r.targetRoles))];
-    const usersSnap = await db.collection("users").get();
-    const usersByRole = new Map<string, { email: string; fcmTokens?: string[] }[]>();
+    const allRoles   = [...new Set(reminders.flatMap((r) => r.targetRoles))];
+    const usersSnap  = await db.collection("users").get();
+
+    const usersByRole = new Map<string, { email: string; uid: string }[]>();
     usersSnap.docs.forEach((d) => {
-      const u = d.data() as { email: string; role: string; fcmTokens?: string[] };
+      const u = d.data() as { email: string; role: string };
       if (allRoles.includes(u.role)) {
         const arr = usersByRole.get(u.role) ?? [];
-        arr.push(u);
+        arr.push({ email: u.email, uid: d.id });
         usersByRole.set(u.role, arr);
       }
     });
+
+    const allTargetUids = [...new Set([...usersByRole.values()].flatMap((us) => us.map((u) => u.uid)))];
+    const ptSnaps = await Promise.all(
+      allTargetUids.map((id) => db.collection("push_tokens").doc(id).get())
+    );
+    const pushTokensByUid = new Map<string, string[]>(
+      ptSnaps.filter((s) => s.exists).map((s) => [s.id, s.data()!.tokens ?? []])
+    );
 
     let sent = 0;
 
@@ -144,7 +152,7 @@ export async function GET(req: NextRequest) {
       });
 
       const users  = reminder.targetRoles.flatMap((r) => usersByRole.get(r) ?? []);
-      const tokens = users.flatMap((u) => u.fcmTokens ?? []);
+      const tokens = users.flatMap((u) => pushTokensByUid.get(u.uid) ?? []);
       const emails = [...new Set(users.map((u) => u.email).filter(Boolean))];
 
       if (tokens.length > 0) {

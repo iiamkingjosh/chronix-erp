@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { sendPushToTokens } from "@/lib/push-service";
 import { sendEmail, taxActivityEmail } from "@/lib/email-service";
+import { isRateLimited } from "@/lib/rate-limit";
 
 interface SendBody {
   type:        string;
@@ -15,6 +16,11 @@ interface SendBody {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+  if (isRateLimited(`notif:${ip}`, 20, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const idToken = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!idToken) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -25,13 +31,11 @@ export async function POST(req: NextRequest) {
     const { type, title, message, link, targetRoles, dedupeKey } = body;
     const db = getAdminDb();
 
-    // Deduplication check
     if (dedupeKey) {
       const existing = await db.collection("notifications").where("dedupeKey", "==", dedupeKey).limit(1).get();
       if (!existing.empty) return NextResponse.json({ skipped: true });
     }
 
-    // Write in-app notification
     await db.collection("notifications").add({
       type,
       title,
@@ -43,14 +47,16 @@ export async function POST(req: NextRequest) {
       dedupeKey:   dedupeKey ?? null,
     });
 
-    // Fetch users for target roles (push tokens + emails)
     const usersSnap = await db.collection("users").get();
-    const users = usersSnap.docs
-      .map((d) => d.data() as { email: string; role: string; fcmTokens?: string[] })
-      .filter((u) => targetRoles.includes(u.role));
+    const targetDocs = usersSnap.docs.filter((d) =>
+      targetRoles.includes((d.data() as { role: string }).role)
+    );
+    const emails = targetDocs.map((d) => (d.data() as { email: string }).email).filter(Boolean);
 
-    const tokens = users.flatMap((u) => u.fcmTokens ?? []);
-    const emails = users.map((u) => u.email).filter(Boolean);
+    const ptSnaps = await Promise.all(
+      targetDocs.map((d) => db.collection("push_tokens").doc(d.id).get())
+    );
+    const tokens = ptSnaps.flatMap((s) => (s.exists ? (s.data()?.tokens ?? []) : []));
 
     if (body.sendPush !== false && tokens.length > 0) {
       await sendPushToTokens(tokens, { title, body: message, link }).catch((e) =>

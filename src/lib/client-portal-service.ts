@@ -26,6 +26,7 @@ export async function getClientByEmail(email: string): Promise<Client | null> {
 }
 
 export async function getPortalInvoices(clientName: string, clientId?: string): Promise<Invoice[]> {
+  const normalised = clientName.toLowerCase().trim();
   const [byName, byId] = await Promise.all([
     getDocs(query(collection(db, "invoices"), where("client.name", "==", clientName))),
     clientId
@@ -40,10 +41,17 @@ export async function getPortalInvoices(clientName: string, clientId?: string): 
       if (!seen.has(d.id)) { seen.add(d.id); invoices.push({ id: d.id, ...d.data() } as Invoice); }
     }
   }
-  return sortByDateDesc(invoices, (inv) => inv.createdAt);
+  return sortByDateDesc(
+    invoices.filter((inv) =>
+      (inv.client as { name?: string })?.name?.toLowerCase().trim() === normalised ||
+      (inv.client as { id?: string })?.id === clientId
+    ),
+    (inv) => inv.createdAt,
+  );
 }
 
 export async function getPortalTickets(clientName: string, clientId?: string): Promise<Ticket[]> {
+  const normalised = clientName.toLowerCase().trim();
   const [byName, byId] = await Promise.all([
     getDocs(query(collection(db, "tickets"), where("client.name", "==", clientName))),
     clientId
@@ -58,10 +66,17 @@ export async function getPortalTickets(clientName: string, clientId?: string): P
       if (!seen.has(d.id)) { seen.add(d.id); tickets.push({ id: d.id, ...d.data() } as Ticket); }
     }
   }
-  return sortByDateDesc(tickets, (t) => t.createdAt);
+  return sortByDateDesc(
+    tickets.filter((t) =>
+      (t.client as { name?: string })?.name?.toLowerCase().trim() === normalised ||
+      (t.client as { id?: string })?.id === clientId
+    ),
+    (t) => t.createdAt,
+  );
 }
 
 export async function getPortalSubscriptions(clientName: string, clientId?: string): Promise<Subscription[]> {
+  const normalised = clientName.toLowerCase().trim();
   const [byName, byId] = await Promise.all([
     getDocs(query(collection(db, "subscriptions"), where("clientName", "==", clientName), where("cancelled", "==", false))),
     clientId
@@ -76,7 +91,12 @@ export async function getPortalSubscriptions(clientName: string, clientId?: stri
       if (!seen.has(d.id)) { seen.add(d.id); subs.push({ id: d.id, ...d.data() } as Subscription); }
     }
   }
-  return subs.sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+  return subs
+    .filter((s) =>
+      (s as { clientName?: string }).clientName?.toLowerCase().trim() === normalised ||
+      (s as { clientId?: string }).clientId === clientId
+    )
+    .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
 }
 
 export async function submitPortalTicket(data: {

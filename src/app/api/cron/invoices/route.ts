@@ -3,7 +3,6 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { sendPushToTokens } from "@/lib/push-service";
 
 function isCronRequest(req: NextRequest): boolean {
-  if (req.headers.get("x-vercel-cron") === "1") return true;
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
   return !!secret && secret === process.env.CRON_SECRET;
 }
@@ -22,10 +21,13 @@ export async function GET(req: NextRequest) {
       db.collection("users").get(),
     ]);
 
-    const tokens = usersSnap.docs
-      .map((d) => d.data() as { role: string; fcmTokens?: string[] })
-      .filter((u) => TARGET_ROLES.includes(u.role))
-      .flatMap((u) => u.fcmTokens ?? []);
+    const targetUids = usersSnap.docs
+      .filter((d) => TARGET_ROLES.includes((d.data() as { role: string }).role))
+      .map((d) => d.id);
+    const ptSnaps = await Promise.all(
+      targetUids.map((id) => db.collection("push_tokens").doc(id).get())
+    );
+    const tokens = ptSnaps.flatMap((s) => (s.exists ? (s.data()?.tokens ?? []) : []));
 
     let sent = 0;
 

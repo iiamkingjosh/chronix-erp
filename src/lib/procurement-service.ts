@@ -6,6 +6,7 @@ import { db } from "./firebase";
 import type { Vendor, PurchaseOrder, POStatus, VendorRating } from "@/types/procurement";
 import { createPOJournalEntry } from "@/lib/accounting/auto-journal";
 import { logAuditEvent } from "@/lib/audit-service";
+import { validateAmount } from "@/lib/utils";
 
 const VND = "vendors";
 const PO  = "purchase_orders";
@@ -42,6 +43,7 @@ export async function addVendorRating(vendorId: string, rating: VendorRating, cu
 
 /* ── Purchase Orders ── */
 export async function createPO(data: Omit<PurchaseOrder, "id">): Promise<PurchaseOrder> {
+  validateAmount(data.total, "total");
   const ref = await addDoc(collection(db, PO), data);
   return { ...data, id: ref.id };
 }
@@ -80,7 +82,6 @@ export async function updatePOStatus(
   }
   await updateDoc(doc(db, PO, poId), updates);
 
-  // Audit log
   if (author) {
     logAuditEvent({
       actorUid: author.uid, actorName: author.name, actorRole: "Finance",

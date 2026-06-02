@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { ROLES, resolveRole, type Role } from "@/types/roles";
+import { isRateLimited } from "@/lib/rate-limit";
 
 const ALLOWED_ROLES = new Set<Role>([ROLES.SYSTEM_ADMIN, ROLES.ROOT_ADMIN]);
 
@@ -8,6 +9,11 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ uid: string }> }
 ) {
+  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  if (isRateLimited(`admin:${ip}`, 20, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const adminAuth = getAdminAuth();
     const adminDb = getAdminDb();

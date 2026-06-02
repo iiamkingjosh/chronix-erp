@@ -3,7 +3,6 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { sendPushToTokens } from "@/lib/push-service";
 
 function isCronRequest(req: NextRequest): boolean {
-  if (req.headers.get("x-vercel-cron") === "1") return true;
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
   return !!secret && secret === process.env.CRON_SECRET;
 }
@@ -23,13 +22,19 @@ export async function GET(req: NextRequest) {
     ]);
 
     const usersMap = new Map(
-      usersSnap.docs.map((d) => [d.id, d.data() as { email: string; role: string; fcmTokens?: string[] }])
+      usersSnap.docs.map((d) => [d.id, d.data() as { email: string; role: string }])
+    );
+
+    const ptSnaps = await Promise.all(
+      usersSnap.docs.map((d) => db.collection("push_tokens").doc(d.id).get())
+    );
+    const pushTokensByUid = new Map<string, string[]>(
+      ptSnaps.filter((s) => s.exists).map((s) => [s.id, s.data()!.tokens ?? []])
     );
 
     const broadcastTokens = usersSnap.docs
-      .map((d) => d.data() as { role: string; fcmTokens?: string[] })
-      .filter((u) => NOTIF_ROLES.includes(u.role))
-      .flatMap((u) => u.fcmTokens ?? []);
+      .filter((d) => NOTIF_ROLES.includes((d.data() as { role: string }).role))
+      .flatMap((d) => pushTokensByUid.get(d.id) ?? []);
 
     let sent = 0;
 
@@ -68,8 +73,8 @@ export async function GET(req: NextRequest) {
 
       const tokens = [...broadcastTokens];
       if (lead.assignedTo) {
-        const assignee = usersMap.get(lead.assignedTo);
-        if (assignee?.fcmTokens) tokens.push(...assignee.fcmTokens);
+        const assigneeTokens = pushTokensByUid.get(lead.assignedTo) ?? [];
+        tokens.push(...assigneeTokens);
       }
       const uniqueTokens = [...new Set(tokens)];
       if (uniqueTokens.length > 0) await sendPushToTokens(uniqueTokens, { title, body: message, link });
