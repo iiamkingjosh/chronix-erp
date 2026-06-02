@@ -12,6 +12,7 @@ import { createPO, getVendors } from "@/lib/procurement-service";
 import { generatePONumber } from "@/types/procurement";
 import type { Vendor, POItem } from "@/types/procurement";
 import { formatNaira } from "@/types/finance";
+import { round } from "@/lib/utils";
 
 const itemSchema = z.object({
   name:      z.string().min(1, "Required"),
@@ -35,7 +36,8 @@ function calcItemTotal(qty: number | string, price: number | string): number {
 export default function NewPOPage() {
   const { profile } = useAuth();
   const router = useRouter();
-  const [vendors, setVendors]     = useState<Vendor[]>([]);
+  const [vendors, setVendors]         = useState<Vendor[]>([]);
+  const [applyVat, setApplyVat]       = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const canManage = profile ? hasPermission(profile.role, "manage:procurement") : false;
@@ -49,15 +51,19 @@ export default function NewPOPage() {
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
-  const watchedItems = useWatch({ control, name: "items" });
+  const watchedItems    = useWatch({ control, name: "items" });
   const watchedVendorId = useWatch({ control, name: "vendorId" }) ?? "";
 
-  const subtotal = (watchedItems ?? []).reduce(
+  const subtotal  = (watchedItems ?? []).reduce(
     (s, item) => s + calcItemTotal(item.quantity, item.unitPrice), 0
   );
+  const vatAmount = applyVat ? round(subtotal * 0.075) : 0;
+  const total     = round(subtotal + vatAmount);
 
   useEffect(() => {
-    getVendors().then((v) => setVendors(v.filter((vnd) => vnd.status === "active"))).catch((e) => console.error("Failed to load vendors:", e));
+    getVendors()
+      .then((v) => setVendors(v.filter((vnd) => vnd.status === "active")))
+      .catch((e) => console.error("Failed to load vendors:", e));
   }, []);
 
   async function onSubmit(data: FormData) {
@@ -73,21 +79,29 @@ export default function NewPOPage() {
         total:     calcItemTotal(item.quantity, item.unitPrice),
       }));
       const now = new Date().toISOString();
-      const po = await createPO({
-        poNumber:     generatePONumber(),
-        vendorId:     data.vendorId,
-        vendorName:   selectedVendor?.companyName ?? "",
+      const po  = await createPO({
+        poNumber:       generatePONumber(),
+        vendorId:       data.vendorId,
+        vendorName:     selectedVendor?.companyName ?? "",
+        vendorCategory: selectedVendor?.category,
         items,
         subtotal,
-        total: subtotal,
-        status:       "pending",
-        deliveryDate: data.deliveryDate,
+        vatAmount:      vatAmount > 0 ? vatAmount : undefined,
+        total,
+        status:         "pending",
+        deliveryDate:   data.deliveryDate,
         ...(data.notes?.trim() ? { notes: data.notes.trim() } : {}),
-        createdAt:    now,
-        createdBy:    profile.uid,
-        updatedAt:    now,
+        createdAt:      now,
+        createdBy:      profile.uid,
+        updatedAt:      now,
       });
-      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "procurement", entityId: po.id, entityRef: po.poNumber, details: `Purchase order ${po.poNumber} created for ${selectedVendor?.companyName ?? data.vendorId} — ₦${subtotal.toLocaleString()}`, timestamp: now });
+      logAuditEvent({
+        actorUid: profile.uid, actorName: profile.displayName ?? profile.email,
+        actorRole: profile.role, action: "create", module: "procurement",
+        entityId: po.id, entityRef: po.poNumber,
+        details: `Purchase order ${po.poNumber} created for ${selectedVendor?.companyName ?? data.vendorId} — ₦${total.toLocaleString()}${vatAmount > 0 ? ` (incl. ₦${vatAmount.toLocaleString()} VAT)` : ""}`,
+        timestamp: now,
+      });
       router.push(`/dashboard/procurement/orders`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create PO");
@@ -95,7 +109,11 @@ export default function NewPOPage() {
   }
 
   if (!canManage) {
-    return <div className="py-16 text-center"><p className="text-white/40 font-helvetica">You do not have permission to create purchase orders.</p></div>;
+    return (
+      <div className="py-16 text-center">
+        <p className="text-white/40 font-helvetica">You do not have permission to create purchase orders.</p>
+      </div>
+    );
   }
 
   const selectedVendor = vendors.find((v) => v.id === watchedVendorId);
@@ -123,7 +141,7 @@ export default function NewPOPage() {
                   {errors.vendorId && <p className="mt-1 text-xs text-red-400">{errors.vendorId.message}</p>}
                   {selectedVendor && (
                     <p className="mt-1 text-[10px] text-white/30 font-helvetica">
-                      Terms: {selectedVendor.paymentTerms || "Not specified"}
+                      {selectedVendor.category} · Terms: {selectedVendor.paymentTerms || "Not specified"}
                     </p>
                   )}
                 </div>
@@ -145,14 +163,14 @@ export default function NewPOPage() {
               </div>
               <div className="space-y-2">
                 {fields.map((field, i) => {
-                  const total = calcItemTotal(watchedItems?.[i]?.quantity ?? 0, watchedItems?.[i]?.unitPrice ?? 0);
+                  const lineTotal = calcItemTotal(watchedItems?.[i]?.quantity ?? 0, watchedItems?.[i]?.unitPrice ?? 0);
                   return (
                     <div key={field.id} className="grid grid-cols-[1fr_64px_96px_36px] sm:grid-cols-[1fr_80px_120px_110px_36px] gap-2 items-start">
                       <input {...register(`items.${i}.name`)} placeholder="Item name" className="input-field py-2.5 text-sm" />
                       <input {...register(`items.${i}.quantity`)} type="number" min="1" placeholder="1" className="input-field py-2.5 text-sm text-center" />
                       <input {...register(`items.${i}.unitPrice`)} type="number" min="0" step="any" placeholder="0.00" className="input-field py-2.5 text-sm text-right" />
                       <div className="hidden sm:flex input-field py-2.5 text-sm text-right pointer-events-none text-white/50 items-center justify-end">
-                        {formatNaira(total)}
+                        {formatNaira(lineTotal)}
                       </div>
                       <button type="button" onClick={() => remove(i)} disabled={fields.length === 1}
                         className="w-9 h-9 flex items-center justify-center text-white/20 hover:text-red-400 disabled:opacity-20 transition-colors rounded-lg border border-white/5 hover:border-red-500/20 shrink-0">
@@ -180,6 +198,7 @@ export default function NewPOPage() {
           <div className="space-y-4">
             <div className="surface-card p-6">
               <h3 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">Summary</h3>
+
               {selectedVendor && (
                 <div className="mb-4 pb-4 border-b border-white/10">
                   <p className="text-xs text-white/30 font-helvetica mb-1">Vendor</p>
@@ -187,14 +206,38 @@ export default function NewPOPage() {
                   <p className="text-xs text-white/30 font-helvetica">{selectedVendor.contactPerson}</p>
                 </div>
               )}
+
               <div className="space-y-3">
                 <div className="flex justify-between text-sm font-helvetica">
-                  <span className="text-white/50">Items ({fields.length})</span>
+                  <span className="text-white/50">Subtotal ({fields.length} item{fields.length !== 1 ? "s" : ""})</span>
                   <span className="text-white">{formatNaira(subtotal)}</span>
                 </div>
+
+                {/* VAT toggle */}
+                <label className="flex items-center justify-between cursor-pointer py-1">
+                  <span className="text-sm text-white/50 font-helvetica">Apply 7.5% VAT</span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={applyVat}
+                      onChange={(e) => setApplyVat(e.target.checked)}
+                    />
+                    <div className="w-9 h-5 bg-white/10 peer-checked:bg-accent rounded-full transition-colors" />
+                    <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
+                  </div>
+                </label>
+
+                {applyVat && (
+                  <div className="flex justify-between text-sm font-helvetica">
+                    <span className="text-white/40">VAT (7.5%)</span>
+                    <span className="text-white/60">{formatNaira(vatAmount)}</span>
+                  </div>
+                )}
+
                 <div className="border-t border-white/10 pt-3 flex justify-between">
                   <span className="font-orbitron text-sm font-semibold text-white">Total</span>
-                  <span className="font-orbitron text-sm font-bold text-accent">{formatNaira(subtotal)}</span>
+                  <span className="font-orbitron text-sm font-bold text-accent">{formatNaira(total)}</span>
                 </div>
               </div>
             </div>
