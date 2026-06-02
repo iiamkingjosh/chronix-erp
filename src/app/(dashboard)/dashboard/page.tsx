@@ -152,7 +152,7 @@ export default function DashboardHome() {
 /* ──────────────────────────────────────────────────────────── */
 function CEODashboard() {
   interface M {
-    revenueMTD: number; expenses: number; netProfit: number; outstanding: number;
+    revenueMTD: number; totalRevenuePaid: number; expenses: number; netProfit: number; outstanding: number;
     openTickets: number; activeClients: number; expiringSubs30: number;
     activeProjects: number; teamHeadcount: number;
   }
@@ -169,12 +169,17 @@ function CEODashboard() {
       safeDocs("subscriptions"),
       safeDocs("purchase_orders"),
       safeDocs("users"),
-    ]).then(([invoices, tickets, clients, projects, subs, pos, users]) => {
+      safeDocs("expenses"),
+    ]).then(([invoices, tickets, clients, projects, subs, pos, users, expenseClaims]) => {
       const now = new Date();
-      const revenueMTD    = invoices.filter((i) => i.status === "paid" && String(i.invoiceDate ?? "").startsWith(thisM)).reduce((s, i) => s + (Number(i.total) || 0), 0);
-      const expenses      = pos.filter((p) => p.status === "approved" || p.status === "delivered" || p.status === "paid").reduce((s, p) => s + (Number(p.total) || 0), 0);
-      const outstanding   = invoices.filter((i) => i.status === "pending" || i.status === "overdue").reduce((s, i) => s + (Number(i.total) || 0), 0);
-      const openTickets   = tickets.filter((t) => t.status === "open" || t.status === "in_progress").length;
+      const paid           = invoices.filter((i) => i.status === "paid");
+      const revenueMTD     = paid.filter((i) => String(i.invoiceDate ?? "").startsWith(thisM)).reduce((s, i) => s + (Number(i.total) || 0), 0);
+      const totalRevenuePaid = paid.reduce((s, i) => s + (Number(i.total) || 0), 0);
+      const claimsTotal    = expenseClaims.filter((e) => e.status === "approved" || e.status === "paid").reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      const poTotal        = pos.filter((p) => p.status === "approved" || p.status === "delivered" || p.status === "paid").reduce((s, p) => s + (Number(p.total) || 0), 0);
+      const expenses       = claimsTotal + poTotal;
+      const outstanding    = invoices.filter((i) => i.status === "pending" || i.status === "overdue").reduce((s, i) => s + (Number(i.total) || 0), 0);
+      const openTickets    = tickets.filter((t) => t.status === "open" || t.status === "in_progress").length;
       const expiringSubs30 = subs.filter((s) => {
         if (s.cancelled) return false;
         const exp = String(s.expiryDate ?? "");
@@ -183,7 +188,7 @@ function CEODashboard() {
         return days >= 0 && days <= 30;
       }).length;
       setM({
-        revenueMTD, expenses, netProfit: revenueMTD - expenses, outstanding,
+        revenueMTD, totalRevenuePaid, expenses, netProfit: revenueMTD - expenses, outstanding,
         openTickets, activeClients: clients.length,
         expiringSubs30, activeProjects: projects.filter((p) => p.status === "in_progress").length,
         teamHeadcount: users.length,
@@ -193,20 +198,20 @@ function CEODashboard() {
 
   if (loading) return <Spinner />;
 
-  const v = m ?? { revenueMTD: 0, expenses: 0, netProfit: 0, outstanding: 0, openTickets: 0, activeClients: 0, expiringSubs30: 0, activeProjects: 0, teamHeadcount: 0 };
+  const v = m ?? { revenueMTD: 0, totalRevenuePaid: 0, expenses: 0, netProfit: 0, outstanding: 0, openTickets: 0, activeClients: 0, expiringSubs30: 0, activeProjects: 0, teamHeadcount: 0 };
 
   return (
     <div className="space-y-6">
       <SectionHeader title="CEO Command Centre" role="CEO" color="bg-purple-900/20 text-purple-200 border-purple-700/30" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI label="Revenue MTD"          value={formatNaira(v.revenueMTD)}      icon="💰" accent="text-secondary"                                             href="/dashboard/finance/invoices" />
-        <KPI label="Expenses"             value={formatNaira(v.expenses)}         icon="📦" accent="text-white"                                               href="/dashboard/procurement/orders" />
-        <KPI label="Net Profit"           value={formatNaira(v.netProfit)}        icon="📈" accent={v.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}  />
-        <KPI label="Outstanding (₦)"      value={formatNaira(v.outstanding)}      icon="📄" accent={v.outstanding > 0 ? "text-amber-400" : "text-white/50"}   href="/dashboard/finance/invoices" />
-        <KPI label="Open Tickets"         value={v.openTickets}                   icon="🎫" accent={v.openTickets > 5 ? "text-accent" : "text-white"}          href="/dashboard/tickets" />
-        <KPI label="Active Clients"       value={v.activeClients}                 icon="🏢" accent="text-emerald-400"                                          href="/dashboard/crm/clients" />
-        <KPI label="Expiring ≤30 days"    value={v.expiringSubs30}                icon="🔔" accent={v.expiringSubs30 > 0 ? "text-amber-400" : "text-white/50"} href="/dashboard/subscriptions" />
-        <KPI label="Active Projects"      value={v.activeProjects}                icon="📋" accent="text-secondary"                                            href="/dashboard/projects" />
+        <KPI label="Revenue (This Month)"  value={formatNaira(v.revenueMTD)}      icon="💰" accent="text-secondary"                                             href="/dashboard/finance/invoices" sub={`All-time: ${formatNaira(v.totalRevenuePaid)}`} />
+        <KPI label="Expenses"              value={formatNaira(v.expenses)}         icon="📦" accent="text-white"                                               href="/dashboard/procurement/orders" />
+        <KPI label="Net Profit (MTD)"      value={formatNaira(v.netProfit)}        icon="📈" accent={v.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}  />
+        <KPI label="Outstanding (₦)"       value={formatNaira(v.outstanding)}      icon="📄" accent={v.outstanding > 0 ? "text-amber-400" : "text-white/50"}   href="/dashboard/finance/invoices" />
+        <KPI label="Open Tickets"          value={v.openTickets}                   icon="🎫" accent={v.openTickets > 5 ? "text-accent" : "text-white"}          href="/dashboard/tickets" />
+        <KPI label="Active Clients"        value={v.activeClients}                 icon="🏢" accent="text-emerald-400"                                          href="/dashboard/crm/clients" />
+        <KPI label="Expiring ≤30 days"     value={v.expiringSubs30}                icon="🔔" accent={v.expiringSubs30 > 0 ? "text-amber-400" : "text-white/50"} href="/dashboard/subscriptions" />
+        <KPI label="Active Projects"       value={v.activeProjects}                icon="📋" accent="text-secondary"                                            href="/dashboard/projects" />
       </div>
       <div className="surface-card p-6">
         <p className="font-orbitron text-xs text-white/30 uppercase tracking-widest mb-4">Quick Actions</p>
@@ -230,7 +235,7 @@ function CEODashboard() {
 /* ──────────────────────────────────────────────────────────── */
 function CFODashboard() {
   interface M {
-    revenueMTD: number; expenses: number; netProfit: number; outstanding: number;
+    revenueMTD: number; totalRevenuePaid: number; expenses: number; netProfit: number; outstanding: number;
     overdueCount: number; overdueAmount: number; paidThisMonth: number;
   }
   const [m, setM]             = useState<M | null>(null);
@@ -242,34 +247,39 @@ function CFODashboard() {
     Promise.all([
       safeDocs("invoices"),
       safeDocs("purchase_orders"),
-    ]).then(([invoices, pos]) => {
-      const revenueMTD  = invoices.filter((i) => i.status === "paid" && String(i.invoiceDate ?? "").startsWith(thisM)).reduce((s, i) => s + (Number(i.total) || 0), 0);
-      const expenses    = pos.filter((p) => p.status === "approved" || p.status === "delivered" || p.status === "paid").reduce((s, p) => s + (Number(p.total) || 0), 0);
-      const outstanding = invoices.filter((i) => i.status === "pending").reduce((s, i) => s + (Number(i.total) || 0), 0);
-      const overdueDocs = invoices.filter((i) => i.status === "pending" && String(i.dueDate ?? "") < today);
+      safeDocs("expenses"),
+    ]).then(([invoices, pos, expenseClaims]) => {
+      const paid           = invoices.filter((i) => i.status === "paid");
+      const revenueMTD     = paid.filter((i) => String(i.invoiceDate ?? "").startsWith(thisM)).reduce((s, i) => s + (Number(i.total) || 0), 0);
+      const totalRevenuePaid = paid.reduce((s, i) => s + (Number(i.total) || 0), 0);
+      const claimsTotal    = expenseClaims.filter((e) => e.status === "approved" || e.status === "paid").reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      const poTotal        = pos.filter((p) => p.status === "approved" || p.status === "delivered" || p.status === "paid").reduce((s, p) => s + (Number(p.total) || 0), 0);
+      const expenses       = claimsTotal + poTotal;
+      const outstanding    = invoices.filter((i) => i.status === "pending" || i.status === "overdue").reduce((s, i) => s + (Number(i.total) || 0), 0);
+      const overdueDocs    = invoices.filter((i) => i.status === "pending" && String(i.dueDate ?? "") < today);
       setM({
-        revenueMTD, expenses, netProfit: revenueMTD - expenses, outstanding,
+        revenueMTD, totalRevenuePaid, expenses, netProfit: revenueMTD - expenses, outstanding,
         overdueCount:   overdueDocs.length,
         overdueAmount:  overdueDocs.reduce((s, i) => s + (Number(i.total) || 0), 0),
-        paidThisMonth:  invoices.filter((i) => i.status === "paid" && String(i.invoiceDate ?? "").startsWith(thisM)).length,
+        paidThisMonth:  paid.filter((i) => String(i.invoiceDate ?? "").startsWith(thisM)).length,
       });
     }).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Spinner />;
 
-  const v = m ?? { revenueMTD: 0, expenses: 0, netProfit: 0, outstanding: 0, overdueCount: 0, overdueAmount: 0, paidThisMonth: 0 };
+  const v = m ?? { revenueMTD: 0, totalRevenuePaid: 0, expenses: 0, netProfit: 0, outstanding: 0, overdueCount: 0, overdueAmount: 0, paidThisMonth: 0 };
 
   return (
     <div className="space-y-6">
       <SectionHeader title="CFO Finance Overview" role="CFO" color="bg-emerald-900/20 text-emerald-200 border-emerald-700/30" />
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <KPI label="Revenue MTD"          value={formatNaira(v.revenueMTD)}     icon="💰" accent="text-secondary"                                            href="/dashboard/finance/invoices" />
-        <KPI label="Total Expenses"       value={formatNaira(v.expenses)}        icon="📦" accent="text-white"                                              href="/dashboard/procurement/orders" />
-        <KPI label="Net Profit"           value={formatNaira(v.netProfit)}       icon="📈" accent={v.netProfit >= 0 ? "text-emerald-400" : "text-red-400"} />
-        <KPI label="Outstanding Invoices" value={formatNaira(v.outstanding)}     icon="📄" accent={v.outstanding > 0 ? "text-amber-400" : "text-white/50"}  href="/dashboard/finance/invoices" sub="pending payment" />
-        <KPI label="Overdue Invoices"     value={`${v.overdueCount} invoices`}   icon="⚠️" accent={v.overdueCount > 0 ? "text-red-400" : "text-white/50"}   href="/dashboard/finance/invoices" sub={v.overdueCount > 0 ? formatNaira(v.overdueAmount) : undefined} />
-        <KPI label="Payments Received"    value={`${v.paidThisMonth} this month`} icon="✅" accent="text-emerald-400"                                        href="/dashboard/finance/invoices" />
+        <KPI label="Revenue (This Month)"  value={formatNaira(v.revenueMTD)}     icon="💰" accent="text-secondary"                                            href="/dashboard/finance/invoices" sub={`All-time: ${formatNaira(v.totalRevenuePaid)}`} />
+        <KPI label="Total Expenses"        value={formatNaira(v.expenses)}        icon="📦" accent="text-white"                                              href="/dashboard/procurement/orders" />
+        <KPI label="Net Profit (MTD)"      value={formatNaira(v.netProfit)}       icon="📈" accent={v.netProfit >= 0 ? "text-emerald-400" : "text-red-400"} />
+        <KPI label="Outstanding Invoices"  value={formatNaira(v.outstanding)}     icon="📄" accent={v.outstanding > 0 ? "text-amber-400" : "text-white/50"}  href="/dashboard/finance/invoices" sub="pending + overdue" />
+        <KPI label="Overdue Invoices"      value={`${v.overdueCount} invoices`}   icon="⚠️" accent={v.overdueCount > 0 ? "text-red-400" : "text-white/50"}   href="/dashboard/finance/invoices" sub={v.overdueCount > 0 ? formatNaira(v.overdueAmount) : undefined} />
+        <KPI label="Payments Received"     value={`${v.paidThisMonth} this month`} icon="✅" accent="text-emerald-400"                                        href="/dashboard/finance/invoices" />
       </div>
       <div className="surface-card p-6">
         <p className="font-orbitron text-xs text-white/30 uppercase tracking-widest mb-4">Quick Actions</p>

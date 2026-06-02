@@ -53,8 +53,8 @@ export async function generateVATReturn(month: string, userId: string): Promise<
         else
           collected.other         += line.credit;
       }
-      // Input VAT — account 2110 debits
-      if (line.accountCode === "2110" && line.debit > 0) {
+      // Input VAT — account 1110 debits (VAT Recoverable asset account)
+      if (line.accountCode === "1110" && line.debit > 0) {
         if (desc.includes("purchase") || desc.includes("inventory"))
           paid.purchases          += line.debit;
         else if (desc.includes("equipment") || desc.includes("furniture"))
