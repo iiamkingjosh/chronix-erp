@@ -33,6 +33,8 @@ export default function LeadDetailPage() {
   const [addingFu, setAddingFu]   = useState(false);
   const [converting, setConverting] = useState(false);
   const [showFuForm, setShowFuForm] = useState(false);
+  const [convertedClientId, setConvertedClientId] = useState<string | null>(null);
+  const [convertedClientName, setConvertedClientName] = useState<string | null>(null);
 
   const canManage = profile ? hasPermission(profile.role, "manage:crm") : false;
 
@@ -102,8 +104,12 @@ export default function LeadDetailPage() {
     try {
       const client = await convertToClient(lead, { uid: profile.uid, name: profile.displayName ?? profile.email });
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "crm", entityId: lead.id, entityRef: lead.fullName, details: `Lead ${lead.fullName} converted to client (${client.clientId})`, timestamp: new Date().toISOString() });
-      router.push(`/dashboard/crm/clients/${client.id}`);
+      setConvertedClientId(client.id);
+      setConvertedClientName(client.company || client.fullName || lead.fullName);
+      setLead((prev) => prev ? { ...prev, stage: "client", convertedAt: new Date().toISOString(), clientId: client.id } : prev);
     } catch {
+      setConverting(false);
+    } finally {
       setConverting(false);
     }
   }
@@ -307,8 +313,29 @@ export default function LeadDetailPage() {
             </div>
           )}
 
+          {/* Conversion success banner */}
+          {convertedClientId && convertedClientName && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/8 p-4 space-y-3 animate-fade-in">
+              <p className="text-emerald-400 text-sm font-helvetica font-semibold">Lead converted to client!</p>
+              <div className="flex flex-col gap-2">
+                <Link
+                  href={`/dashboard/crm/clients/${convertedClientId}`}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-xs font-helvetica transition-colors"
+                >
+                  View Client Profile →
+                </Link>
+                <Link
+                  href={`/dashboard/finance/invoices/new?clientName=${encodeURIComponent(convertedClientName)}&clientId=${encodeURIComponent(convertedClientId)}`}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-accent/30 text-accent hover:bg-accent/10 text-xs font-helvetica transition-colors"
+                >
+                  Create First Invoice →
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Convert to client button */}
-          {canManage && lead.stage !== "client" && lead.stage !== "retained" && !lead.convertedAt && (
+          {canManage && lead.stage !== "client" && lead.stage !== "retained" && !lead.convertedAt && !convertedClientId && (
             <button
               onClick={handleConvert}
               disabled={converting}
@@ -318,7 +345,7 @@ export default function LeadDetailPage() {
             </button>
           )}
 
-          {lead.clientId && (
+          {lead.clientId && !convertedClientId && (
             <Link href={`/dashboard/crm/clients/${lead.clientId}`} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-purple-500/30 text-purple-400 hover:bg-purple-500/10 text-sm font-helvetica transition-colors">
               View Client Profile →
             </Link>

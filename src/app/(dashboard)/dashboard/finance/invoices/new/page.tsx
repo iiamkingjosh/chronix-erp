@@ -7,6 +7,7 @@ import { z } from "zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createInvoice } from "@/lib/finance-service";
+import { linkProjectInvoice } from "@/lib/projects-service";
 import { logAuditEvent } from "@/lib/audit-service";
 import { today, addDays, formatNaira, VAT_RATE, COMPANY } from "@/types/finance";
 import { getNextInvoiceNumber, previewNextInvoiceNumber } from "@/lib/invoiceCounter";
@@ -55,12 +56,14 @@ function NewInvoiceForm() {
     ? isRootAdmin(profile.role) || (hasPermission(profile.role, "manage:finance") && (profile.role === "CFO" || profile.role === "CEO"))
     : false;
 
-  /* Pre-fill from URL params — used by subscription renewal + CRM links */
-  const prefillClient      = searchParams.get("client") ?? "";
+  /* Pre-fill from URL params — used by subscription renewal, CRM, and project links */
+  const prefillClient      = searchParams.get("clientName") ?? searchParams.get("client") ?? "";
   const prefillAddress     = searchParams.get("address") ?? "";
   const prefillPhone       = searchParams.get("phone") ?? "";
   const prefillDescription = searchParams.get("description") ?? "";
   const prefillAmount      = Number(searchParams.get("amount")) || 0;
+  const prefillClientId    = searchParams.get("clientId") ?? "";
+  const prefillProjectId   = searchParams.get("projectId") ?? "";
 
   const {
     register,
@@ -122,6 +125,7 @@ function NewInvoiceForm() {
           name:    data.clientName,
           address: data.clientAddress,
           phone:   data.clientPhone,
+          ...(prefillClientId ? { id: prefillClientId } : {}),
         },
         salesperson: data.salesperson,
         items,
@@ -133,6 +137,10 @@ function NewInvoiceForm() {
         createdAt: new Date().toISOString(),
         createdBy: profile.uid,
       });
+
+      if (prefillProjectId) {
+        linkProjectInvoice(prefillProjectId, inv.id, inv.invoiceNumber).catch(() => {});
+      }
 
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: inv.id, entityRef: inv.invoiceNumber, details: `Invoice ${inv.invoiceNumber} created for ${data.clientName} — ${approvalStatus}`, timestamp: new Date().toISOString() });
       router.push(`/dashboard/finance/invoices/${inv.id}`);

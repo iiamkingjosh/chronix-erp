@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAllTimeEntries, getMyTimeEntries, createTimeEntry } from "@/lib/timetrack-service";
+import { getAllTimeEntries, getMyTimeEntries, createTimeEntry, amendTimeEntry } from "@/lib/timetrack-service";
 import { TIME_ENTRY_TYPE_LABELS, TIME_ENTRY_TYPE_STYLES } from "@/types/timetrack";
 import type { TimeEntry, TimeEntryType } from "@/types/timetrack";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +28,12 @@ export default function TimeTrackingPage() {
     date: today, hours: "", billable: true,
     clientName: "",
   });
+  const [amendTarget, setAmendTarget] = useState<TimeEntry | null>(null);
+  const [amendForm, setAmendForm]     = useState({
+    type: "ticket" as TimeEntryType, linkedRef: "", description: "",
+    date: today, hours: "", billable: true, clientName: "",
+  });
+  const [amending, setAmending]       = useState(false);
 
   const canViewAll = profile
     ? isRootAdmin(profile.role) ||
@@ -36,6 +42,49 @@ export default function TimeTrackingPage() {
       profile.role === "CFO" ||
       profile.role === "System Admin"
     : false;
+
+  function openAmend(entry: TimeEntry) {
+    setAmendTarget(entry);
+    setAmendForm({
+      type:        entry.type,
+      linkedRef:   entry.linkedRef ?? "",
+      description: entry.description,
+      date:        entry.date,
+      hours:       String(entry.hours),
+      billable:    entry.billable,
+      clientName:  entry.clientName ?? "",
+    });
+  }
+
+  async function handleAmendSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!profile || !amendTarget) return;
+    setAmending(true);
+    try {
+      const corrected = await amendTimeEntry(
+        amendTarget.id,
+        {
+          employeeUid:  amendTarget.employeeUid,
+          employeeName: amendTarget.employeeName,
+          type:         amendForm.type,
+          linkedRef:    amendForm.linkedRef || undefined,
+          description:  amendForm.description,
+          date:         amendForm.date,
+          hours:        Number(amendForm.hours),
+          billable:     amendForm.billable,
+          clientName:   amendForm.clientName || undefined,
+          createdAt:    amendTarget.createdAt,
+        },
+        profile.uid
+      );
+      setEntries((prev) =>
+        [corrected, ...prev.map((e) => e.id === amendTarget.id ? { ...e, isVoided: true } : e)]
+      );
+      setAmendTarget(null);
+    } finally {
+      setAmending(false);
+    }
+  }
 
   useEffect(() => {
     if (!profile) return;
@@ -171,35 +220,98 @@ export default function TimeTrackingPage() {
                     <th className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Date</th>
                     <th className="px-5 py-4 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Hours</th>
                     <th className="px-5 py-4 text-center text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Billable</th>
+                    <th className="px-5 py-4" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filtered.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-5 py-3.5">
-                        <p className="text-sm text-white font-helvetica">{entry.description}</p>
-                        {entry.linkedRef  && <p className="text-xs text-white/30 font-helvetica">Ref: {entry.linkedRef}</p>}
-                        {entry.clientName && <p className="text-xs text-accent/70 font-helvetica">{entry.clientName}</p>}
-                      </td>
-                      {canViewAll && <td className="px-5 py-3.5 text-xs text-white/50 font-helvetica">{entry.employeeName}</td>}
-                      <td className="px-5 py-3.5">
-                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica", TIME_ENTRY_TYPE_STYLES[entry.type])}>
-                          {TIME_ENTRY_TYPE_LABELS[entry.type]}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-xs text-white/40 font-helvetica">{fmtDate(entry.date)}</td>
-                      <td className="px-5 py-3.5 text-sm font-bold text-white font-orbitron text-right">{entry.hours}h</td>
-                      <td className="px-5 py-3.5 text-center">
-                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica", entry.billable ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "bg-white/8 text-white/30 border-white/15")}>
-                          {entry.billable ? "Billable" : "Non-billable"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map((entry) => {
+                    const isVoided  = !!entry.isVoided;
+                    const isAmended = !!entry.amendedFromId;
+                    const isOwner   = entry.employeeUid === profile?.uid;
+                    const canAmend  = !isVoided && !isAmended && (isOwner || canViewAll);
+                    return (
+                      <tr key={entry.id} className={cn("hover:bg-white/[0.02] transition-colors", isVoided && "opacity-40")}>
+                        <td className="px-5 py-3.5">
+                          <p className={cn("text-sm text-white font-helvetica", isVoided && "line-through")}>{entry.description}</p>
+                          {entry.linkedRef  && <p className="text-xs text-white/30 font-helvetica">Ref: {entry.linkedRef}</p>}
+                          {entry.clientName && <p className="text-xs text-accent/70 font-helvetica">{entry.clientName}</p>}
+                          <div className="flex gap-1.5 mt-1 flex-wrap">
+                            {isVoided  && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border font-helvetica bg-red-500/10 text-red-400 border-red-500/20">Amended</span>}
+                            {isAmended && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border font-helvetica bg-amber-500/10 text-amber-400 border-amber-500/20">Amendment</span>}
+                          </div>
+                        </td>
+                        {canViewAll && <td className="px-5 py-3.5 text-xs text-white/50 font-helvetica">{entry.employeeName}</td>}
+                        <td className="px-5 py-3.5">
+                          <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica", TIME_ENTRY_TYPE_STYLES[entry.type])}>
+                            {TIME_ENTRY_TYPE_LABELS[entry.type]}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-xs text-white/40 font-helvetica">{fmtDate(entry.date)}</td>
+                        <td className="px-5 py-3.5 text-sm font-bold text-white font-orbitron text-right">{entry.hours}h</td>
+                        <td className="px-5 py-3.5 text-center">
+                          <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica", entry.billable ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "bg-white/8 text-white/30 border-white/15")}>
+                            {entry.billable ? "Billable" : "Non-billable"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          {canAmend && (
+                            <button onClick={() => openAmend(entry)} className="text-[10px] text-white/30 hover:text-accent font-helvetica border border-white/10 hover:border-accent/30 px-2 py-1 rounded-lg transition-colors">
+                              Amend
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
+        </div>
+      )}
+      {/* Amend modal */}
+      {amendTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <form onSubmit={handleAmendSubmit} className="surface-card p-6 max-w-lg w-full space-y-4 animate-fade-in">
+            <h3 className="font-orbitron text-sm font-bold text-white">Amend Time Entry</h3>
+            <p className="text-white/40 text-xs font-helvetica">The original entry will be voided and a corrected entry will be created.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="field-label">Type</label>
+                <select value={amendForm.type} onChange={(e) => setAmendForm((p) => ({ ...p, type: e.target.value as TimeEntryType }))} className="input-field">
+                  {TYPES.map(([v, label]) => <option key={v} value={v} className="bg-primary-dark">{label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Reference</label>
+                <input value={amendForm.linkedRef} onChange={(e) => setAmendForm((p) => ({ ...p, linkedRef: e.target.value }))} placeholder="e.g. TKT-001" className="input-field" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="field-label">Description</label>
+                <input value={amendForm.description} onChange={(e) => setAmendForm((p) => ({ ...p, description: e.target.value }))} placeholder="What did you work on?" className="input-field" required />
+              </div>
+              <div>
+                <label className="field-label">Client</label>
+                <input value={amendForm.clientName} onChange={(e) => setAmendForm((p) => ({ ...p, clientName: e.target.value }))} placeholder="Client name" className="input-field" />
+              </div>
+              <div>
+                <label className="field-label">Hours</label>
+                <input type="number" min="0.25" step="0.25" value={amendForm.hours} onChange={(e) => setAmendForm((p) => ({ ...p, hours: e.target.value }))} placeholder="2.5" className="input-field" required />
+              </div>
+              <div>
+                <label className="field-label">Date</label>
+                <input type="date" value={amendForm.date} onChange={(e) => setAmendForm((p) => ({ ...p, date: e.target.value }))} className="input-field" required />
+              </div>
+              <div className="flex items-center gap-3 mt-5">
+                <input type="checkbox" id="amendBillable" checked={amendForm.billable} onChange={(e) => setAmendForm((p) => ({ ...p, billable: e.target.checked }))} className="w-4 h-4 accent-accent" />
+                <label htmlFor="amendBillable" className="text-sm text-white/70 font-helvetica cursor-pointer">Billable</label>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button type="submit" disabled={amending} className="btn-primary text-xs px-5">{amending ? "Saving…" : "Post Amendment"}</button>
+              <button type="button" onClick={() => setAmendTarget(null)} className="text-xs text-white/40 hover:text-white font-helvetica px-3 transition-colors">Cancel</button>
+            </div>
+          </form>
         </div>
       )}
     </div>

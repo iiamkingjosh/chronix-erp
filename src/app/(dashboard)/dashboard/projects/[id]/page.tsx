@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   getProject, updateProjectStatus, addProjectActivity,
-  updateTasks, completeMilestone, addProjectFile, removeProjectFile,
+  updateTasks, completeMilestone, addProjectFile, removeProjectFile, deleteProject,
 } from "@/lib/projects-service";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
@@ -23,7 +24,7 @@ import type { Invoice } from "@/types/finance";
 import { formatNaira, formatDate } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 const TASK_COLS: TaskStatus[] = ["todo", "in_progress", "done"];
@@ -117,9 +118,13 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const canManage = profile ? hasPermission(profile.role, "manage:projects") : false;
-  const isOnTeam  = project?.team.some((m) => m.uid === profile?.uid) ?? false;
-  const canEdit   = canManage || isOnTeam;
+  const canManage   = profile ? hasPermission(profile.role, "manage:projects") : false;
+  const canFinance  = profile ? hasPermission(profile.role, "manage:finance") : false;
+  const isAdmin     = profile ? isRootAdmin(profile.role) : false;
+  const isOnTeam    = project?.team.some((m) => m.uid === profile?.uid) ?? false;
+  const canEdit     = canManage || isOnTeam;
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting]                   = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -196,6 +201,18 @@ export default function ProjectDetailPage() {
     setProject((prev) => prev ? { ...prev, tasks: newTasks, progress: calcProgress(newTasks) } : prev);
   }
 
+  async function handleDeleteProject() {
+    if (!project || !isAdmin) return;
+    setDeleting(true);
+    try {
+      await deleteProject(project);
+      router.push("/dashboard/projects");
+    } catch {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  }
+
   async function handleMilestoneDone(msId: string) {
     if (!project || !profile) return;
     const milestone = project.milestones.find((m) => m.id === msId);
@@ -239,9 +256,17 @@ export default function ProjectDetailPage() {
             <h2 className="font-orbitron text-xl font-bold text-white">{project.name}</h2>
             <p className="text-white/40 text-sm font-helvetica mt-0.5">{project.clientName}</p>
           </div>
-          <div className="text-right shrink-0">
-            <p className="font-orbitron text-3xl font-bold text-accent">{project.progress}%</p>
-            <p className="text-white/30 text-xs font-helvetica">complete</p>
+          <div className="flex items-center gap-6 shrink-0">
+            {project.budget != null && (
+              <div className="text-right">
+                <p className="font-orbitron text-xl font-bold text-secondary">{formatNaira(project.budget)}</p>
+                <p className="text-white/30 text-xs font-helvetica">budget</p>
+              </div>
+            )}
+            <div className="text-right">
+              <p className="font-orbitron text-3xl font-bold text-accent">{project.progress}%</p>
+              <p className="text-white/30 text-xs font-helvetica">complete</p>
+            </div>
           </div>
         </div>
         <div className="mt-4 w-full bg-white/10 rounded-full h-2">
@@ -524,6 +549,28 @@ export default function ProjectDetailPage() {
             </div>
           )}
 
+          {/* Invoice link / raise */}
+          {canFinance && project.budget != null && (
+            <div className="surface-card p-5">
+              <p className="font-orbitron text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-3">Invoice</p>
+              {project.invoiceId ? (
+                <Link
+                  href={`/dashboard/finance/invoices/${project.invoiceId}`}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-accent/30 text-accent hover:bg-accent/10 text-xs font-helvetica transition-colors"
+                >
+                  View Invoice {project.invoiceRef ? `(${project.invoiceRef})` : ""} →
+                </Link>
+              ) : (
+                <Link
+                  href={`/dashboard/finance/invoices/new?clientId=${encodeURIComponent(project.clientId ?? "")}&clientName=${encodeURIComponent(project.clientName)}&amount=${project.budget}&description=${encodeURIComponent(project.name)}&projectId=${encodeURIComponent(project.id)}`}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-secondary/30 text-secondary hover:bg-secondary/10 text-xs font-helvetica transition-colors"
+                >
+                  Raise Invoice →
+                </Link>
+              )}
+            </div>
+          )}
+
           {invoices.length > 0 && (
             <div className="surface-card p-5">
               <p className="font-orbitron text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-3">Linked Invoices</p>
@@ -534,6 +581,46 @@ export default function ProjectDetailPage() {
                     <span className="text-white/50">{formatNaira(inv.total)}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Delete Project — Root Admin only */}
+          {isAdmin && (
+            <div className="surface-card p-5">
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-full text-xs py-2 px-3 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 font-helvetica transition-colors"
+              >
+                Delete Project
+              </button>
+            </div>
+          )}
+
+          {/* Delete confirmation modal */}
+          {showDeleteConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div className="surface-card p-6 max-w-sm w-full space-y-4 animate-fade-in">
+                <h3 className="font-orbitron text-sm font-bold text-white">Delete Project?</h3>
+                <p className="text-white/60 text-sm font-helvetica leading-relaxed">
+                  This will permanently delete <span className="text-white font-semibold">{project.name}</span> and all attached files.{" "}
+                  <span className="text-red-400">This cannot be undone.</span>
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleDeleteProject}
+                    disabled={deleting}
+                    className="flex-1 py-2 text-sm rounded-xl bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 font-helvetica transition-colors"
+                  >
+                    {deleting ? "Deleting…" : "Yes, Delete"}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="px-4 py-2 text-sm text-white/40 hover:text-white font-helvetica transition-colors border border-white/10 hover:border-white/20 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           )}

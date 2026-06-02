@@ -7,6 +7,7 @@ import {
   updateDoc,
   query,
   orderBy,
+  where,
   arrayUnion,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -112,6 +113,17 @@ export async function getStaffList(): Promise<StaffMember[]> {
     email:       (d.data().email as string) || "",
     role:        d.data().role as string,
   }));
+}
+
+export async function getOpenTicketsWithSLA(): Promise<Ticket[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, TKT),
+      where("status", "in", ["open", "in_progress"]),
+      orderBy("slaDeadline", "asc")
+    )
+  );
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Ticket));
 }
 
 export async function escalateTicket(

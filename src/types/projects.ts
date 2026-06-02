@@ -54,11 +54,14 @@ export interface Project {
   milestones: Milestone[];
   tasks: Task[];
   activity: ProjectActivity[];
-  progress: number;
-  createdAt: string;
-  createdBy: string;
-  updatedAt: string;
-  files?: ProjectFile[];
+  progress:    number;
+  createdAt:   string;
+  createdBy:   string;
+  updatedAt:   string;
+  files?:      ProjectFile[];
+  budget?:     number;
+  invoiceId?:  string;
+  invoiceRef?: string;
 }
 
 export interface ProjectFile {

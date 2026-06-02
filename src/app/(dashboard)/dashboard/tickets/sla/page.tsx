@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getTickets } from "@/lib/tickets-service";
+import { getOpenTicketsWithSLA } from "@/lib/tickets-service";
 import {
   PRIORITY_LABELS, PRIORITY_STYLES,
   STATUS_LABELS, STATUS_STYLES,
@@ -17,11 +17,11 @@ export default function SLADashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getTickets().then(setTickets).finally(() => setLoading(false));
+    getOpenTicketsWithSLA().then(setTickets).finally(() => setLoading(false));
   }, []);
 
-  const active   = tickets.filter((t) => t.status !== "resolved" && t.status !== "closed");
-  const resolved = tickets.filter((t) => t.status === "resolved" || t.status === "closed");
+  const active   = tickets;
+  const resolved: Ticket[] = [];
 
   const breached   = active.filter((t) => getSlaStatus(t.slaDeadline, t.status) === "breached");
   const critical   = active.filter((t) => getSlaStatus(t.slaDeadline, t.status) === "critical");

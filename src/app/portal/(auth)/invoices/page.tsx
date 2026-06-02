@@ -17,8 +17,8 @@ export default function PortalInvoicesPage() {
 
   useEffect(() => {
     if (!clientName) return;
-    getPortalInvoices(clientName).then(setInvoices).finally(() => setLoading(false));
-  }, [clientName]);
+    getPortalInvoices(clientName, clientRecord?.id).then(setInvoices).finally(() => setLoading(false));
+  }, [clientName, clientRecord?.id]);
 
   if (loading) {
     return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;

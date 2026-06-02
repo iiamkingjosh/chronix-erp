@@ -25,33 +25,58 @@ export async function getClientByEmail(email: string): Promise<Client | null> {
   return { id: snap.docs[0].id, ...snap.docs[0].data() } as Client;
 }
 
-export async function getPortalInvoices(clientName: string): Promise<Invoice[]> {
-  const snap = await getDocs(
-    query(collection(db, "invoices"), where("client.name", "==", clientName))
-  );
-  const invoices = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Invoice));
+export async function getPortalInvoices(clientName: string, clientId?: string): Promise<Invoice[]> {
+  const [byName, byId] = await Promise.all([
+    getDocs(query(collection(db, "invoices"), where("client.name", "==", clientName))),
+    clientId
+      ? getDocs(query(collection(db, "invoices"), where("client.id", "==", clientId)))
+      : Promise.resolve(null),
+  ]);
+  const seen = new Set<string>();
+  const invoices: Invoice[] = [];
+  for (const snap of [byName, byId]) {
+    if (!snap) continue;
+    for (const d of snap.docs) {
+      if (!seen.has(d.id)) { seen.add(d.id); invoices.push({ id: d.id, ...d.data() } as Invoice); }
+    }
+  }
   return sortByDateDesc(invoices, (inv) => inv.createdAt);
 }
 
-export async function getPortalTickets(clientName: string): Promise<Ticket[]> {
-  const snap = await getDocs(
-    query(collection(db, "tickets"), where("client.name", "==", clientName))
-  );
-  const tickets = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Ticket));
+export async function getPortalTickets(clientName: string, clientId?: string): Promise<Ticket[]> {
+  const [byName, byId] = await Promise.all([
+    getDocs(query(collection(db, "tickets"), where("client.name", "==", clientName))),
+    clientId
+      ? getDocs(query(collection(db, "tickets"), where("client.id", "==", clientId)))
+      : Promise.resolve(null),
+  ]);
+  const seen = new Set<string>();
+  const tickets: Ticket[] = [];
+  for (const snap of [byName, byId]) {
+    if (!snap) continue;
+    for (const d of snap.docs) {
+      if (!seen.has(d.id)) { seen.add(d.id); tickets.push({ id: d.id, ...d.data() } as Ticket); }
+    }
+  }
   return sortByDateDesc(tickets, (t) => t.createdAt);
 }
 
-export async function getPortalSubscriptions(clientName: string): Promise<Subscription[]> {
-  const snap = await getDocs(
-    query(
-      collection(db, "subscriptions"),
-      where("clientName", "==", clientName),
-      where("cancelled", "==", false)
-    )
-  );
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() } as Subscription))
-    .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+export async function getPortalSubscriptions(clientName: string, clientId?: string): Promise<Subscription[]> {
+  const [byName, byId] = await Promise.all([
+    getDocs(query(collection(db, "subscriptions"), where("clientName", "==", clientName), where("cancelled", "==", false))),
+    clientId
+      ? getDocs(query(collection(db, "subscriptions"), where("clientId", "==", clientId), where("cancelled", "==", false)))
+      : Promise.resolve(null),
+  ]);
+  const seen = new Set<string>();
+  const subs: Subscription[] = [];
+  for (const snap of [byName, byId]) {
+    if (!snap) continue;
+    for (const d of snap.docs) {
+      if (!seen.has(d.id)) { seen.add(d.id); subs.push({ id: d.id, ...d.data() } as Subscription); }
+    }
+  }
+  return subs.sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
 }
 
 export async function submitPortalTicket(data: {

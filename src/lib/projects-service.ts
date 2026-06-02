@@ -1,5 +1,5 @@
 import {
-  collection, doc, addDoc, getDoc, getDocs,
+  collection, doc, addDoc, getDoc, getDocs, deleteDoc,
   updateDoc, query, orderBy, arrayUnion, arrayRemove,
 } from "firebase/firestore";
 import { db, storage } from "./firebase";
@@ -114,4 +114,19 @@ export async function removeProjectFile(
     updatedAt: new Date().toISOString(),
   });
   await deleteObject(ref(storage, file.storagePath));
+}
+
+export async function linkProjectInvoice(
+  projectId: string,
+  invoiceId: string,
+  invoiceRef: string
+): Promise<void> {
+  await updateDoc(doc(db, PROJ, projectId), { invoiceId, invoiceRef, updatedAt: new Date().toISOString() });
+}
+
+export async function deleteProject(project: Project): Promise<void> {
+  await Promise.allSettled(
+    (project.files ?? []).map((f) => deleteObject(ref(storage, f.storagePath)).catch(() => {}))
+  );
+  await deleteDoc(doc(db, PROJ, project.id));
 }

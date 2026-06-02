@@ -145,6 +145,14 @@
         { "fieldPath": "clientName", "order": "ASCENDING" },
         { "fieldPath": "cancelled",  "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "tickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",      "order": "ASCENDING" },
+        { "fieldPath": "slaDeadline", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

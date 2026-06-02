@@ -32,6 +32,7 @@ const schema = z.object({
   startDate:   z.string().min(1, "Required"),
   deadline:    z.string().min(1, "Required"),
   milestones:  z.array(milestoneSchema),
+  budget:      z.coerce.number().min(0).optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -111,6 +112,7 @@ export default function NewProjectPage() {
         deadline:    data.deadline,
         milestones,
         tasks:       [],
+        ...(data.budget ? { budget: data.budget } : {}),
         activity: [{
           id:         crypto.randomUUID(),
           type:       "status_change",
@@ -210,6 +212,10 @@ export default function NewProjectPage() {
                 <input {...register("deadline")} type="date" className="input-field" />
                 {errors.deadline && <p className="mt-1 text-xs text-red-400">{errors.deadline.message}</p>}
               </div>
+            </div>
+            <div>
+              <label className="field-label">Project Budget (₦) <span className="text-white/20 font-normal normal-case">(optional)</span></label>
+              <input {...register("budget")} type="number" min="0" step="1000" placeholder="e.g. 2500000" className="input-field" />
             </div>
           </div>
         </div>

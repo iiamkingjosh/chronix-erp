@@ -2,19 +2,21 @@ export type TimeEntryType = "ticket" | "project" | "client" | "internal" | "admi
 
 export interface TimeEntry {
   id: string;
-  employeeUid:  string;
-  employeeName: string;
-  type:         TimeEntryType;
-  linkedId?:    string;
-  linkedRef?:   string;
-  description:  string;
-  date:         string;
-  hours:        number;
-  billable:     boolean;
-  clientName?:  string;
-  approvedBy?:  string;
-  approvedAt?:  string;
-  createdAt:    string;
+  employeeUid:    string;
+  employeeName:   string;
+  type:           TimeEntryType;
+  linkedId?:      string;
+  linkedRef?:     string;
+  description:    string;
+  date:           string;
+  hours:          number;
+  billable:       boolean;
+  clientName?:    string;
+  approvedBy?:    string;
+  approvedAt?:    string;
+  createdAt:      string;
+  amendedFromId?: string;
+  isVoided?:      boolean;
 }
 
 export const TIME_ENTRY_TYPE_LABELS: Record<TimeEntryType, string> = {

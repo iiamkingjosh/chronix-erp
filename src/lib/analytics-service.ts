@@ -5,6 +5,22 @@ import { getProjects } from "./projects-service";
 import { getSubscriptions } from "./subscriptions-service";
 import { getDaysLeft } from "@/types/subscriptions";
 
+const CACHE_TTL_MS = 60_000;
+interface CacheEntry<T> { data: T; ts: number; }
+const _cache = new Map<string, CacheEntry<unknown>>();
+
+function getCached<T>(key: string): T | null {
+  const entry = _cache.get(key) as CacheEntry<T> | undefined;
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) { _cache.delete(key); return null; }
+  return entry.data;
+}
+function setCached<T>(key: string, data: T): T {
+  _cache.set(key, { data, ts: Date.now() });
+  return data;
+}
+export function clearAnalyticsCache(): void { _cache.clear(); }
+
 /* Resolve a month string "YYYY-MM" from a Date */
 function monthStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -37,6 +53,9 @@ export const EMPTY_MASTER: MasterDashboardData = {
 };
 
 export async function getMasterDashboard(): Promise<MasterDashboardData> {
+  const cached = getCached<MasterDashboardData>("master");
+  if (cached) return cached;
+
   const [invoices, tickets, clients, projects, subs, staff] = await Promise.all([
     safe(getInvoices()), safe(getTickets()), safe(getClients()),
     safe(getProjects()), safe(getSubscriptions()), safe(getStaffList()),
@@ -46,7 +65,7 @@ export async function getMasterDashboard(): Promise<MasterDashboardData> {
   const lastM = lastMonthStr();
   const paid  = invoices.filter((i) => i.status === "paid");
 
-  return {
+  return setCached("master", {
     revenueThisMonth:    paid.filter((i) => i.invoiceDate?.startsWith(thisM)).reduce((s, i) => s + (i.total ?? 0), 0),
     revenueLastMonth:    paid.filter((i) => i.invoiceDate?.startsWith(lastM)).reduce((s, i) => s + (i.total ?? 0), 0),
     outstandingInvoices: invoices.filter((i) => i.status === "pending" || i.status === "overdue").reduce((s, i) => s + (i.total ?? 0), 0),
@@ -55,7 +74,7 @@ export async function getMasterDashboard(): Promise<MasterDashboardData> {
     expiringSubsCount:   subs.filter((s) => { if (s.cancelled) return false; const d = getDaysLeft(s.expiryDate); return d >= 0 && d <= 60; }).length,
     activeProjectsCount: projects.filter((p) => p.status === "in_progress").length,
     teamHeadcount:       staff.length,
-  };
+  });
 }
 
 /* ── Sales Analytics ────────────────────────────────────── */
@@ -79,6 +98,8 @@ export const EMPTY_SALES: SalesData = {
 };
 
 export async function getSalesAnalytics(): Promise<SalesData> {
+  const cached = getCached<SalesData>("sales");
+  if (cached) return cached;
   const [invoices, leads] = await Promise.all([safe(getInvoices()), safe(getLeads())]);
 
   const now = new Date();
@@ -101,7 +122,7 @@ export async function getSalesAnalytics(): Promise<SalesData> {
   const totalLeads     = leads.length;
   const convertedLeads = leads.filter((l) => l.convertedAt || l.stage === "client" || l.stage === "retained").length;
 
-  return {
+  return setCached("sales", {
     monthlyRevenue:       months,
     revenueByClient:      Object.entries(clientRevMap).map(([client, revenue]) => ({ client, revenue })).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
     dealsClosedThisMonth: invoices.filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(thisMonthStr())).length,
@@ -109,7 +130,7 @@ export async function getSalesAnalytics(): Promise<SalesData> {
     pipelineValue:        invoices.filter((i) => i.status === "pending").reduce((s, i) => s + (i.total ?? 0), 0),
     totalLeads,
     convertedLeads,
-  };
+  });
 }
 
 /* ── Service Delivery Analytics ─────────────────────────── */
@@ -131,6 +152,8 @@ export const EMPTY_SERVICE: ServiceData = {
 };
 
 export async function getServiceAnalytics(): Promise<ServiceData> {
+  const cached = getCached<ServiceData>("service");
+  if (cached) return cached;
   const tickets = await safe(getTickets());
 
   const resolved = tickets.filter((t) => t.resolvedAt);
@@ -150,7 +173,7 @@ export async function getServiceAnalytics(): Promise<ServiceData> {
   const titleCounts: Record<string, number> = {};
   tickets.forEach((t) => { titleCounts[t.title] = (titleCounts[t.title] ?? 0) + 1; });
 
-  return {
+  return setCached("service", {
     avgResolutionHours: Math.round(avgResolutionHours * 10) / 10,
     slaBreachRate:      open.length > 0 ? Math.round((breached.length / open.length) * 100) : 0,
     ticketsByPriority:  Object.entries(priorityCounts).map(([priority, count]) => ({ priority, count })),
@@ -158,7 +181,7 @@ export async function getServiceAnalytics(): Promise<ServiceData> {
     topIssues:          Object.entries(titleCounts).map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count).slice(0, 8),
     totalResolved:      resolved.length,
     totalBreached:      breached.length,
-  };
+  });
 }
 
 /* ── Team Productivity ──────────────────────────────────── */
@@ -177,6 +200,8 @@ export const EMPTY_TEAM: TeamData = {
 };
 
 export async function getTeamAnalytics(): Promise<TeamData> {
+  const cached = getCached<TeamData>("team");
+  if (cached) return cached;
   const [tickets, projects] = await Promise.all([safe(getTickets()), safe(getProjects())]);
 
   const taskMap: Record<string, { name: string; count: number }> = {};
@@ -197,13 +222,13 @@ export async function getTeamAnalytics(): Promise<TeamData> {
   const active  = projects.filter((p) => p.status === "in_progress" || p.status === "not_started");
   const delayed = active.filter((p) => p.deadline && new Date(p.deadline + "T23:59:59") < now).length;
 
-  return {
+  return setCached("team", {
     tasksCompleted:      Object.values(taskMap).sort((a, b) => b.count - a.count),
     openTicketsPerStaff: Object.values(ticketMap).sort((a, b) => b.count - a.count),
     projectsOnTrack:     active.length - delayed,
     projectsDelayed:     delayed,
     totalProjects:       projects.length,
-  };
+  });
 }
 
 /* ── Client Retention ───────────────────────────────────── */
@@ -223,6 +248,8 @@ export const EMPTY_RETENTION: RetentionData = {
 };
 
 export async function getRetentionAnalytics(): Promise<RetentionData> {
+  const cached = getCached<RetentionData>("retention");
+  if (cached) return cached;
   const [clients, invoices, leads] = await Promise.all([
     safe(getClients()), safe(getInvoices()), safe(getLeads()),
   ]);
@@ -247,12 +274,12 @@ export async function getRetentionAnalytics(): Promise<RetentionData> {
     });
   }
 
-  return {
+  return setCached("retention", {
     activeClients:     clients.length,
     retainedLeads:     retained,
     retentionRate:     total > 0 ? Math.round((retained / total) * 100) : 0,
     avgClientValue:    clients.length > 0 ? Math.round(Object.values(clientValueMap).reduce((s, v) => s + v, 0) / clients.length) : 0,
     topClientsByValue: Object.entries(clientValueMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8),
     clientsByMonth,
-  };
+  });
 }

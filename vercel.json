@@ -2,6 +2,7 @@
   "crons": [
     { "path": "/api/cron/tax",           "schedule": "0 7 * * *" },
     { "path": "/api/cron/subscriptions", "schedule": "0 7 * * *" },
-    { "path": "/api/cron/invoices",      "schedule": "0 7 * * *" }
+    { "path": "/api/cron/invoices",      "schedule": "0 7 * * *" },
+    { "path": "/api/cron/crm",           "schedule": "0 8 * * *" }
   ]
 }

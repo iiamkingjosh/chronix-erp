@@ -21,8 +21,8 @@ export default function PortalSubscriptionsPage() {
 
   useEffect(() => {
     if (!clientName) return;
-    getPortalSubscriptions(clientName).then(setSubs).finally(() => setLoading(false));
-  }, [clientName]);
+    getPortalSubscriptions(clientName, clientRecord?.id).then(setSubs).finally(() => setLoading(false));
+  }, [clientName, clientRecord?.id]);
 
   if (loading) {
     return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;

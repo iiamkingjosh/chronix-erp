@@ -318,7 +318,7 @@ service cloud.firestore {
       allow create: if canManageProjects();
       allow update: if canManageProjects() || resource.data.createdBy == request.auth.uid
         || isFilesOnlyUpdate() || isTeamMemberTaskUpdate() || isTeamMemberActivityUpdate();
-      allow delete: if false;
+      allow delete: if isRootAdmin();
     }
 
     /* ── Vendors ──────────────────────────────────────────── */
@@ -459,7 +459,10 @@ service cloud.firestore {
         resource.data.employeeUid == request.auth.uid
       );
       allow create: if isAuth() && !isClientRole();
-      allow update, delete: if false;
+      allow update: if isAuth() &&
+        resource.data.employeeUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isVoided']);
+      allow delete: if false;
     }
 
     /* ── Audit Logs ──────────────────────────────────────── */
@@ -488,7 +491,10 @@ service cloud.firestore {
     match /incidents/{incidentId} {
       allow read: if isAuth() && !isClientRole();
       allow create: if isAuth() && !isClientRole();
-      allow update: if isAuth() && !isClientRole();
+      allow update: if isAuth() && (
+        isRootAdmin() || isSystemAdmin() || isCEO() || isCFO() || isITManager() ||
+        resource.data.createdBy == request.auth.uid
+      );
       allow delete: if false;
     }
 
