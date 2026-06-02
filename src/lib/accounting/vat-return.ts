@@ -1,5 +1,26 @@
+import { db } from "@/lib/firebase";
+import { collection, doc, setDoc, getDocs, query, where } from "firebase/firestore";
 import { getJournalEntriesByDateRange } from "./journal-entries";
 import type { VATReturn } from "@/types/finance";
+
+export async function saveVATReturn(report: VATReturn, userId: string): Promise<VATReturn> {
+  const filed: VATReturn = {
+    ...report,
+    status:    "filed",
+    filedDate: new Date().toISOString().split("T")[0],
+    createdBy: userId,
+  };
+  await setDoc(doc(db, "vat_returns", report.id), filed);
+  return filed;
+}
+
+export async function getVATReturnForPeriod(period: string): Promise<VATReturn | null> {
+  const snap = await getDocs(
+    query(collection(db, "vat_returns"), where("period", "==", period))
+  );
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() } as VATReturn;
+}
 
 export async function generateVATReturn(month: string, userId: string): Promise<VATReturn> {
   const [year, mm] = month.split("-");

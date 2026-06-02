@@ -11,17 +11,17 @@ export const DEFAULT_ACCOUNTS: Omit<ChartOfAccount, "id" | "createdAt" | "create
   // ASSETS (1000–1999)
   { accountCode: "1010", accountName: "Cash in Bank — Fidelity (5601601109)", accountType: "ASSET", category: "Current Assets", isActive: true },
   { accountCode: "1020", accountName: "Petty Cash",                            accountType: "ASSET", category: "Current Assets", isActive: true },
-  { accountCode: "1100", accountName: "Accounts Receivable",                   accountType: "ASSET", category: "Current Assets", isActive: true },
-  { accountCode: "1200", accountName: "Inventory — Hardware for Resale",       accountType: "ASSET", category: "Current Assets", isActive: true },
+  { accountCode: "1100", accountName: "Accounts Receivable",                   accountType: "ASSET", category: "Current Assets",                    isActive: true },
+  { accountCode: "1110", accountName: "VAT Recoverable (Input)",               accountType: "ASSET", category: "Current Assets", subCategory: "Tax", isActive: true },
+  { accountCode: "1200", accountName: "Inventory — Hardware for Resale",       accountType: "ASSET", category: "Current Assets",                    isActive: true },
   { accountCode: "1300", accountName: "Prepaid Expenses",                      accountType: "ASSET", category: "Current Assets", isActive: true },
   { accountCode: "1400", accountName: "Office Equipment",                      accountType: "ASSET", category: "Fixed Assets",   isActive: true },
   { accountCode: "1500", accountName: "Computer Equipment",                    accountType: "ASSET", category: "Fixed Assets",   isActive: true },
 
   // LIABILITIES (2000–2999)
-  { accountCode: "2010", accountName: "Accounts Payable",         accountType: "LIABILITY", category: "Current Liabilities",                           isActive: true },
-  { accountCode: "2100", accountName: "VAT Payable (7.5%)",       accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax",        isActive: true },
-  { accountCode: "2110", accountName: "VAT Recoverable (Input)",  accountType: "ASSET",     category: "Current Assets",      subCategory: "Tax",        isActive: true },
-  { accountCode: "2200", accountName: "WHT Payable",              accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax",        isActive: true },
+  { accountCode: "2010", accountName: "Accounts Payable",   accountType: "LIABILITY", category: "Current Liabilities",                        isActive: true },
+  { accountCode: "2100", accountName: "VAT Payable (7.5%)", accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax",    isActive: true },
+  { accountCode: "2200", accountName: "WHT Payable",        accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax",    isActive: true },
   { accountCode: "2300", accountName: "PAYE Payable",             accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax",        isActive: true },
 
   // EQUITY (3000–3999)

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { generateVATReturn } from "@/lib/accounting/vat-return";
+import { generateVATReturn, saveVATReturn, getVATReturnForPeriod } from "@/lib/accounting/vat-return";
 import { formatNaira } from "@/types/finance";
 import type { VATReturn } from "@/types/finance";
 
@@ -13,14 +13,32 @@ export default function VATReturnPage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [report, setReport]   = useState<VATReturn | null>(null);
   const [loading, setLoading] = useState(false);
+  const [filed,   setFiled]   = useState(false);
+  const [filing,  setFiling]  = useState(false);
 
   async function load() {
     if (!profile) return;
     setLoading(true);
     try {
-      const mm = String(month).padStart(2, "0");
-      setReport(await generateVATReturn(`${year}-${mm}`, profile.uid));
+      const mm      = String(month).padStart(2, "0");
+      const period  = `${year}-${mm}`;
+      const [generated, existing] = await Promise.all([
+        generateVATReturn(period, profile.uid),
+        getVATReturnForPeriod(period),
+      ]);
+      setReport(existing ?? generated);
+      setFiled(existing !== null);
     } finally { setLoading(false); }
+  }
+
+  async function fileReturn() {
+    if (!report || !profile) return;
+    setFiling(true);
+    try {
+      const saved = await saveVATReturn(report, profile.uid);
+      setReport(saved);
+      setFiled(true);
+    } finally { setFiling(false); }
   }
 
   useEffect(() => { load(); }, [year, month]); // eslint-disable-line
@@ -142,6 +160,22 @@ export default function VATReturnPage() {
             <p className="text-[10px] text-white/20 font-helvetica">
               Generated {new Date(report.createdAt).toLocaleString("en-GB")}
             </p>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            {filed ? (
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-helvetica font-semibold">
+                ✓ Filed — {report.returnNumber}
+              </span>
+            ) : (
+              <button
+                onClick={fileReturn}
+                disabled={filing}
+                className="btn-primary text-xs px-5 py-2 disabled:opacity-50"
+              >
+                {filing ? "Filing…" : "File VAT Return"}
+              </button>
+            )}
           </div>
         </div>
       )}

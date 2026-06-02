@@ -23,10 +23,9 @@ const ACCOUNTS = [
   { accountCode: "1400", accountName: "Office Equipment",                      accountType: "ASSET",     category: "Fixed Assets",   isActive: true },
   { accountCode: "1500", accountName: "Computer Equipment",                    accountType: "ASSET",     category: "Fixed Assets",   isActive: true },
   // LIABILITIES
-  { accountCode: "2010", accountName: "Accounts Payable",                      accountType: "LIABILITY", category: "Current Liabilities",                        isActive: true },
-  { accountCode: "2100", accountName: "VAT Payable (7.5%)",                    accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax",    isActive: true },
-  { accountCode: "2110", accountName: "VAT Recoverable (Input)",               accountType: "ASSET",     category: "Current Assets",      subCategory: "Tax",    isActive: true },
-  { accountCode: "2200", accountName: "WHT Payable",                           accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax",    isActive: true },
+  { accountCode: "2010", accountName: "Accounts Payable",    accountType: "LIABILITY", category: "Current Liabilities",                     isActive: true },
+  { accountCode: "2100", accountName: "VAT Payable (7.5%)", accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax", isActive: true },
+  { accountCode: "2200", accountName: "WHT Payable",        accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax", isActive: true },
   { accountCode: "2300", accountName: "PAYE Payable",                          accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax",    isActive: true },
   // EQUITY
   { accountCode: "3010", accountName: "Share Capital — Moses Joshua (90%)",    accountType: "EQUITY",    category: "Equity", isActive: true },

@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
             const total     = Math.round((cost + vatAmount) * 100) / 100;
             const invoiceDate = d.toISOString().split("T")[0];
 
-            await db.collection("invoices").add({
+            const invRef = await db.collection("invoices").add({
               invoiceNumber,
               invoiceDate,
               dueDate:        sub.expiryDate,
@@ -111,6 +111,45 @@ export async function GET(req: NextRequest) {
               createdAt:            new Date().toISOString(),
               createdBy:            "cron",
             });
+
+            // Post journal entry: DR 1100 AR / CR 4010 Revenue / CR 2100 VAT
+            try {
+              const prefix      = `${yy}${mm}${dd}`;
+              const counterRef  = db.collection("metadata").doc(`journalCounter_${prefix}`);
+              const jeNumber    = await db.runTransaction(async (tx) => {
+                const cSnap = await tx.get(counterRef);
+                if (!cSnap.exists) { tx.set(counterRef, { lastNumber: 1, date: prefix }); return 1; }
+                const n = (cSnap.data()!.lastNumber as number) + 1;
+                tx.update(counterRef, { lastNumber: n });
+                return n;
+              });
+              const entryNumber = `JE${prefix}-${String(jeNumber).padStart(3, "0")}`;
+              const now2        = new Date().toISOString();
+              await db.collection("journal_entries").add({
+                entryNumber,
+                entryDate:     invoiceDate,
+                description:   `Invoice ${invoiceNumber} — ${sub.clientName ?? "Unknown"} (auto)`,
+                reference:     invoiceNumber,
+                referenceType: "invoice",
+                referenceId:   invRef.id,
+                lineItems: [
+                  { accountCode: "1100", accountName: "Accounts Receivable",        debit: total,      credit: 0,          description: `Invoice to ${sub.clientName ?? "Unknown"}` },
+                  { accountCode: "4010", accountName: "IT Consulting Services Revenue", debit: 0,      credit: cost,       description: `${sub.itemName} — Subscription Renewal` },
+                  { accountCode: "2100", accountName: "VAT Payable (7.5%)",          debit: 0,         credit: vatAmount,  description: "VAT 7.5% collected" },
+                ],
+                totalDebit:  total,
+                totalCredit: Math.round((cost + vatAmount) * 100) / 100,
+                status:      "posted",
+                createdBy:   "cron",
+                postedBy:    "cron",
+                postedAt:    now2,
+                createdAt:   now2,
+              });
+            } catch (jeErr) {
+              console.error("[cron/subscriptions] journal entry failed for invoice", invRef.id, jeErr);
+              await invRef.update({ _journalError: String(jeErr) }).catch(() => {});
+            }
+
             invoicesCreated++;
           }
         }

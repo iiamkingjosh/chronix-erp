@@ -46,10 +46,12 @@ export async function generateProfitLoss(
       else if (code === "6040") opex.fuel           += expenseAmt;
       else if (code === "6060") opex.marketing      += expenseAmt;
       else if (code === "6070") opex.professional   += expenseAmt;
-      else if (code === "6080") opex.meals          += expenseAmt;
-      else if (code === "6090") opex.equipment      += expenseAmt;
+      else if (code === "6600") opex.meals          += expenseAmt;
+      else if (code === "6050") opex.equipment      += expenseAmt;
       else if (code === "6200") opex.utilities      += expenseAmt;
       else if (code === "6300") opex.subscriptions  += expenseAmt;
+      else if (code === "6700") opex.other          += expenseAmt;
+      else if (code === "6080") opex.other          += expenseAmt;
       else if (code.startsWith("6")) opex.other     += expenseAmt;
     }
   }

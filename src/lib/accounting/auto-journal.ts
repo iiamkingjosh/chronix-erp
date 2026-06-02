@@ -8,16 +8,16 @@ import { round } from "@/lib/utils";
 /* ── Expense account lookup ───────────────────────────────────────────────── */
 
 const EXPENSE_ACCOUNT: Record<string, { code: string; name: string }> = {
-  travel:     { code: "6040", name: "Fuel & Transport" },
-  meals:      { code: "6080", name: "Meals & Entertainment" },
-  equipment:  { code: "6090", name: "Equipment & Supplies" },
-  software:   { code: "6300", name: "Subscriptions & Software" },
+  travel:     { code: "6040", name: "Fuel & Transportation" },
+  meals:      { code: "6600", name: "Entertainment & Client Relations" },
+  equipment:  { code: "6050", name: "Office Supplies" },
+  software:   { code: "6300", name: "Subscriptions (Software, SaaS)" },
   marketing:  { code: "6060", name: "Marketing & Advertising" },
-  utilities:  { code: "6200", name: "Utilities" },
-  rent:       { code: "6020", name: "Rent & Office Costs" },
+  utilities:  { code: "6200", name: "Utilities (Electricity, Water)" },
+  rent:       { code: "6020", name: "Rent" },
   salaries:   { code: "6010", name: "Salaries & Wages" },
-  contractor: { code: "6070", name: "Professional & Contractor Fees" },
-  other:      { code: "6090", name: "Other Operating Expenses" },
+  contractor: { code: "6070", name: "Professional Fees (Legal, Accounting)" },
+  other:      { code: "6700", name: "Repairs & Maintenance" },
 };
 
 /* ── Revenue account lookup ───────────────────────────────────────────────── */
