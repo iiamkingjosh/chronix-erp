@@ -1,5 +1,22 @@
 import { createJournalEntry } from "./journal-entries";
 import type { Invoice, JournalEntry, JournalLineItem, Payment } from "@/types/finance";
+import type { Expense as ExpenseClaim } from "@/types/expense";
+import type { PayrollRun } from "@/types/hr";
+
+/* ── Expense account lookup ───────────────────────────────────────────────── */
+
+const EXPENSE_ACCOUNT: Record<string, { code: string; name: string }> = {
+  travel:     { code: "6040", name: "Fuel & Transport" },
+  meals:      { code: "6090", name: "Meals & Entertainment" },
+  equipment:  { code: "6090", name: "Equipment & Supplies" },
+  software:   { code: "6300", name: "Subscriptions & Software" },
+  marketing:  { code: "6060", name: "Marketing & Advertising" },
+  utilities:  { code: "6200", name: "Utilities" },
+  rent:       { code: "6020", name: "Rent & Office Costs" },
+  salaries:   { code: "6010", name: "Salaries & Wages" },
+  contractor: { code: "5030", name: "Subcontractor Costs" },
+  other:      { code: "6090", name: "Other Operating Expenses" },
+};
 
 /* ── Revenue account lookup ───────────────────────────────────────────────── */
 
@@ -108,6 +125,122 @@ export async function createPaymentJournalEntry(
     reference:     payment.invoiceNumber,
     referenceType: "payment",
     referenceId:   payment.id,
+    lineItems,
+    status:    "posted",
+    createdBy: userId,
+    postedBy:  userId,
+    postedAt:  new Date().toISOString(),
+  });
+}
+
+/* ── Expense paid ─────────────────────────────────────────────────────────── */
+/*
+ *  Debit  6xxx  Expense Account   (expense amount)
+ *  Credit 1010  Cash in Bank      (expense amount)
+ */
+export async function createExpenseJournalEntry(
+  expense: ExpenseClaim,
+  userId: string
+): Promise<JournalEntry> {
+  const acct = EXPENSE_ACCOUNT[expense.category] ?? { code: "6090", name: "Other Operating Expenses" };
+
+  const lineItems: JournalLineItem[] = [
+    {
+      accountCode: acct.code,
+      accountName: acct.name,
+      debit:  expense.amount,
+      credit: 0,
+      description: expense.title,
+    },
+    {
+      accountCode: "1010",
+      accountName: "Cash in Bank — Fidelity",
+      debit:  0,
+      credit: expense.amount,
+      description: `Expense payment: ${expense.title}`,
+    },
+  ];
+
+  return createJournalEntry({
+    entryDate:     expense.date,
+    description:   `Expense: ${expense.title} — ${expense.submittedBy}`,
+    reference:     expense.id,
+    referenceType: "expense",
+    referenceId:   expense.id,
+    lineItems,
+    status:    "posted",
+    createdBy: userId,
+    postedBy:  userId,
+    postedAt:  new Date().toISOString(),
+  });
+}
+
+/* ── Payroll paid ─────────────────────────────────────────────────────────── */
+/*
+ *  Debit  6010  Salaries & Wages      (totalGross)
+ *  Credit 1010  Cash in Bank          (totalNet — actual cash out)
+ *  Credit 2300  PAYE Payable          (PAYE withheld, if any)
+ */
+export async function createPayrollJournalEntry(
+  run: PayrollRun,
+  userId: string
+): Promise<JournalEntry> {
+  const mm         = String(run.month).padStart(2, "0");
+  const lastDay    = new Date(run.year, run.month, 0).getDate();
+  const entryDate  = `${run.year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+  const totalGross = run.entries.reduce((s, e) => s + e.baseSalary, 0);
+  const totalPAYE  = run.entries.reduce((s, e) => s + (e.payeAmount ?? 0), 0);
+  const totalOther = run.entries.reduce((s, e) => s + (e.deductions ?? 0), 0);
+  const totalNet   = totalGross - totalPAYE - totalOther;
+
+  const MONTH_NAMES = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December",
+  ];
+
+  const lineItems: JournalLineItem[] = [
+    {
+      accountCode: "6010",
+      accountName: "Salaries & Wages",
+      debit:  totalGross,
+      credit: 0,
+      description: `Payroll ${MONTH_NAMES[run.month - 1]} ${run.year} — ${run.entries.length} employee${run.entries.length !== 1 ? "s" : ""}`,
+    },
+    {
+      accountCode: "1010",
+      accountName: "Cash in Bank — Fidelity",
+      debit:  0,
+      credit: totalNet,
+      description: "Net salaries disbursed",
+    },
+  ];
+
+  if (totalPAYE > 0) {
+    lineItems.push({
+      accountCode: "2300",
+      accountName: "PAYE Payable",
+      debit:  0,
+      credit: totalPAYE,
+      description: `PAYE withheld ${mm}/${run.year}`,
+    });
+  }
+
+  if (totalOther > 0) {
+    lineItems.push({
+      accountCode: "2010",
+      accountName: "Accounts Payable",
+      debit:  0,
+      credit: totalOther,
+      description: "Other deductions payable",
+    });
+  }
+
+  return createJournalEntry({
+    entryDate,
+    description:   `Payroll ${MONTH_NAMES[run.month - 1]} ${run.year}`,
+    reference:     `PAY-${run.year}-${mm}`,
+    referenceType: "payroll",
+    referenceId:   run.id,
     lineItems,
     status:    "posted",
     createdBy: userId,

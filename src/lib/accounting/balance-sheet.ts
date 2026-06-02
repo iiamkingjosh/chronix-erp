@@ -2,7 +2,7 @@ import { getJournalEntriesByDateRange } from "./journal-entries";
 
 export async function generateBalanceSheet(asOfDate: string, userId: string) {
   // Read all posted entries from the beginning of time to the given date
-  const entries = await getJournalEntriesByDateRange("2026-01-01", asOfDate);
+  const entries = await getJournalEntriesByDateRange("2020-01-01", asOfDate);
 
   const bal: Record<string, number> = {};
   for (const entry of entries) {

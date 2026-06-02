@@ -4,6 +4,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Expense, ExpenseStatus } from "@/types/expense";
+import { createExpenseJournalEntry } from "@/lib/accounting/auto-journal";
 
 const COL = "expenses";
 
@@ -41,6 +42,20 @@ export async function updateExpenseStatus(
   if (status === "rejected") { update.rejectedBy = actorName; update.rejectedAt = now; update.rejectionReason = extra?.rejectionReason ?? ""; }
   if (status === "paid")     { update.paidAt = now; }
   await updateDoc(doc(db, COL, id), update);
+
+  if (status === "paid") {
+    const expense = await getExpense(id);
+    if (expense) {
+      try {
+        await createExpenseJournalEntry(expense, actorName);
+        await updateDoc(doc(db, COL, id), { _journalError: null });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[accounting] Failed to create expense journal entry:", msg);
+        updateDoc(doc(db, COL, id), { _journalError: msg }).catch(() => {});
+      }
+    }
+  }
 }
 
 export async function deleteExpense(id: string): Promise<void> {

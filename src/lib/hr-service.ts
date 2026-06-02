@@ -5,6 +5,8 @@ import {
 import { db } from "./firebase";
 import { auth } from "./firebase";
 import type { Employee, PayrollRun, PayrollEntry, PerformanceNote } from "@/types/hr";
+import { computeMonthlyPAYE } from "@/types/tax";
+import { createPayrollJournalEntry } from "@/lib/accounting/auto-journal";
 
 /* ── Employee number helpers ── */
 
@@ -216,9 +218,41 @@ export async function deleteEmployee(uid: string): Promise<void> {
 }
 
 /* ── Payroll ── */
+
+/**
+ * Stamps each entry with the monthly PAYE computed at generation time so
+ * payslips, markAllPaid, and the backfill all use the same authoritative figure.
+ */
+function enrichEntriesWithPAYE(entries: PayrollEntry[]): {
+  entries: PayrollEntry[];
+  totalGross: number;
+  totalPAYE: number;
+  totalNet: number;
+} {
+  const enriched = entries.map((e) => {
+    const { monthly } = computeMonthlyPAYE(e.baseSalary);
+    const paye   = Math.round(monthly);
+    const net    = e.baseSalary - paye - (e.deductions ?? 0);
+    return { ...e, payeAmount: paye, netPay: net };
+  });
+  const totalGross = enriched.reduce((s, e) => s + e.baseSalary, 0);
+  const totalPAYE  = enriched.reduce((s, e) => s + (e.payeAmount ?? 0), 0);
+  const totalNet   = enriched.reduce((s, e) => s + e.netPay, 0);
+  return { entries: enriched, totalGross, totalPAYE, totalNet };
+}
+
 export async function createPayrollRun(data: Omit<PayrollRun, "id">): Promise<PayrollRun> {
-  const ref = await addDoc(collection(db, PAY), data);
-  return { ...data, id: ref.id };
+  const { entries, totalGross, totalNet } = enrichEntriesWithPAYE(data.entries);
+  const totalPAYE = entries.reduce((s, e) => s + (e.payeAmount ?? 0), 0);
+  const payload = {
+    ...data,
+    entries,
+    totalGross,
+    totalDeductions: totalPAYE + (data.totalDeductions ?? 0),
+    totalNet,
+  };
+  const ref = await addDoc(collection(db, PAY), payload);
+  return { ...payload, id: ref.id };
 }
 
 export async function getPayrollRuns(): Promise<PayrollRun[]> {
@@ -231,7 +265,12 @@ export async function getPayrollRun(id: string): Promise<PayrollRun | null> {
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as PayrollRun) : null;
 }
 
-export async function markEntryPaid(runId: string, uid: string, currentEntries: PayrollEntry[]): Promise<void> {
+export async function markEntryPaid(
+  runId: string,
+  uid: string,
+  currentEntries: PayrollEntry[],
+  userId: string,
+): Promise<void> {
   const now     = new Date().toISOString();
   const updated = currentEntries.map((e) =>
     e.uid === uid ? { ...e, status: "paid" as const, paidAt: now } : e
@@ -243,9 +282,24 @@ export async function markEntryPaid(runId: string, uid: string, currentEntries: 
     updatedAt:    now,
     ...(allPaid ? { completedAt: now } : {}),
   });
+  if (allPaid) {
+    const run = await getPayrollRun(runId);
+    if (run) {
+      const fullRun = { ...run, entries: updated };
+      createPayrollJournalEntry(fullRun, userId).catch((e) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[accounting] payroll journal failed:", msg);
+        updateDoc(doc(db, PAY, runId), { _journalError: msg }).catch(() => {});
+      });
+    }
+  }
 }
 
-export async function markAllPaid(runId: string, currentEntries: PayrollEntry[]): Promise<void> {
+export async function markAllPaid(
+  runId: string,
+  currentEntries: PayrollEntry[],
+  userId: string,
+): Promise<void> {
   const now     = new Date().toISOString();
   const updated = currentEntries.map((e) => ({ ...e, status: "paid" as const, paidAt: now }));
   await updateDoc(doc(db, PAY, runId), {
@@ -254,4 +308,13 @@ export async function markAllPaid(runId: string, currentEntries: PayrollEntry[])
     completedAt: now,
     updatedAt:   now,
   });
+  const run = await getPayrollRun(runId);
+  if (run) {
+    const fullRun = { ...run, entries: updated };
+    createPayrollJournalEntry(fullRun, userId).catch((e) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[accounting] payroll journal failed:", msg);
+      updateDoc(doc(db, PAY, runId), { _journalError: msg }).catch(() => {});
+    });
+  }
 }

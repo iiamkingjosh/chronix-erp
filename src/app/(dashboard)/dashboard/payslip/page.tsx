@@ -21,9 +21,7 @@ function generateMonths(): Array<{ month: number; year: number }> {
 }
 
 function PayslipModal({
-  summary,
-  uid,
-  onClose,
+  summary, uid, onClose,
 }: {
   summary: PayslipSummary;
   uid:     string;
@@ -71,7 +69,7 @@ function PayslipModal({
         <div className="mb-4 pb-4 border-b border-white/10">
           <p className="font-orbitron text-xs font-bold text-secondary">CHRONIX TECHNOLOGY LIMITED</p>
           <p className="text-white/30 text-[10px] font-helvetica mt-0.5">
-            12 Admiralty Way, Lekki Phase 1, Lagos · hello@chronixtech.com
+            No.7 Jerry Iriabe Street, Lekki Phase 1, Lagos · Info@chronixtechnology.com
           </p>
         </div>
 
@@ -145,10 +143,12 @@ function PayslipModal({
 
 export default function PayslipPage() {
   const { profile } = useAuth();
-  const [summaries, setSummaries] = useState<PayslipSummary[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
-  const [selected, setSelected]   = useState<PayslipSummary | null>(null);
+  const [summaries,    setSummaries]    = useState<PayslipSummary[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState<string | null>(null);
+  const [selected,     setSelected]     = useState<PayslipSummary | null>(null);
+  const [checked,      setChecked]      = useState<Set<string>>(new Set());
+  const [bulkDl,       setBulkDl]       = useState(false);
 
   const months = generateMonths();
 
@@ -174,6 +174,50 @@ export default function PayslipPage() {
     return () => { cancelled = true; };
   }, [profile?.uid]);
 
+  function toggleRow(key: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  async function handleBulkDownload() {
+    if (!profile || !checked.size) return;
+    setBulkDl(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+      const monthsList = [...checked].map((k) => {
+        const [y, m] = k.split("-").map(Number);
+        return { year: y, month: m };
+      });
+      const res = await fetch("/api/payslip/pdf/bulk", {
+        method:  "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body:    JSON.stringify({ uid: profile.uid, months: monthsList }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed" }));
+        throw new Error(err.error ?? "Failed");
+      }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      // filename comes from Content-Disposition but browser fallback:
+      a.download = "payslip-compiled.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+      setChecked(new Set());
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to generate compiled PDF.");
+    } finally {
+      setBulkDl(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -186,14 +230,66 @@ export default function PayslipPage() {
     return <p className="text-red-400 text-sm font-helvetica py-8 text-center">{error}</p>;
   }
 
+  const availableKeys = months
+    .filter(({ month, year }) => summaries.some((x) => x.month === month && x.year === year))
+    .map(({ month, year }) => `${year}-${month}`);
+
+  const allChecked = availableKeys.length > 0 && availableKeys.every((k) => checked.has(k));
+
+  function toggleAll() {
+    if (allChecked) setChecked(new Set());
+    else setChecked(new Set(availableKeys));
+  }
+
   return (
     <>
+      {/* Bulk action bar */}
+      {availableKeys.length > 0 && (
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <button
+            onClick={toggleAll}
+            className="text-xs text-white/40 hover:text-white font-helvetica border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            {allChecked ? "Deselect All" : "Select All"}
+          </button>
+
+          {checked.size > 0 && (
+            <button
+              onClick={handleBulkDownload}
+              disabled={bulkDl}
+              className={cn(
+                "flex items-center gap-2 text-xs font-helvetica px-4 py-1.5 rounded-lg border transition-colors",
+                bulkDl
+                  ? "border-white/10 text-white/30 cursor-not-allowed"
+                  : "border-accent/40 text-accent hover:bg-accent/10"
+              )}
+            >
+              {bulkDl ? (
+                <>
+                  <span className="w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                <>↓ Download Compiled PDF ({checked.size} month{checked.size !== 1 ? "s" : ""})</>
+              )}
+            </button>
+          )}
+
+          {checked.size === 0 && (
+            <p className="text-xs text-white/20 font-helvetica">
+              Tick months to download a compiled statement
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="surface-card overflow-hidden">
         <table className="w-full">
           <thead>
             <tr className="border-b border-white/10">
+              <th className="px-5 py-4 w-10" />
               {["Period", "Gross", "PAYE", "Net Pay", "Status", ""].map((h) => (
-                <th key={h} className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica first:pl-6">
+                <th key={h} className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">
                   {h}
                 </th>
               ))}
@@ -201,10 +297,22 @@ export default function PayslipPage() {
           </thead>
           <tbody className="divide-y divide-white/5">
             {months.map(({ month, year }) => {
-              const s = summaries.find((x) => x.month === month && x.year === year) ?? null;
+              const s   = summaries.find((x) => x.month === month && x.year === year) ?? null;
+              const key = `${year}-${month}`;
               return (
-                <tr key={`${year}-${month}`} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="px-6 py-4 font-helvetica text-sm text-white font-semibold">
+                <tr key={key} className="hover:bg-white/[0.02] transition-colors">
+                  {/* Checkbox — only for months that have a payslip */}
+                  <td className="px-5 py-4 w-10">
+                    {s && (
+                      <input
+                        type="checkbox"
+                        checked={checked.has(key)}
+                        onChange={() => toggleRow(key)}
+                        className="w-4 h-4 rounded border-white/20 bg-white/5 accent-[#FF761B] cursor-pointer"
+                      />
+                    )}
+                  </td>
+                  <td className="px-5 py-4 font-helvetica text-sm text-white font-semibold">
                     {MONTHS[month - 1]} {year}
                   </td>
                   <td className="px-5 py-4 text-sm font-helvetica text-white/70">
@@ -234,9 +342,9 @@ export default function PayslipPage() {
                     {s && (
                       <button
                         onClick={() => setSelected(s)}
-                        className="text-xs text-accent hover:text-accent/80 font-helvetica transition-colors"
+                        className="text-xs text-white/40 hover:text-accent font-helvetica transition-colors"
                       >
-                        View Payslip
+                        View
                       </button>
                     )}
                   </td>

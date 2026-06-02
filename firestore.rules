@@ -92,7 +92,7 @@ service cloud.firestore {
     }
 
     function canManageFinance() {
-      return isRootAdmin() || isCFO() || isSystemAdmin() || isFinanceOfficer();
+      return isRootAdmin() || isCEO() || isCFO() || isSystemAdmin() || isFinanceOfficer();
     }
     function canManageTickets() {
       return isRootAdmin() || isCFO() || isSystemAdmin() || isProjectManager() || isITManager();

@@ -5,9 +5,6 @@ import {
   getEmployees, getPayrollRuns, createPayrollRun,
   markEntryPaid, markAllPaid,
 } from "@/lib/hr-service";
-import { getPAYERecords, createPAYERecord } from "@/lib/tax-service";
-import { computeMonthlyPAYE } from "@/types/tax";
-import type { PAYERecord } from "@/types/tax";
 import { MONTHS, PAYROLL_ENTRY_STYLES, payrollPeriod, formatHrDateTime } from "@/types/hr";
 import type { Employee, PayrollRun, PayrollEntry } from "@/types/hr";
 import { formatNaira } from "@/types/finance";
@@ -21,7 +18,6 @@ export default function PayrollPage() {
   const [runs, setRuns]             = useState<PayrollRun[]>([]);
   const [loading, setLoading]       = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [payeMsg, setPayeMsg]       = useState<string | null>(null);
 
   const now   = new Date();
   const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
@@ -74,8 +70,8 @@ export default function PayrollPage() {
   }
 
   async function handleMarkPaid(uid: string) {
-    if (!activeRun || !canManage) return;
-    await markEntryPaid(activeRun.id, uid, activeRun.entries);
+    if (!activeRun || !profile || !canManage) return;
+    await markEntryPaid(activeRun.id, uid, activeRun.entries, profile.uid);
     const updated = activeRun.entries.map((e) =>
       e.uid === uid ? { ...e, status: "paid" as const, paidAt: new Date().toISOString() } : e
     );
@@ -85,42 +81,14 @@ export default function PayrollPage() {
   }
 
   async function handleMarkAllPaid() {
-    if (!activeRun || !canManage) return;
-    await markAllPaid(activeRun.id, activeRun.entries);
+    if (!activeRun || !profile || !canManage) return;
+    await markAllPaid(activeRun.id, activeRun.entries, profile.uid);
     const updated = activeRun.entries.map((e) => ({ ...e, status: "paid" as const, paidAt: new Date().toISOString() }));
     setRuns((prev) =>
       prev.map((r) =>
         r.id === activeRun.id ? { ...r, entries: updated, status: "completed" } : r,
       ),
     );
-
-    /* Auto-run PAYE for this payroll period */
-    const period = `${activeRun.year}-${String(activeRun.month).padStart(2, "0")}`;
-    try {
-      const existing    = await getPAYERecords(period);
-      const existingUids = new Set(existing.map((r: PAYERecord) => r.employeeUid));
-      const now         = new Date().toISOString();
-      let count         = 0;
-      for (const entry of activeRun.entries) {
-        if (existingUids.has(entry.uid) || entry.baseSalary <= 0) continue;
-        const { monthly, annual } = computeMonthlyPAYE(entry.baseSalary);
-        if (monthly <= 0) continue;
-        await createPAYERecord({
-          employeeUid:  entry.uid,
-          employeeName: entry.name,
-          period,
-          grossSalary:  entry.baseSalary,
-          annualGross:  entry.baseSalary * 12,
-          payeAmount:   monthly,
-          annualPAYE:   annual,
-          createdAt:    now,
-        });
-        count++;
-      }
-      if (count > 0) setPayeMsg(`PAYE auto-computed for ${count} employee${count !== 1 ? "s" : ""} — ${period}.`);
-    } catch (e) {
-      console.error("[payroll] PAYE auto-run failed:", e);
-    }
   }
 
   if (loading) {
@@ -135,13 +103,6 @@ export default function PayrollPage() {
 
   return (
     <div className="animate-fade-in">
-      {payeMsg && (
-        <div className="flex items-center gap-3 px-4 py-3 mb-5 bg-purple-500/8 border border-purple-500/20 rounded-xl">
-          <span className="text-purple-400 shrink-0">✓</span>
-          <p className="text-purple-300/80 text-sm font-helvetica flex-1">{payeMsg}</p>
-          <button onClick={() => setPayeMsg(null)} className="text-xs text-purple-400 hover:text-purple-300 font-helvetica border border-purple-500/20 px-3 py-1 rounded-lg transition-colors shrink-0">Dismiss</button>
-        </div>
-      )}
       {/* Period selector */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="flex items-center gap-3">

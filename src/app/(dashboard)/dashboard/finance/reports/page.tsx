@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getInvoices, getPayments } from "@/lib/finance-service";
 import { getExpenses } from "@/lib/expense-service";
+import { runFullBackfill, type FullBackfillResult } from "@/lib/accounting/backfill";
 import { formatNaira, formatDate } from "@/types/finance";
 import type { Invoice, Payment } from "@/types/finance";
 import type { Expense } from "@/types/expense";
@@ -45,7 +46,27 @@ export default function FinancialReportsPage() {
   const [expenses, setExpenses]   = useState<Expense[]>([]);
   const [loading, setLoading]     = useState(true);
 
-  const canView = profile ? hasPermission(profile.role, "view:finance") || hasPermission(profile.role, "view:reports") : false;
+  const canView       = profile ? hasPermission(profile.role, "view:finance") || hasPermission(profile.role, "view:reports") : false;
+  const canReconcile  = profile ? ["CEO", "CFO", "Root", "Root Admin", "Chronix Root"].includes(profile.role) : false;
+
+  const [reconciling,       setReconciling]       = useState(false);
+  const [reconcileResult,   setReconcileResult]   = useState<FullBackfillResult | null>(null);
+  const [reconcileError,    setReconcileError]    = useState<string | null>(null);
+
+  async function handleReconcile() {
+    if (!profile || reconciling) return;
+    setReconciling(true);
+    setReconcileResult(null);
+    setReconcileError(null);
+    try {
+      const result = await runFullBackfill(profile.uid);
+      setReconcileResult(result);
+    } catch (e) {
+      setReconcileError(e instanceof Error ? e.message : "Reconciliation failed");
+    } finally {
+      setReconciling(false);
+    }
+  }
 
   useEffect(() => {
     Promise.all([getInvoices(), getPayments(), getExpenses()])
@@ -61,7 +82,7 @@ export default function FinancialReportsPage() {
   const plData = MONTHS.map((month, mi) => {
     const period = `${year}-${String(mi + 1).padStart(2, "0")}`;
     const revenue  = invoices.filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(period)).reduce((s, i) => s + i.total, 0);
-    const expTotal = expenses.filter((e) => (e.status === "approved" || e.status === "paid") && e.date?.startsWith(period)).reduce((s, e) => s + e.amount, 0);
+    const expTotal = expenses.filter((e) => e.status === "paid" && e.date?.startsWith(period)).reduce((s, e) => s + e.amount, 0);
     return { month, revenue, expenses: expTotal, profit: revenue - expTotal };
   });
 
@@ -217,6 +238,79 @@ export default function FinancialReportsPage() {
           </button>
         </div>
       </div>
+
+      {/* Reconcile Ledger */}
+      {canReconcile && (
+        <div className="mb-6">
+          <div className="flex items-center gap-4 flex-wrap">
+            <button
+              onClick={handleReconcile}
+              disabled={reconciling}
+              className={cn(
+                "flex items-center gap-2 text-xs font-helvetica px-4 py-2 rounded-xl border transition-colors",
+                reconciling
+                  ? "border-white/10 text-white/20 cursor-not-allowed"
+                  : "border-secondary/40 text-secondary hover:bg-secondary/10"
+              )}
+            >
+              {reconciling ? (
+                <>
+                  <span className="w-3 h-3 border border-secondary border-t-transparent rounded-full animate-spin" />
+                  Reconciling…
+                </>
+              ) : (
+                <>
+                  <ReconcileIcon />
+                  Reconcile Ledger
+                </>
+              )}
+            </button>
+            <p className="text-[10px] text-white/20 font-helvetica">
+              Finds and posts any missing journal entries for paid expenses, invoices, and payments.
+            </p>
+          </div>
+
+          {reconcileError && (
+            <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 font-helvetica">
+              {reconcileError}
+            </div>
+          )}
+
+          {reconcileResult && (
+            <div className="mt-3 surface-card p-4">
+              <p className="font-orbitron text-xs font-bold text-white mb-3">Reconciliation Complete</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {(
+                  [
+                    { label: "Expenses",  r: reconcileResult.expenses },
+                    { label: "Invoices",  r: reconcileResult.invoices },
+                    { label: "Payments",  r: reconcileResult.payments },
+                    { label: "Payroll",   r: reconcileResult.payroll  },
+                  ] as const
+                ).map(({ label, r }) => (
+                  <div key={label} className="bg-white/[0.03] rounded-xl p-3">
+                    <p className="text-[10px] text-white/40 font-helvetica uppercase tracking-wider mb-2">{label}</p>
+                    <p className="text-xs font-helvetica text-white/60">
+                      Found <span className="text-white font-semibold">{r.found}</span>
+                    </p>
+                    <p className="text-xs font-helvetica text-emerald-400">
+                      Created <span className="font-semibold">{r.created}</span>
+                    </p>
+                    <p className="text-xs font-helvetica text-white/40">
+                      Already posted <span className="font-semibold">{r.skipped}</span>
+                    </p>
+                    {r.errors > 0 && (
+                      <p className="text-xs font-helvetica text-red-400">
+                        Errors <span className="font-semibold">{r.errors}</span>
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Accounting Reports Links */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
@@ -448,5 +542,13 @@ export default function FinancialReportsPage() {
         </>
       )}
     </div>
+  );
+}
+
+function ReconcileIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
   );
 }

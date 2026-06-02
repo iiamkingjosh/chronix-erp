@@ -20,10 +20,13 @@ const PAY = "payments";
 export async function createInvoice(data: Omit<Invoice, "id">): Promise<Invoice> {
   const ref     = await addDoc(collection(db, INV), data);
   const invoice = { ...data, id: ref.id };
-  // Auto-post journal entry — fire-and-forget so invoice creation never fails
-  createInvoiceJournalEntry(invoice, data.createdBy).catch((e) =>
-    console.error("[accounting] Failed to create invoice journal entry:", e)
-  );
+  try {
+    await createInvoiceJournalEntry(invoice, data.createdBy);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[accounting] Failed to create invoice journal entry:", msg);
+    updateDoc(doc(db, INV, ref.id), { _journalError: msg }).catch(() => {});
+  }
   return invoice;
 }
 
@@ -57,10 +60,13 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
   await batch.commit();
 
   const payment = { ...data, id: paymentRef.id };
-  // Auto-post journal entry — fire-and-forget
-  createPaymentJournalEntry(payment, data.recordedBy).catch((e) =>
-    console.error("[accounting] Failed to create payment journal entry:", e)
-  );
+  try {
+    await createPaymentJournalEntry(payment, data.recordedBy);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[accounting] Failed to create payment journal entry:", msg);
+    updateDoc(doc(db, PAY, paymentRef.id), { _journalError: msg }).catch(() => {});
+  }
   return payment;
 }
 

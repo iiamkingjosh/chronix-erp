@@ -46,6 +46,7 @@ function fmtDate(iso?: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/** One payslip per page — used by the single-month download route. */
 export function PayslipPDFDocument({
   summary,
   logoSrc,
@@ -67,8 +68,8 @@ export function PayslipPDFDocument({
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
             {logoSrc && <Image src={logoSrc} style={S.logo} />}
             <Text style={S.coName}>Chronix Technology Limited</Text>
-            <Text style={S.coDetail}>12 Admiralty Way, Lekki Phase 1, Lagos</Text>
-            <Text style={S.coDetail}>hello@chronixtech.com</Text>
+            <Text style={S.coDetail}>No.7 Jerry Iriabe Street, Lekki Phase 1, Lagos</Text>
+            <Text style={S.coDetail}>Info@chronixtechnology.com</Text>
           </View>
           <View style={S.rightHeader}>
             <Text style={S.bigTitle}>PAYSLIP</Text>
@@ -157,6 +158,132 @@ export function PayslipPDFDocument({
         </View>
 
       </Page>
+    </Document>
+  );
+}
+
+/** Multiple payslips compiled into one PDF — one page per month. */
+export function BulkPayslipPDFDocument({
+  summaries,
+  logoSrc,
+}: {
+  summaries: PayslipSummary[];
+  logoSrc?:  { data: Buffer; format: "png" | "jpg" };
+}): ReactElement<DocumentProps> {
+  const sorted = [...summaries].sort((a, b) =>
+    a.year !== b.year ? a.year - b.year : a.month - b.month
+  );
+  const first  = sorted[0];
+  const last   = sorted[sorted.length - 1];
+  const range  = first && last
+    ? `${MONTHS[first.month - 1]} ${first.year} – ${MONTHS[last.month - 1]} ${last.year}`
+    : "";
+
+  return (
+    <Document title={`Compiled Payslip — ${range}`}>
+      {sorted.map((summary) => {
+        const period   = `${MONTHS[summary.month - 1]} ${summary.year}`;
+        const totalDed = summary.payeAmount + summary.deductions;
+        const isPaid   = summary.status === "paid";
+
+        return (
+          <Page key={`${summary.year}-${summary.month}`} size="A4" style={S.page}>
+
+            {/* Header */}
+            <View style={S.header}>
+              <View>
+                {logoSrc && <Image src={logoSrc} style={S.logo} />}
+                <Text style={S.coName}>Chronix Technology Limited</Text>
+                <Text style={S.coDetail}>No.7 Jerry Iriabe Street, Lekki Phase 1, Lagos</Text>
+                <Text style={S.coDetail}>Info@chronixtechnology.com</Text>
+              </View>
+              <View style={S.rightHeader}>
+                <Text style={S.bigTitle}>PAYSLIP</Text>
+                <Text style={[S.statusLabel, { color: isPaid ? "#16a34a" : "#d97706" }]}>
+                  {isPaid ? "PAID" : "PENDING"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={S.divider} />
+
+            {/* Employee + Period */}
+            <View style={S.row2}>
+              <View style={S.col}>
+                <Text style={S.lbl}>Employee</Text>
+                <Text style={S.val}>{summary.employeeName}</Text>
+                <Text style={[S.lbl, { marginTop: 6 }]}>Role</Text>
+                <Text style={S.val}>{summary.employeeRole}</Text>
+                <Text style={[S.lbl, { marginTop: 6 }]}>Department</Text>
+                <Text style={S.val}>{summary.employeeDepartment || "—"}</Text>
+                {summary.employeeNumber && (
+                  <>
+                    <Text style={[S.lbl, { marginTop: 6 }]}>Employee No.</Text>
+                    <Text style={S.val}>{summary.employeeNumber}</Text>
+                  </>
+                )}
+              </View>
+              <View style={S.colRight}>
+                <Text style={S.lbl}>Pay Period</Text>
+                <Text style={S.val}>{period}</Text>
+                <Text style={[S.lbl, { marginTop: 6 }]}>Reference</Text>
+                <Text style={S.val}>{summary.referenceNumber}</Text>
+                {isPaid && summary.paidAt && (
+                  <>
+                    <Text style={[S.lbl, { marginTop: 6 }]}>Payment Date</Text>
+                    <Text style={S.val}>{fmtDate(summary.paidAt)}</Text>
+                  </>
+                )}
+              </View>
+            </View>
+
+            <View style={S.thinLine} />
+
+            {/* Earnings */}
+            <Text style={S.secTitle}>Earnings</Text>
+            <View style={S.tableRow}>
+              <Text style={S.tLabel}>Gross Salary</Text>
+              <Text style={S.tValue}>{naira(summary.baseSalary)}</Text>
+            </View>
+
+            <View style={S.thinLine} />
+
+            {/* Deductions */}
+            <Text style={S.secTitle}>Deductions</Text>
+            <View style={S.tableRow}>
+              <Text style={S.tLabel}>PAYE (Income Tax)</Text>
+              <Text style={S.tValue}>{`−${naira(summary.payeAmount)}`}</Text>
+            </View>
+            {summary.deductions > 0 && (
+              <View style={S.tableRow}>
+                <Text style={S.tLabel}>Other Deductions</Text>
+                <Text style={S.tValue}>{`−${naira(summary.deductions)}`}</Text>
+              </View>
+            )}
+            <View style={S.totalsRow}>
+              <Text style={[S.tLabel, { fontFamily: "Helvetica-Bold" }]}>Total Deductions</Text>
+              <Text style={[S.tValue, { fontFamily: "Helvetica-Bold" }]}>{`−${naira(totalDed)}`}</Text>
+            </View>
+
+            {/* Net Pay */}
+            <View style={S.netRow}>
+              <Text style={S.netLabel}>NET PAY</Text>
+              <Text style={S.netValue}>{naira(summary.netPay)}</Text>
+            </View>
+
+            {/* Footer */}
+            <View style={S.footer}>
+              <Text style={S.footerText}>
+                {isPaid && summary.paidAt ? `Paid on ${fmtDate(summary.paidAt)}` : "Payment pending"}
+              </Text>
+              <Text style={[S.footerText, { marginTop: 4 }]}>
+                Compiled statement · {range} · Generated electronically, valid without a signature.
+              </Text>
+            </View>
+
+          </Page>
+        );
+      })}
     </Document>
   );
 }
