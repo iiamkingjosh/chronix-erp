@@ -155,6 +155,8 @@ export default function PLReportPage() {
               <Row label="Fuel & Transport"        amount={report.operatingExpenses.fuel}          indent />
               <Row label="Marketing"               amount={report.operatingExpenses.marketing}     indent />
               <Row label="Professional Fees"       amount={report.operatingExpenses.professional}  indent />
+              <Row label="Meals & Entertainment"   amount={report.operatingExpenses.meals}         indent />
+              <Row label="Equipment & Supplies"    amount={report.operatingExpenses.equipment}     indent />
               <Row label="Utilities"               amount={report.operatingExpenses.utilities}     indent />
               <Row label="Subscriptions"           amount={report.operatingExpenses.subscriptions} indent />
               <Row label="Other Expenses"          amount={report.operatingExpenses.other}         indent />

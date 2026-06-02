@@ -9,14 +9,14 @@ import { round } from "@/lib/utils";
 
 const EXPENSE_ACCOUNT: Record<string, { code: string; name: string }> = {
   travel:     { code: "6040", name: "Fuel & Transport" },
-  meals:      { code: "6090", name: "Meals & Entertainment" },
+  meals:      { code: "6080", name: "Meals & Entertainment" },
   equipment:  { code: "6090", name: "Equipment & Supplies" },
   software:   { code: "6300", name: "Subscriptions & Software" },
   marketing:  { code: "6060", name: "Marketing & Advertising" },
   utilities:  { code: "6200", name: "Utilities" },
   rent:       { code: "6020", name: "Rent & Office Costs" },
   salaries:   { code: "6010", name: "Salaries & Wages" },
-  contractor: { code: "5030", name: "Subcontractor Costs" },
+  contractor: { code: "6070", name: "Professional & Contractor Fees" },
   other:      { code: "6090", name: "Other Operating Expenses" },
 };
 

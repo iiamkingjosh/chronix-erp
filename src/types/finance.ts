@@ -200,6 +200,8 @@ export interface ProfitLossReport {
     fuel: number;
     marketing: number;
     professional: number;
+    meals: number;
+    equipment: number;
     utilities: number;
     subscriptions: number;
     other: number;

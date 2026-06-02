@@ -17,7 +17,8 @@ export async function generateProfitLoss(
   };
   const opex: ProfitLossReport["operatingExpenses"] = {
     salaries: 0, rent: 0, internet: 0, fuel: 0, marketing: 0,
-    professional: 0, utilities: 0, subscriptions: 0, other: 0, total: 0,
+    professional: 0, meals: 0, equipment: 0,
+    utilities: 0, subscriptions: 0, other: 0, total: 0,
   };
 
   for (const entry of entries) {
@@ -45,6 +46,8 @@ export async function generateProfitLoss(
       else if (code === "6040") opex.fuel           += expenseAmt;
       else if (code === "6060") opex.marketing      += expenseAmt;
       else if (code === "6070") opex.professional   += expenseAmt;
+      else if (code === "6080") opex.meals          += expenseAmt;
+      else if (code === "6090") opex.equipment      += expenseAmt;
       else if (code === "6200") opex.utilities      += expenseAmt;
       else if (code === "6300") opex.subscriptions  += expenseAmt;
       else if (code.startsWith("6")) opex.other     += expenseAmt;
@@ -55,8 +58,8 @@ export async function generateProfitLoss(
                rev.branding + rev.softwareDev + rev.other;
   cos.total  = cos.hardwareCost + cos.directCosts + cos.subcontractors;
   opex.total = opex.salaries + opex.rent + opex.internet + opex.fuel +
-               opex.marketing + opex.professional + opex.utilities +
-               opex.subscriptions + opex.other;
+               opex.marketing + opex.professional + opex.meals + opex.equipment +
+               opex.utilities + opex.subscriptions + opex.other;
 
   const grossProfit = rev.total - cos.total;
   const grossMargin = rev.total > 0 ? (grossProfit / rev.total) * 100 : 0;
