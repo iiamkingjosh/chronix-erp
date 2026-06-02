@@ -1,21 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { createIncident } from "@/lib/incident-service";
 import { generateIncidentRef } from "@/types/incident";
+import { getStaffList, type StaffMember } from "@/lib/tickets-service";
+import { notifyAssignment } from "@/lib/notifications-service";
 import type { IncidentSeverity } from "@/types/incident";
 
 export default function NewIncidentPage() {
   const { profile } = useAuth();
   const router = useRouter();
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [form, setForm] = useState({
     title: "", severity: "P2" as IncidentSeverity,
     description: "", affectedServices: "", clientsAffected: "",
+    assignedLeadUid: "",
   });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getStaffList()
+      .then((all) => setStaff(all.filter((s) => s.role !== "Client")))
+      .catch(() => {});
+  }, []);
 
   function set(k: string, v: string) { setForm((p) => ({ ...p, [k]: v })); }
 
@@ -25,6 +35,12 @@ export default function NewIncidentPage() {
     setSaving(true);
     try {
       const now = new Date().toISOString();
+      const selectedLead = form.assignedLeadUid
+        ? staff.find((s) => s.uid === form.assignedLeadUid)
+        : null;
+      const incidentLeadUid  = selectedLead?.uid  ?? profile.uid;
+      const incidentLeadName = selectedLead?.displayName ?? profile.displayName ?? profile.email;
+
       const inc = await createIncident({
         incidentRef:      generateIncidentRef(),
         title:            form.title,
@@ -33,13 +49,27 @@ export default function NewIncidentPage() {
         affectedServices: form.affectedServices,
         clientsAffected:  form.clientsAffected || undefined,
         status:           "open",
-        incidentLead:     profile.displayName ?? profile.email,
-        incidentLeadUid:  profile.uid,
+        incidentLead:     incidentLeadName,
+        incidentLeadUid,
         detectedAt:       now,
         updates:          [],
         createdAt:        now,
       });
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "incidents", entityId: inc.id, entityRef: inc.incidentRef, details: `Incident declared: ${form.title} (${form.severity}) — ${form.affectedServices}`, timestamp: now });
+
+      if (incidentLeadUid !== profile.uid) {
+        notifyAssignment({
+          type:         "incident_assigned",
+          title:        "Incident Assigned to You",
+          message:      `Incident "${form.title}" (${form.severity}) has been assigned to you as Incident Lead.`,
+          link:         `/dashboard/incidents/${inc.id}`,
+          assigneeUid:  incidentLeadUid,
+          assigneeName: incidentLeadName,
+          dedupeKey:    `incident-assigned-${inc.id}-${incidentLeadUid}`,
+          extraRoles:   ["Root Admin", "System Admin", "IT Manager"],
+        }).catch(() => {});
+      }
+
       router.push(`/dashboard/incidents/${inc.id}`);
     } finally { setSaving(false); }
   }
@@ -74,6 +104,20 @@ export default function NewIncidentPage() {
         <div>
           <label className="field-label">Clients Affected (optional)</label>
           <input value={form.clientsAffected} onChange={(e) => set("clientsAffected", e.target.value)} placeholder="List affected client names" className="input-field" />
+        </div>
+        <div>
+          <label className="field-label">Assign Incident Lead</label>
+          <select value={form.assignedLeadUid} onChange={(e) => set("assignedLeadUid", e.target.value)} className="input-field">
+            <option value="" className="bg-primary-dark">{profile?.displayName ?? profile?.email ?? "Me"} (Me)</option>
+            {staff
+              .filter((s) => s.uid !== profile?.uid)
+              .map((s) => (
+                <option key={s.uid} value={s.uid} className="bg-primary-dark">
+                  {s.displayName} ({s.role})
+                </option>
+              ))}
+          </select>
+          <p className="mt-1 text-[10px] text-white/25 font-helvetica">Defaults to you · assignee will be notified</p>
         </div>
         <div>
           <label className="field-label">Initial Description</label>

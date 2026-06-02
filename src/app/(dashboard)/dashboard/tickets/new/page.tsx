@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 import { createTicket, getStaffList, type StaffMember } from "@/lib/tickets-service";
+import { notifyAssignment } from "@/lib/notifications-service";
 import {
   PRIORITY_LABELS, PRIORITY_STYLES,
   defaultSlaDeadline, generateTicketId,
@@ -39,7 +40,7 @@ function newTicketNoteId(): string {
 export default function NewTicketPage() {
   const { profile } = useAuth();
   const router = useRouter();
-  const [staff, setStaff]           = useState<StaffMember[]>([]);
+  const [staff, setStaff]             = useState<StaffMember[]>([]);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const canManage = profile ? hasPermission(profile.role, "manage:tickets") : false;
@@ -72,7 +73,6 @@ export default function NewTicketPage() {
     if (!canCreate) return;
     getStaffList()
       .then((all) => {
-        // Assignable internal users only (exclude Client accounts).
         const internal = all.filter((s) => s.role !== "Client");
         setStaff(internal);
       })
@@ -116,6 +116,19 @@ export default function NewTicketPage() {
         updatedAt:    new Date().toISOString(),
       });
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "tickets", entityId: ticket.id, entityRef: ticket.ticketId, details: `Ticket created: ${data.title} (${data.priority} priority) for ${data.clientName}`, timestamp: new Date().toISOString() });
+
+      if (data.assignedTo && data.assignedTo !== profile.uid) {
+        notifyAssignment({
+          type:         "ticket_assigned",
+          title:        "New Ticket Assigned to You",
+          message:      `Ticket "${data.title}" has been assigned to you.`,
+          link:         `/dashboard/tickets/${ticket.id}`,
+          assigneeUid:  data.assignedTo,
+          assigneeName: selectedStaff?.displayName ?? "",
+          dedupeKey:    `ticket-new-${ticket.id}-${data.assignedTo}`,
+        }).catch(() => {});
+      }
+
       router.push(`/dashboard/tickets/${ticket.id}`);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : "Failed to create ticket");

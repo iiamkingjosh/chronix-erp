@@ -9,7 +9,7 @@ import {
 } from "@/lib/projects-service";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
-import { notifyMilestoneComplete } from "@/lib/notifications-service";
+import { notifyMilestoneComplete, notifyAssignment } from "@/lib/notifications-service";
 import { getStaffList, type StaffMember } from "@/lib/tickets-service";
 import { getInvoices } from "@/lib/finance-service";
 import {
@@ -183,6 +183,19 @@ export default function ProjectDetailPage() {
       const newTasks = [...(project.tasks ?? []), task];
       await updateTasks(project.id, newTasks);
       setProject((prev) => prev ? { ...prev, tasks: newTasks, progress: calcProgress(newTasks) } : prev);
+
+      if (taskAssignee !== profile.uid) {
+        notifyAssignment({
+          type:         "task_assigned",
+          title:        "Task Assigned to You",
+          message:      `You have been assigned "${task.title}" in project "${project.name}".`,
+          link:         `/dashboard/projects/${project.id}`,
+          assigneeUid:  taskAssignee,
+          assigneeName: member?.displayName ?? taskAssignee,
+          dedupeKey:    `task-assigned-${project.id}-${task.id}-${taskAssignee}`,
+        }).catch(() => {});
+      }
+
       setTaskTitle(""); setTaskAssignee(""); setTaskDue(""); setShowTaskForm(false);
     } finally { setAddingTask(false); }
   }

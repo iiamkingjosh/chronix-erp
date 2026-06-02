@@ -14,6 +14,7 @@ import { db } from "./firebase";
 import type { Invoice, Payment, InvoiceStatus, ApprovalStatus } from "@/types/finance";
 import { createInvoiceJournalEntry, createPaymentJournalEntry } from "@/lib/accounting/auto-journal";
 import { logAuditEvent } from "@/lib/audit-service";
+import { createNotification } from "@/lib/notifications-service";
 
 const INV = "invoices";
 const PAY = "payments";
@@ -115,6 +116,24 @@ export async function updateInvoiceApproval(
   if (approvalStatus === "approved")  { update.approvedBy = actorName; update.approvedAt = now; }
   if (approvalStatus === "rejected")  { update.rejectedBy = actorName; update.rejectedAt = now; update.rejectionReason = extra?.rejectionReason ?? ""; }
   await updateDoc(doc(db, INV, id), update);
+
+  if (approvalStatus === "pending_approval") {
+    const invoice = await getInvoice(id);
+    if (invoice) {
+      createNotification({
+        type:        "invoice_approval_needed",
+        title:       "Invoice Awaiting Approval",
+        message:     `Invoice ${invoice.invoiceNumber} for ${invoice.client.name} — ₦${invoice.total.toLocaleString()} requires your approval.`,
+        link:        `/dashboard/finance/invoices/${id}`,
+        read:        false,
+        targetRoles: ["Root Admin", "CEO", "CFO"],
+        targetUids:  [],
+        createdAt:   now,
+        dedupeKey:   `invoice-approval-${id}`,
+      }).catch(() => {});
+    }
+  }
+
   logAuditEvent({
     actorUid: extra?.actorUid ?? actorName, actorName, actorRole: "Finance",
     action: approvalStatus === "approved" ? "approve" : approvalStatus === "rejected" ? "reject" : "update",

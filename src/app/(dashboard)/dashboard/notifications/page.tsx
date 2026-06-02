@@ -11,7 +11,15 @@ import type { AppNotification, NotificationType } from "@/types/notifications";
 import { cn } from "@/lib/utils";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
-type Filter = "all" | "unread" | NotificationType;
+const ASSIGNMENT_TYPES = new Set<NotificationType>([
+  "ticket_assigned", "task_assigned", "lead_assigned", "incident_assigned", "change_assigned",
+]);
+const APPROVAL_TYPES = new Set<NotificationType>([
+  "leave_submitted", "expense_submitted", "invoice_approval_needed",
+  "leave_approved", "leave_rejected", "expense_approved", "expense_rejected",
+]);
+
+type Filter = "all" | "unread" | "assignments" | "approvals" | NotificationType;
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -25,20 +33,22 @@ function timeAgo(iso: string): string {
 }
 
 export default function NotificationsPage() {
-  const { profile }                           = useAuth();
-  const [notifs, setNotifs]                   = useState<AppNotification[]>([]);
-  const [loading, setLoading]                 = useState(true);
-  const [filter, setFilter]                   = useState<Filter>("all");
-  const [markingAll, setMarkingAll]           = useState(false);
+  const { profile }                 = useAuth();
+  const [notifs, setNotifs]         = useState<AppNotification[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [filter, setFilter]         = useState<Filter>("all");
+  const [markingAll, setMarkingAll] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
-    getNotifications(profile.role).then(setNotifs).finally(() => setLoading(false));
+    getNotifications(profile.role, profile.uid).then(setNotifs).finally(() => setLoading(false));
   }, [profile]);
 
   const filtered = notifs.filter((n) => {
-    if (filter === "unread") return !n.read;
-    if (filter !== "all")    return n.type === filter;
+    if (filter === "unread")      return !n.read;
+    if (filter === "assignments") return ASSIGNMENT_TYPES.has(n.type);
+    if (filter === "approvals")   return APPROVAL_TYPES.has(n.type);
+    if (filter !== "all")         return n.type === filter;
     return true;
   });
 
@@ -58,13 +68,15 @@ export default function NotificationsPage() {
   }
 
   const TYPE_FILTERS: { label: string; value: Filter }[] = [
-    { label: "All",        value: "all" },
-    { label: "Unread",     value: "unread" },
-    { label: "Invoices",   value: "invoice_overdue" },
-    { label: "Renewals",   value: "subscription_expiring" },
-    { label: "SLA",        value: "sla_breach" },
-    { label: "Leads",      value: "new_lead" },
-    { label: "Milestones", value: "milestone_complete" },
+    { label: "All",         value: "all" },
+    { label: "Unread",      value: "unread" },
+    { label: "Assigned",    value: "assignments" },
+    { label: "Approvals",   value: "approvals" },
+    { label: "Invoices",    value: "invoice_overdue" },
+    { label: "Renewals",    value: "subscription_expiring" },
+    { label: "SLA",         value: "sla_breach" },
+    { label: "Leads",       value: "new_lead" },
+    { label: "Milestones",  value: "milestone_complete" },
   ];
 
   return (

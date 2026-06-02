@@ -9,6 +9,7 @@ import type {
 } from "@/types/crm";
 import { STAGE_LABELS, generateClientId } from "@/types/crm";
 import { getStaffList, type StaffMember } from "./tickets-service";
+import { notifyAssignment } from "@/lib/notifications-service";
 
 const LEADS   = "leads";
 const CLIENTS = "clients";
@@ -28,6 +29,40 @@ export async function getLeads(): Promise<Lead[]> {
 export async function getLead(id: string): Promise<Lead | null> {
   const snap = await getDoc(doc(db, LEADS, id));
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as Lead) : null;
+}
+
+export async function assignLead(
+  leadId: string,
+  assignedTo: string,
+  assignedName: string,
+  lead: { fullName: string; company: string },
+  author: { uid: string; name: string }
+): Promise<void> {
+  const entry: ActivityEntry = {
+    id:         Date.now().toString(),
+    type:       "stage_change",
+    content:    `Lead reassigned to ${assignedName}`,
+    authorUid:  author.uid,
+    authorName: author.name,
+    createdAt:  new Date().toISOString(),
+  };
+  await updateDoc(doc(db, LEADS, leadId), {
+    assignedTo,
+    assignedName,
+    updatedAt: new Date().toISOString(),
+    activity:  arrayUnion(entry),
+  });
+
+  notifyAssignment({
+    type:         "lead_assigned",
+    title:        "Lead Assigned to You",
+    message:      `Lead "${lead.fullName}"${lead.company ? ` (${lead.company})` : ""} has been assigned to you.`,
+    link:         `/dashboard/crm/leads/${leadId}`,
+    assigneeUid:  assignedTo,
+    assigneeName: assignedName,
+    dedupeKey:    `lead-assigned-${leadId}-${assignedTo}`,
+    extraRoles:   ["Root Admin", "CEO"],
+  }).catch(() => {});
 }
 
 export async function updateLeadStage(

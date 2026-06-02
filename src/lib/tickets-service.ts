@@ -13,6 +13,7 @@ import {
 import { db } from "./firebase";
 import type { Ticket, TicketNote, TicketStatus } from "@/types/tickets";
 import { STATUS_LABELS } from "@/types/tickets";
+import { notifyAssignment } from "@/lib/notifications-service";
 
 const TKT = "tickets";
 const USR = "users";
@@ -96,6 +97,16 @@ export async function reassignTicket(
     updatedAt: new Date().toISOString(),
     notes:     arrayUnion(note),
   });
+
+  notifyAssignment({
+    type:         "ticket_assigned",
+    title:        "Ticket Assigned to You",
+    message:      `A support ticket has been reassigned to you by ${author.name}.`,
+    link:         `/dashboard/tickets/${ticketId}`,
+    assigneeUid:  assignedTo,
+    assigneeName: assignedName,
+    dedupeKey:    `ticket-assigned-${ticketId}-${assignedTo}-${Date.now()}`,
+  }).catch(() => {});
 }
 
 export interface StaffMember {

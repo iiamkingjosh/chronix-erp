@@ -6,12 +6,27 @@ import { db } from "./firebase";
 import type { Expense, ExpenseStatus } from "@/types/expense";
 import { createExpenseJournalEntry } from "@/lib/accounting/auto-journal";
 import { logAuditEvent } from "@/lib/audit-service";
+import { createNotification, notifyAssignment } from "@/lib/notifications-service";
 
 const COL = "expenses";
 
 export async function createExpense(data: Omit<Expense, "id">): Promise<Expense> {
   const ref = await addDoc(collection(db, COL), data);
-  return { ...data, id: ref.id };
+  const expense = { ...data, id: ref.id };
+
+  createNotification({
+    type:        "expense_submitted",
+    title:       "Expense Awaiting Approval",
+    message:     `"${data.title}" — ₦${data.amount.toLocaleString()} submitted by ${data.submittedBy} requires your approval.`,
+    link:        `/dashboard/finance/expenses`,
+    read:        false,
+    targetRoles: ["Root Admin", "CEO", "CFO"],
+    targetUids:  [],
+    createdAt:   new Date().toISOString(),
+    dedupeKey:   `expense-approval-${ref.id}`,
+  }).catch(() => {});
+
+  return expense;
 }
 
 export async function getExpenses(): Promise<Expense[]> {
@@ -52,6 +67,34 @@ export async function updateExpenseStatus(
     details: `Expense status → ${status}${extra?.rejectionReason ? `: ${extra.rejectionReason}` : ""}`,
     timestamp: now,
   }).catch(() => {});
+
+  // Submitter notifications
+  if (status === "approved" || status === "rejected") {
+    const expense = await getExpense(id);
+    if (expense?.submittedByUid) {
+      if (status === "approved") {
+        notifyAssignment({
+          type:         "expense_approved",
+          title:        "Expense Approved",
+          message:      `Your expense "${expense.title}" — ₦${expense.amount.toLocaleString()} has been approved.`,
+          link:         `/dashboard/finance/expenses`,
+          assigneeUid:  expense.submittedByUid,
+          assigneeName: expense.submittedBy,
+          dedupeKey:    `expense-approved-${id}`,
+        }).catch(() => {});
+      } else {
+        notifyAssignment({
+          type:         "expense_rejected",
+          title:        "Expense Rejected",
+          message:      `Your expense "${expense.title}" was rejected${extra?.rejectionReason ? `: ${extra.rejectionReason}` : "."}`,
+          link:         `/dashboard/finance/expenses`,
+          assigneeUid:  expense.submittedByUid,
+          assigneeName: expense.submittedBy,
+          dedupeKey:    `expense-rejected-${id}`,
+        }).catch(() => {});
+      }
+    }
+  }
 
   if (status === "paid") {
     const expense = await getExpense(id);

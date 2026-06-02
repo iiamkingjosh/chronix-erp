@@ -3,7 +3,7 @@ import {
   query, orderBy, where, doc, writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { AppNotification } from "@/types/notifications";
+import type { AppNotification, NotificationType } from "@/types/notifications";
 
 const NOTIF = "notifications";
 
@@ -19,13 +19,16 @@ export async function createNotification(
   await addDoc(collection(db, NOTIF), data);
 }
 
-export async function getNotifications(role: string): Promise<AppNotification[]> {
+export async function getNotifications(role: string, uid: string): Promise<AppNotification[]> {
   const snap = await getDocs(
     query(collection(db, NOTIF), orderBy("createdAt", "desc"))
   );
   const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AppNotification));
   return all.filter(
-    (n) => n.targetRoles.includes(role) || n.targetRoles.includes("all")
+    (n) =>
+      n.targetRoles.includes(role) ||
+      n.targetRoles.includes("all") ||
+      (n.targetUids ?? []).includes(uid)
   );
 }
 
@@ -38,6 +41,29 @@ export async function markAllRead(ids: string[]): Promise<void> {
   const batch = writeBatch(db);
   ids.forEach((id) => batch.update(doc(db, NOTIF, id), { read: true }));
   await batch.commit();
+}
+
+export async function notifyAssignment(params: {
+  type:         NotificationType;
+  title:        string;
+  message:      string;
+  link:         string;
+  assigneeUid:  string;
+  assigneeName: string;
+  dedupeKey:    string;
+  extraRoles?:  string[];
+}): Promise<void> {
+  await createNotification({
+    type:        params.type,
+    title:       params.title,
+    message:     params.message,
+    link:        params.link,
+    read:        false,
+    targetRoles: params.extraRoles ?? [],
+    targetUids:  [params.assigneeUid],
+    createdAt:   new Date().toISOString(),
+    dedupeKey:   params.dedupeKey,
+  });
 }
 
 /* ── Automation helpers ───────────────────────────────────── */
