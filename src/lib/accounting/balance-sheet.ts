@@ -1,9 +1,9 @@
 import { getJournalEntriesByDateRange } from "./journal-entries";
 
 export async function generateBalanceSheet(asOfDate: string, userId: string) {
-  // Read all posted entries from the beginning of time to the given date
   const entries = await getJournalEntriesByDateRange("2020-01-01", asOfDate);
 
+  // Accumulate net debit (debit − credit) per account code across all time
   const bal: Record<string, number> = {};
   for (const entry of entries) {
     for (const line of entry.lineItems) {
@@ -13,14 +13,33 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
 
   const g = (code: string) => bal[code] ?? 0;
 
+  // ── Current-year profit: dynamically derived from journal entries ──────────
+  // Revenue accounts (4xxx): credit-normal — net balance is negative in bal[]
+  // Expense accounts (5xxx, 6xxx): debit-normal — net balance is positive in bal[]
+  const currentYear = asOfDate.slice(0, 4);
+  let ytdRevenue = 0;
+  let ytdExpenses = 0;
+  for (const entry of entries) {
+    if (!entry.entryDate.startsWith(currentYear)) continue;
+    for (const line of entry.lineItems) {
+      if (line.accountCode.startsWith("4")) ytdRevenue  += line.credit - line.debit;
+      if (line.accountCode.startsWith("5") || line.accountCode.startsWith("6"))
+        ytdExpenses += line.debit - line.credit;
+    }
+  }
+  const currentYearProfit = ytdRevenue - ytdExpenses;
+
+  // ── Assets ─────────────────────────────────────────────────────────────────
+  // Asset accounts (1xxx) are debit-normal: positive bal[] = positive balance.
+  // VAT Recoverable is a genuine current asset — stored under 1110 (not 2110).
   const assets = {
     currentAssets: {
       cash:               g("1010"),
       pettyCash:          g("1020"),
       accountsReceivable: g("1100"),
+      vatRecoverable:     g("1110"),
       inventory:          g("1200"),
       prepaidExpenses:    g("1300"),
-      vatRecoverable:     g("2110"),
       total: 0,
     },
     fixedAssets: {
@@ -31,34 +50,41 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
     total: 0,
   };
   assets.currentAssets.total =
-    assets.currentAssets.cash + assets.currentAssets.pettyCash +
-    assets.currentAssets.accountsReceivable + assets.currentAssets.inventory +
-    assets.currentAssets.prepaidExpenses + assets.currentAssets.vatRecoverable;
+    assets.currentAssets.cash         + assets.currentAssets.pettyCash +
+    assets.currentAssets.accountsReceivable + assets.currentAssets.vatRecoverable +
+    assets.currentAssets.inventory    + assets.currentAssets.prepaidExpenses;
   assets.fixedAssets.total =
     assets.fixedAssets.officeEquipment + assets.fixedAssets.computerEquipment;
   assets.total = assets.currentAssets.total + assets.fixedAssets.total;
 
+  // ── Liabilities ────────────────────────────────────────────────────────────
+  // Liability accounts (2xxx) are credit-normal: bal[] is negative, so negate.
   const liabilities = {
     currentLiabilities: {
-      accountsPayable: Math.abs(g("2010")),
-      vatPayable:      Math.abs(g("2100")),
-      whtPayable:      Math.abs(g("2200")),
-      payePayable:     Math.abs(g("2300")),
+      accountsPayable: -g("2010"),
+      vatPayable:      -g("2100"),
+      vatRecoverable:  -g("2110"), // legacy entries that used 2110 before migration
+      whtPayable:      -g("2200"),
+      payePayable:     -g("2300"),
       total: 0,
     },
     total: 0,
   };
   liabilities.currentLiabilities.total =
-    liabilities.currentLiabilities.accountsPayable +
-    liabilities.currentLiabilities.vatPayable +
-    liabilities.currentLiabilities.whtPayable +
-    liabilities.currentLiabilities.payePayable;
+    Math.max(0, liabilities.currentLiabilities.accountsPayable) +
+    Math.max(0, liabilities.currentLiabilities.vatPayable)      +
+    Math.max(0, liabilities.currentLiabilities.vatRecoverable)  +
+    Math.max(0, liabilities.currentLiabilities.whtPayable)      +
+    Math.max(0, liabilities.currentLiabilities.payePayable);
   liabilities.total = liabilities.currentLiabilities.total;
 
+  // ── Equity ─────────────────────────────────────────────────────────────────
+  // Equity accounts (3xxx) are credit-normal: bal[] is negative, so negate.
+  // currentYearProfit is derived above, not read from a static account.
   const equity = {
-    shareCapital:       Math.abs(g("3010")) + Math.abs(g("3020")) + Math.abs(g("3030")),
-    retainedEarnings:   Math.abs(g("3100")),
-    currentYearProfit:  Math.abs(g("3200")),
+    shareCapital:      -(g("3010") + g("3020") + g("3030")),
+    retainedEarnings:  -g("3100"),
+    currentYearProfit,
     total: 0,
   };
   equity.total = equity.shareCapital + equity.retainedEarnings + equity.currentYearProfit;

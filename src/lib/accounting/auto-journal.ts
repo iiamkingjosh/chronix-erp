@@ -2,6 +2,7 @@ import { createJournalEntry } from "./journal-entries";
 import type { Invoice, JournalEntry, JournalLineItem, Payment } from "@/types/finance";
 import type { Expense as ExpenseClaim } from "@/types/expense";
 import type { PayrollRun } from "@/types/hr";
+import { round } from "@/lib/utils";
 
 /* ── Expense account lookup ───────────────────────────────────────────────── */
 
@@ -52,7 +53,7 @@ export async function createInvoiceJournalEntry(
     {
       accountCode: "1100",
       accountName: "Accounts Receivable",
-      debit:  invoice.total,
+      debit:  round(invoice.total),
       credit: 0,
       description: `Invoice to ${invoice.client.name}`,
     },
@@ -65,7 +66,7 @@ export async function createInvoiceJournalEntry(
       accountCode: rev.code,
       accountName: rev.name,
       debit:  0,
-      credit: item.lineTotal,
+      credit: round(item.lineTotal),
       description: item.name,
     });
   }
@@ -75,7 +76,7 @@ export async function createInvoiceJournalEntry(
     accountCode: "2100",
     accountName: "VAT Payable (7.5%)",
     debit:  0,
-    credit: invoice.vatAmount,
+    credit: round(invoice.vatAmount),
     description: "VAT 7.5% collected",
   });
 
@@ -106,7 +107,7 @@ export async function createPaymentJournalEntry(
     {
       accountCode: "1010",
       accountName: "Cash in Bank — Fidelity",
-      debit:  payment.amount,
+      debit:  round(payment.amount),
       credit: 0,
       description: "Bank transfer received",
     },
@@ -114,7 +115,7 @@ export async function createPaymentJournalEntry(
       accountCode: "1100",
       accountName: "Accounts Receivable",
       debit:  0,
-      credit: payment.amount,
+      credit: round(payment.amount),
       description: `Payment from ${payment.clientName}`,
     },
   ];
@@ -148,7 +149,7 @@ export async function createExpenseJournalEntry(
     {
       accountCode: acct.code,
       accountName: acct.name,
-      debit:  expense.amount,
+      debit:  round(expense.amount),
       credit: 0,
       description: expense.title,
     },
@@ -156,7 +157,7 @@ export async function createExpenseJournalEntry(
       accountCode: "1010",
       accountName: "Cash in Bank — Fidelity",
       debit:  0,
-      credit: expense.amount,
+      credit: round(expense.amount),
       description: `Expense payment: ${expense.title}`,
     },
   ];
@@ -188,10 +189,10 @@ export async function createPayrollJournalEntry(
   const mm         = String(run.month).padStart(2, "0");
   const lastDay    = new Date(run.year, run.month, 0).getDate();
   const entryDate  = `${run.year}-${mm}-${String(lastDay).padStart(2, "0")}`;
-  const totalGross = run.entries.reduce((s, e) => s + e.baseSalary, 0);
-  const totalPAYE  = run.entries.reduce((s, e) => s + (e.payeAmount ?? 0), 0);
-  const totalOther = run.entries.reduce((s, e) => s + (e.deductions ?? 0), 0);
-  const totalNet   = totalGross - totalPAYE - totalOther;
+  const totalGross = round(run.entries.reduce((s, e) => s + e.baseSalary, 0));
+  const totalPAYE  = round(run.entries.reduce((s, e) => s + (e.payeAmount ?? 0), 0));
+  const totalOther = round(run.entries.reduce((s, e) => s + (e.deductions ?? 0), 0));
+  const totalNet   = round(totalGross - totalPAYE - totalOther);
 
   const MONTH_NAMES = [
     "January","February","March","April","May","June",
@@ -202,7 +203,7 @@ export async function createPayrollJournalEntry(
     {
       accountCode: "6010",
       accountName: "Salaries & Wages",
-      debit:  totalGross,
+      debit:  round(totalGross),
       credit: 0,
       description: `Payroll ${MONTH_NAMES[run.month - 1]} ${run.year} — ${run.entries.length} employee${run.entries.length !== 1 ? "s" : ""}`,
     },
@@ -210,7 +211,7 @@ export async function createPayrollJournalEntry(
       accountCode: "1010",
       accountName: "Cash in Bank — Fidelity",
       debit:  0,
-      credit: totalNet,
+      credit: round(totalNet),
       description: "Net salaries disbursed",
     },
   ];
@@ -220,7 +221,7 @@ export async function createPayrollJournalEntry(
       accountCode: "2300",
       accountName: "PAYE Payable",
       debit:  0,
-      credit: totalPAYE,
+      credit: round(totalPAYE),
       description: `PAYE withheld ${mm}/${run.year}`,
     });
   }
@@ -230,7 +231,7 @@ export async function createPayrollJournalEntry(
       accountCode: "2010",
       accountName: "Accounts Payable",
       debit:  0,
-      credit: totalOther,
+      credit: round(totalOther),
       description: "Other deductions payable",
     });
   }

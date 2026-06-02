@@ -4,6 +4,7 @@ import {
   setDoc, query, where, orderBy, runTransaction, Timestamp,
 } from "firebase/firestore";
 import type { JournalEntry, JournalLineItem } from "@/types/finance";
+import { round } from "@/lib/utils";
 
 /* ── Sequential journal number ────────────────────────────────────────────── */
 
@@ -34,8 +35,8 @@ export async function getNextJournalNumber(): Promise<string> {
 export async function createJournalEntry(
   entry: Omit<JournalEntry, "id" | "entryNumber" | "createdAt" | "totalDebit" | "totalCredit">
 ): Promise<JournalEntry> {
-  const totalDebit  = entry.lineItems.reduce((s, l) => s + l.debit,  0);
-  const totalCredit = entry.lineItems.reduce((s, l) => s + l.credit, 0);
+  const totalDebit  = round(entry.lineItems.reduce((s, l) => s + l.debit,  0));
+  const totalCredit = round(entry.lineItems.reduce((s, l) => s + l.credit, 0));
 
   if (Math.abs(totalDebit - totalCredit) > 0.01)
     throw new Error(`Journal entry not balanced: Debits ${totalDebit} ≠ Credits ${totalCredit}`);

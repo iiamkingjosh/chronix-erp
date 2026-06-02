@@ -168,34 +168,7 @@ export interface JournalEntry {
   voidReason?: string;
 }
 
-export type ExpenseCategory = "PURCHASES" | "OPERATING" | "PAYROLL" | "CAPITAL" | "TAX";
-export type ExpenseStatus   = "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" | "PAID";
-
-export interface Expense {
-  id: string;
-  expenseNumber: string;
-  expenseDate: string;
-  vendor: string;
-  vendorTIN?: string;
-  description: string;
-  category: ExpenseCategory;
-  accountCode: string;
-  amount: number;
-  vatAmount: number;
-  totalAmount: number;
-  paymentMethod: "cash" | "bank_transfer" | "card" | "cheque";
-  paymentReference?: string;
-  receiptURL?: string;
-  status: ExpenseStatus;
-  submittedBy: string;
-  submittedAt: string;
-  approvedBy?: string;
-  approvedAt?: string;
-  rejectedBy?: string;
-  rejectedAt?: string;
-  rejectionReason?: string;
-  paidAt?: string;
-}
+// Expense types live in @/types/expense — import from there.
 
 export interface ProfitLossReport {
   id: string;

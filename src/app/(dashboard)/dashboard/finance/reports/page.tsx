@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getInvoices, getPayments } from "@/lib/finance-service";
 import { getExpenses } from "@/lib/expense-service";
+import { getPOs } from "@/lib/procurement-service";
 import { runFullBackfill, type FullBackfillResult } from "@/lib/accounting/backfill";
 import { formatNaira, formatDate } from "@/types/finance";
 import type { Invoice, Payment } from "@/types/finance";
 import type { Expense } from "@/types/expense";
+import type { PurchaseOrder } from "@/types/procurement";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
@@ -44,6 +46,7 @@ export default function FinancialReportsPage() {
   const [invoices, setInvoices]   = useState<Invoice[]>([]);
   const [payments, setPayments]   = useState<Payment[]>([]);
   const [expenses, setExpenses]   = useState<Expense[]>([]);
+  const [pos,      setPos]        = useState<PurchaseOrder[]>([]);
   const [loading, setLoading]     = useState(true);
 
   const canView       = profile ? hasPermission(profile.role, "view:finance") || hasPermission(profile.role, "view:reports") : false;
@@ -69,8 +72,10 @@ export default function FinancialReportsPage() {
   }
 
   useEffect(() => {
-    Promise.all([getInvoices(), getPayments(), getExpenses()])
-      .then(([inv, pay, exp]) => { setInvoices(inv); setPayments(pay); setExpenses(exp); })
+    Promise.all([getInvoices(), getPayments(), getExpenses(), getPOs()])
+      .then(([inv, pay, exp, poList]) => {
+        setInvoices(inv); setPayments(pay); setExpenses(exp); setPos(poList);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -82,8 +87,14 @@ export default function FinancialReportsPage() {
   const plData = MONTHS.map((month, mi) => {
     const period = `${year}-${String(mi + 1).padStart(2, "0")}`;
     const revenue  = invoices.filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(period)).reduce((s, i) => s + i.total, 0);
-    const expTotal = expenses.filter((e) => e.status === "paid" && e.date?.startsWith(period)).reduce((s, e) => s + e.amount, 0);
-    return { month, revenue, expenses: expTotal, profit: revenue - expTotal };
+    const expTotal = expenses
+      .filter((e) => (e.status === "paid" || e.status === "approved") && e.date?.startsWith(period))
+      .reduce((s, e) => s + e.amount, 0);
+    const poTotal = pos
+      .filter((p) => (p.status === "approved" || p.status === "delivered" || p.status === "paid") && p.createdAt?.startsWith(period))
+      .reduce((s, p) => s + p.total, 0);
+    const totalExp = expTotal + poTotal;
+    return { month, revenue, expenses: totalExp, profit: revenue - totalExp };
   });
 
   const totalRevenue  = plData.reduce((s, r) => s + r.revenue, 0);

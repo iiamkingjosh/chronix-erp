@@ -4,85 +4,42 @@ import {
   setDoc, updateDoc, query, where, orderBy,
 } from "firebase/firestore";
 import { getNextExpenseNumber } from "./expense-counter";
-import { createJournalEntry } from "./journal-entries";
-import type { Expense, JournalLineItem } from "@/types/finance";
+import type { Expense, ExpenseStatus } from "@/types/expense";
 
 /* ── Create ───────────────────────────────────────────────────────────────── */
 
 export async function createExpense(
-  data: Omit<Expense, "id" | "expenseNumber" | "submittedAt" | "status">,
+  data: Omit<Expense, "id" | "submittedAt" | "status">,
   userId: string
 ): Promise<Expense> {
-  const expenseNumber = await getNextExpenseNumber();
-  const ref           = doc(collection(db, "expenses"));
-  const expense: Expense = {
+  await getNextExpenseNumber(); // reserve number (unused on canonical type — kept for counter integrity)
+  const ref     = doc(collection(db, "expenses"));
+  const expense = {
     ...data,
-    id: ref.id,
-    expenseNumber,
-    status:      "PENDING",
-    submittedAt: new Date().toISOString(),
-    submittedBy: userId,
-  };
+    id:            ref.id,
+    status:        "pending" as const,
+    submittedAt:   new Date().toISOString(),
+    submittedBy:   data.submittedBy   || userId,
+    submittedByUid: data.submittedByUid || userId,
+  } as Expense;
   await setDoc(ref, expense);
   return expense;
 }
 
 /* ── Approve ─────────────────────────────────────────────────────────────── */
-/*
- *  Debit  6XXX  Expense Account        (amount)
- *  Debit  2110  VAT Recoverable        (VAT paid, if any)
- *  Credit 1010  Cash in Bank           (total paid out)
- */
+/* Journal entry is NOT posted here — it is created when the expense is marked
+   "paid" in expense-service.ts. Approving records an obligation, not a cash
+   movement; posting cash before payment would be incorrect on cash-basis books. */
+
 export async function approveExpense(expenseId: string, approvedBy: string): Promise<void> {
   const ref  = doc(db, "expenses", expenseId);
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("Expense not found");
 
-  const expense = snap.data() as Expense;
-
   await updateDoc(ref, {
-    status:     "APPROVED",
+    status:     "approved",
     approvedBy,
     approvedAt: new Date().toISOString(),
-  });
-
-  const lineItems: JournalLineItem[] = [
-    {
-      accountCode: expense.accountCode,
-      accountName: expense.description,
-      debit:  expense.amount,
-      credit: 0,
-      description: `Expense to ${expense.vendor}`,
-    },
-    ...(expense.vatAmount > 0
-      ? [{
-          accountCode: "2110",
-          accountName: "VAT Recoverable (Input)",
-          debit:  expense.vatAmount,
-          credit: 0,
-          description: "Input VAT 7.5%",
-        }]
-      : []),
-    {
-      accountCode: "1010",
-      accountName: "Cash in Bank — Fidelity",
-      debit:  0,
-      credit: expense.totalAmount,
-      description: `Payment to ${expense.vendor}`,
-    },
-  ];
-
-  await createJournalEntry({
-    entryDate:     expense.expenseDate,
-    description:   `Expense ${expense.expenseNumber} — ${expense.vendor}`,
-    reference:     expense.expenseNumber,
-    referenceType: "expense",
-    referenceId:   expense.id,
-    lineItems,
-    status:    "posted",
-    createdBy: approvedBy,
-    postedBy:  approvedBy,
-    postedAt:  new Date().toISOString(),
   });
 }
 
@@ -90,7 +47,7 @@ export async function approveExpense(expenseId: string, approvedBy: string): Pro
 
 export async function rejectExpense(expenseId: string, rejectedBy: string, reason: string): Promise<void> {
   await updateDoc(doc(db, "expenses", expenseId), {
-    status:          "REJECTED",
+    status:          "rejected",
     rejectedBy,
     rejectedAt:      new Date().toISOString(),
     rejectionReason: reason,
@@ -100,26 +57,20 @@ export async function rejectExpense(expenseId: string, rejectedBy: string, reaso
 /* ── Reads ────────────────────────────────────────────────────────────────── */
 
 export async function getAllExpenses(): Promise<Expense[]> {
-  const snap = await getDocs(query(collection(db, "expenses"), orderBy("expenseDate", "desc")));
+  const snap = await getDocs(query(collection(db, "expenses"), orderBy("submittedAt", "desc")));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
 }
 
 export async function getPendingExpenses(): Promise<Expense[]> {
-  const q = query(
-    collection(db, "expenses"),
-    where("status", "==", "PENDING"),
-    orderBy("submittedAt", "desc")
+  const snap = await getDocs(
+    query(collection(db, "expenses"), where("status", "==", "pending"), orderBy("submittedAt", "desc"))
   );
-  const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
 }
 
-export async function getExpensesByStatus(status: Expense["status"]): Promise<Expense[]> {
-  const q = query(
-    collection(db, "expenses"),
-    where("status", "==", status),
-    orderBy("expenseDate", "desc")
+export async function getExpensesByStatus(status: ExpenseStatus): Promise<Expense[]> {
+  const snap = await getDocs(
+    query(collection(db, "expenses"), where("status", "==", status), orderBy("submittedAt", "desc"))
   );
-  const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
 }
