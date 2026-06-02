@@ -190,10 +190,13 @@ export async function createPayrollJournalEntry(
   const mm         = String(run.month).padStart(2, "0");
   const lastDay    = new Date(run.year, run.month, 0).getDate();
   const entryDate  = `${run.year}-${mm}-${String(lastDay).padStart(2, "0")}`;
-  const totalGross = round(run.entries.reduce((s, e) => s + e.baseSalary, 0));
-  const totalPAYE  = round(run.entries.reduce((s, e) => s + (e.payeAmount ?? 0), 0));
-  const totalOther = round(run.entries.reduce((s, e) => s + (e.deductions ?? 0), 0));
-  const totalNet   = round(totalGross - totalPAYE - totalOther);
+  const totalGross   = round(run.entries.reduce((s, e) => s + e.baseSalary, 0));
+  const totalPAYE    = round(run.entries.reduce((s, e) => s + (e.payeAmount      ?? 0), 0));
+  const totalPension = round(run.entries.reduce((s, e) => s + (e.employeePension ?? 0), 0));
+  const totalNHF     = round(run.entries.reduce((s, e) => s + (e.nhf             ?? 0), 0));
+  const totalOther   = round(run.entries.reduce((s, e) => s + (e.deductions      ?? 0), 0));
+  const totalNet     = round(totalGross - totalPAYE - totalPension - totalNHF - totalOther);
+  const totalDeductions = round(totalPension + totalNHF + totalOther);
 
   const MONTH_NAMES = [
     "January","February","March","April","May","June",
@@ -227,13 +230,13 @@ export async function createPayrollJournalEntry(
     });
   }
 
-  if (totalOther > 0) {
+  if (totalDeductions > 0) {
     lineItems.push({
-      accountCode: "2010",
-      accountName: "Accounts Payable",
+      accountCode: "2400",
+      accountName: "Payroll Deductions Payable",
       debit:  0,
-      credit: round(totalOther),
-      description: "Other deductions payable",
+      credit: round(totalDeductions),
+      description: `Pension, NHF & other deductions withheld ${mm}/${run.year}`,
     });
   }
 

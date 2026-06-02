@@ -41,16 +41,19 @@ export interface Employee {
 }
 
 export interface PayrollEntry {
-  uid:         string;
-  name:        string;
-  role:        string;
-  department:  string;
-  baseSalary:  number;
-  deductions:  number;
-  payeAmount?: number;   // monthly PAYE computed at run time
-  netPay:      number;
-  status:      PayrollEntryStatus;
-  paidAt?:     string;
+  uid:              string;
+  name:             string;
+  role:             string;
+  department:       string;
+  baseSalary:       number;
+  deductions:       number;
+  payeAmount?:      number;   // monthly PAYE computed at run time
+  employeePension?: number;   // monthly 8% pension contribution
+  nhf?:             number;   // monthly 2.5% NHF contribution
+  deductionItems?:  { label: string; amount: number }[];
+  netPay:           number;
+  status:           PayrollEntryStatus;
+  paidAt?:          string;
 }
 
 export interface PayrollRun {
@@ -73,7 +76,10 @@ export interface PayslipSummary {
   year:               number;
   baseSalary:         number;
   payeAmount:         number;           // PAYE income tax deducted
-  deductions:         number;           // other deductions
+  deductions:         number;           // other deductions (catch-all)
+  employeePension?:   number;           // monthly 8% employee pension
+  nhf?:               number;           // monthly 2.5% NHF
+  deductionItems?:    { label: string; amount: number }[];
   netPay:             number;
   status:             PayrollEntryStatus;
   paidAt?:            string;           // ISO 8601

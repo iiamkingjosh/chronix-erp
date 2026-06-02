@@ -15,10 +15,11 @@ import {
 } from "@/types/subscriptions";
 import type { Subscription, RenewalLog, SubType } from "@/types/subscriptions";
 import { formatNaira } from "@/types/finance";
+import { createInvoice } from "@/lib/finance-service";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
-import { cn } from "@/lib/utils";
+import { cn, round } from "@/lib/utils";
 
 export default function SubscriptionDetailPage() {
   const { id }      = useParams() as { id: string };
@@ -35,7 +36,8 @@ export default function SubscriptionDetailPage() {
   const [newExpiry, setNewExpiry]   = useState("");
   const [renewAmount, setRenewAmount] = useState("");
   const [renewNotes, setRenewNotes] = useState("");
-  const [renewing, setRenewing]     = useState(false);
+  const [renewing, setRenewing]       = useState(false);
+  const [renewedInvoice, setRenewedInvoice] = useState<string | null>(null);
 
   const canManage = profile ? hasPermission(profile.role, "manage:subscriptions") : false;
 
@@ -63,6 +65,43 @@ export default function SubscriptionDetailPage() {
       };
       await renewSubscription(sub.id, log, newExpiry);
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "subscriptions", entityId: sub.id, entityRef: sub.itemName, details: `Subscription "${sub.itemName}" renewed to ${newExpiry}`, timestamp: new Date().toISOString() });
+
+      // Auto-create a draft invoice when a renewal amount is recorded
+      const amount = Number(renewAmount) || 0;
+      if (amount > 0) {
+        try {
+          const d          = new Date();
+          const yy         = String(d.getFullYear()).slice(2);
+          const mm         = String(d.getMonth() + 1).padStart(2, "0");
+          const dd         = String(d.getDate()).padStart(2, "0");
+          const rand       = Math.random().toString(36).slice(2, 6).toUpperCase();
+          const invNumber  = `CT${yy}${mm}${dd}-${rand}`;
+          const subtotal   = round(amount);
+          const vatAmount  = round(subtotal * 0.075);
+          const total      = round(subtotal + vatAmount);
+          const inv        = await createInvoice({
+            invoiceNumber:  invNumber,
+            invoiceDate:    d.toISOString().split("T")[0],
+            dueDate:        newExpiry,
+            status:         "pending",
+            approvalStatus: "draft",
+            client:         { name: sub.clientName ?? "Unknown", address: "", phone: "" },
+            salesperson:    profile.displayName ?? profile.email,
+            items: [{ id: "1", name: `${sub.itemName} — Renewal`, unitPrice: subtotal, quantity: 1, lineTotal: subtotal }],
+            subtotal,
+            vatRate:    0.075,
+            vatAmount,
+            total,
+            notes:      `Auto-generated from subscription renewal ${sub.subId ?? sub.id}`,
+            createdAt:  d.toISOString(),
+            createdBy:  profile.uid,
+          });
+          setRenewedInvoice(inv.invoiceNumber);
+        } catch (e) {
+          console.error("[renewal] invoice creation failed:", e);
+        }
+      }
+
       setSub((prev) => prev
         ? { ...prev, expiryDate: newExpiry, cancelled: false, renewalLog: [...prev.renewalLog, log] }
         : prev
@@ -206,6 +245,16 @@ export default function SubscriptionDetailPage() {
                   Cancel
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Renewal invoice success banner */}
+          {renewedInvoice && (
+            <div className="flex items-center justify-between gap-3 px-4 py-3 bg-emerald-500/8 border border-emerald-500/20 rounded-xl animate-fade-in">
+              <p className="text-emerald-400 text-sm font-helvetica">
+                Draft invoice <span className="font-semibold font-orbitron">{renewedInvoice}</span> created for this renewal.
+              </p>
+              <button onClick={() => setRenewedInvoice(null)} className="text-xs text-emerald-400/60 hover:text-emerald-400 font-helvetica">✕</button>
             </div>
           )}
 

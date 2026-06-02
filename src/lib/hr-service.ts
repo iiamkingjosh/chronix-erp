@@ -230,10 +230,18 @@ function enrichEntriesWithPAYE(entries: PayrollEntry[]): {
   totalNet: number;
 } {
   const enriched = entries.map((e) => {
-    const { monthly } = computeMonthlyPAYE(e.baseSalary);
-    const paye   = Math.round(monthly);
-    const net    = e.baseSalary - paye - (e.deductions ?? 0);
-    return { ...e, payeAmount: paye, netPay: net };
+    const { monthly, employeePension, nhf } = computeMonthlyPAYE(e.baseSalary);
+    const paye    = Math.round(monthly);
+    const pension = Math.round(employeePension);
+    const nhfAmt  = Math.round(nhf);
+    const net     = e.baseSalary - paye - pension - nhfAmt - (e.deductions ?? 0);
+    const deductionItems: { label: string; amount: number }[] = [
+      { label: "PAYE Income Tax", amount: paye    },
+      { label: "Pension (8%)",    amount: pension },
+      { label: "NHF (2.5%)",      amount: nhfAmt  },
+      ...(e.deductions > 0 ? [{ label: "Other Deductions", amount: e.deductions }] : []),
+    ];
+    return { ...e, payeAmount: paye, employeePension: pension, nhf: nhfAmt, netPay: net, deductionItems };
   });
   const totalGross = enriched.reduce((s, e) => s + e.baseSalary, 0);
   const totalPAYE  = enriched.reduce((s, e) => s + (e.payeAmount ?? 0), 0);

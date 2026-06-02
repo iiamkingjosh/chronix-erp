@@ -89,8 +89,8 @@ export default function TaxDashboardPage() {
         .reduce((s, i) => s + (i.vatAmount != null ? Number(i.vatAmount) : Number(i.total as number) * vatRate || 0), 0);
 
       const vatPaidMTD = pos
-        .filter((p) => (p.status === "approved" || p.status === "delivered") && String(p.approvedAt ?? p.createdAt ?? "").startsWith(period))
-        .reduce((s, p) => s + (Number(p.total) || 0) * vatRate, 0);
+        .filter((p) => p.status === "paid" && String(p.paidAt ?? p.createdAt ?? "").startsWith(period))
+        .reduce((s, p) => s + (Number(p.vatAmount) || 0), 0);
 
       const ytdRevenue = invoices
         .filter((i) => i.status === "paid" && String(i.invoiceDate ?? "") >= ytd)

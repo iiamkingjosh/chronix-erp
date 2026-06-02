@@ -26,7 +26,8 @@ const ACCOUNTS = [
   { accountCode: "2010", accountName: "Accounts Payable",    accountType: "LIABILITY", category: "Current Liabilities",                     isActive: true },
   { accountCode: "2100", accountName: "VAT Payable (7.5%)", accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax", isActive: true },
   { accountCode: "2200", accountName: "WHT Payable",        accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax", isActive: true },
-  { accountCode: "2300", accountName: "PAYE Payable",                          accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax",    isActive: true },
+  { accountCode: "2300", accountName: "PAYE Payable",               accountType: "LIABILITY", category: "Current Liabilities", subCategory: "Tax", isActive: true },
+  { accountCode: "2400", accountName: "Payroll Deductions Payable", accountType: "LIABILITY", category: "Current Liabilities",                          isActive: true },
   // EQUITY
   { accountCode: "3010", accountName: "Share Capital — Moses Joshua (90%)",    accountType: "EQUITY",    category: "Equity", isActive: true },
   { accountCode: "3020", accountName: "Share Capital — Obadoni Mabel (5%)",    accountType: "EQUITY",    category: "Equity", isActive: true },

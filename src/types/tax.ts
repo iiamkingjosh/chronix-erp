@@ -103,39 +103,58 @@ export const WHT_CERT_STYLES: Record<WHTCertStatus, string> = {
 
 /* ── PAYE Calculator (Nigerian bands — annual income) ───────── */
 
+/* Nigerian PITA bands — applied to taxable income after CRA + statutory reliefs */
 const PAYE_BANDS = [
-  { ceiling: 800_000,    rate: 0.00 },
-  { ceiling: 3_000_000,  rate: 0.15 },
-  { ceiling: 12_000_000, rate: 0.18 },
-  { ceiling: 25_000_000, rate: 0.21 },
-  { ceiling: 50_000_000, rate: 0.23 },
-  { ceiling: Infinity,   rate: 0.25 },
+  { ceiling:   300_000, rate: 0.07 },
+  { ceiling:   600_000, rate: 0.11 },
+  { ceiling: 1_100_000, rate: 0.15 },
+  { ceiling: 1_600_000, rate: 0.19 },
+  { ceiling: 3_200_000, rate: 0.21 },
+  { ceiling: Infinity,  rate: 0.24 },
 ] as const;
 
 export function computeMonthlyPAYE(monthlySalary: number): {
-  monthly: number;
-  annual: number;
-  effectiveRate: number;
+  monthly:         number;
+  annual:          number;
+  effectiveRate:   number;
+  employeePension: number;   // monthly 8% employee contribution
+  nhf:             number;   // monthly 2.5% NHF contribution
+  cra:             number;   // annual Consolidated Relief Allowance
+  taxableIncome:   number;   // annual taxable income after all reliefs
 } {
   const annual = monthlySalary * 12;
+
+  // Step 1 — CRA: higher of ₦200,000 or 1% of gross, plus 20% of gross
+  const cra = Math.max(200_000, annual * 0.01) + annual * 0.20;
+
+  // Step 2 — Statutory deductions (annual)
+  const employeePensionAnnual = annual * 0.08;
+  const nhfAnnual             = annual * 0.025;
+
+  // Step 3 — Taxable income
+  const taxableIncome = Math.max(0, annual - cra - employeePensionAnnual - nhfAnnual);
+
+  // Step 4 — Progressive tax on taxable income
   let annualPAYE = 0;
   let prev = 0;
-  let remaining = annual;
-
+  let remaining = taxableIncome;
   for (const band of PAYE_BANDS) {
     const slice = Math.min(remaining, band.ceiling - prev);
     if (slice <= 0) break;
     annualPAYE += slice * band.rate;
-    remaining -= slice;
-    prev = band.ceiling;
+    remaining  -= slice;
+    prev        = band.ceiling;
     if (remaining <= 0) break;
   }
 
-  const monthly = Math.round((annualPAYE / 12) * 100) / 100;
   return {
-    monthly,
-    annual:        Math.round(annualPAYE * 100) / 100,
-    effectiveRate: annual > 0 ? Math.round((annualPAYE / annual) * 10000) / 100 : 0,
+    monthly:         Math.round((annualPAYE / 12) * 100) / 100,
+    annual:          Math.round(annualPAYE * 100) / 100,
+    effectiveRate:   annual > 0 ? Math.round((annualPAYE / annual) * 10000) / 100 : 0,
+    employeePension: Math.round((employeePensionAnnual / 12) * 100) / 100,
+    nhf:             Math.round((nhfAnnual / 12) * 100) / 100,
+    cra,
+    taxableIncome,
   };
 }
 

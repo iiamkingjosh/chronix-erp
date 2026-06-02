@@ -55,7 +55,11 @@ export function PayslipPDFDocument({
   logoSrc?: { data: Buffer; format: "png" | "jpg" };
 }): ReactElement<DocumentProps> {
   const period   = `${MONTHS[summary.month - 1]} ${summary.year}`;
-  const totalDed = summary.payeAmount + summary.deductions;
+  const deductionItems = summary.deductionItems ?? [
+    { label: "PAYE (Income Tax)",  amount: summary.payeAmount },
+    ...(summary.deductions > 0 ? [{ label: "Other Deductions", amount: summary.deductions }] : []),
+  ];
+  const totalDed = deductionItems.reduce((s, d) => s + d.amount, 0);
   const isPaid   = summary.status === "paid";
 
   return (
@@ -124,20 +128,28 @@ export function PayslipPDFDocument({
 
         {/* Deductions */}
         <Text style={S.secTitle}>Deductions</Text>
-        <View style={S.tableRow}>
-          <Text style={S.tLabel}>PAYE (Income Tax)</Text>
-          <Text style={S.tValue}>{`−${naira(summary.payeAmount)}`}</Text>
-        </View>
-        {summary.deductions > 0 && (
-          <View style={S.tableRow}>
-            <Text style={S.tLabel}>Other Deductions</Text>
-            <Text style={S.tValue}>{`−${naira(summary.deductions)}`}</Text>
+        {deductionItems.map((item) => (
+          <View key={item.label} style={S.tableRow}>
+            <Text style={S.tLabel}>{item.label}</Text>
+            <Text style={S.tValue}>{`−${naira(item.amount)}`}</Text>
           </View>
-        )}
+        ))}
         <View style={S.totalsRow}>
           <Text style={[S.tLabel, { fontFamily: "Helvetica-Bold" }]}>Total Deductions</Text>
           <Text style={[S.tValue, { fontFamily: "Helvetica-Bold" }]}>{`−${naira(totalDed)}`}</Text>
         </View>
+
+        {/* Employer Pension (informational — not a deduction from employee) */}
+        {(summary.employeePension ?? 0) > 0 && (
+          <>
+            <View style={S.thinLine} />
+            <Text style={[S.secTitle, { color: "#888888" }]}>Employer Contributions (for reference)</Text>
+            <View style={S.tableRow}>
+              <Text style={[S.tLabel, { color: "#888888" }]}>Employer Pension (10%)</Text>
+              <Text style={[S.tValue, { color: "#888888" }]}>{naira(Math.round((summary.employeePension ?? 0) * (10 / 8)))}</Text>
+            </View>
+          </>
+        )}
 
         {/* Net Pay */}
         <View style={S.netRow}>
@@ -183,7 +195,11 @@ export function BulkPayslipPDFDocument({
     <Document title={`Compiled Payslip — ${range}`}>
       {sorted.map((summary) => {
         const period   = `${MONTHS[summary.month - 1]} ${summary.year}`;
-        const totalDed = summary.payeAmount + summary.deductions;
+        const bulkDeductionItems = summary.deductionItems ?? [
+          { label: "PAYE (Income Tax)",  amount: summary.payeAmount },
+          ...(summary.deductions > 0 ? [{ label: "Other Deductions", amount: summary.deductions }] : []),
+        ];
+        const totalDed = bulkDeductionItems.reduce((s, d) => s + d.amount, 0);
         const isPaid   = summary.status === "paid";
 
         return (
@@ -250,20 +266,27 @@ export function BulkPayslipPDFDocument({
 
             {/* Deductions */}
             <Text style={S.secTitle}>Deductions</Text>
-            <View style={S.tableRow}>
-              <Text style={S.tLabel}>PAYE (Income Tax)</Text>
-              <Text style={S.tValue}>{`−${naira(summary.payeAmount)}`}</Text>
-            </View>
-            {summary.deductions > 0 && (
-              <View style={S.tableRow}>
-                <Text style={S.tLabel}>Other Deductions</Text>
-                <Text style={S.tValue}>{`−${naira(summary.deductions)}`}</Text>
+            {bulkDeductionItems.map((item) => (
+              <View key={item.label} style={S.tableRow}>
+                <Text style={S.tLabel}>{item.label}</Text>
+                <Text style={S.tValue}>{`−${naira(item.amount)}`}</Text>
               </View>
-            )}
+            ))}
             <View style={S.totalsRow}>
               <Text style={[S.tLabel, { fontFamily: "Helvetica-Bold" }]}>Total Deductions</Text>
               <Text style={[S.tValue, { fontFamily: "Helvetica-Bold" }]}>{`−${naira(totalDed)}`}</Text>
             </View>
+
+            {(summary.employeePension ?? 0) > 0 && (
+              <>
+                <View style={S.thinLine} />
+                <Text style={[S.secTitle, { color: "#888888" }]}>Employer Contributions (for reference)</Text>
+                <View style={S.tableRow}>
+                  <Text style={[S.tLabel, { color: "#888888" }]}>Employer Pension (10%)</Text>
+                  <Text style={[S.tValue, { color: "#888888" }]}>{naira(Math.round((summary.employeePension ?? 0) * (10 / 8)))}</Text>
+                </View>
+              </>
+            )}
 
             {/* Net Pay */}
             <View style={S.netRow}>
