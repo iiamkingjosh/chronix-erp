@@ -68,7 +68,7 @@ export default function FinanceDashboard() {
   const pending = invoices.filter((i) => i.status === "pending");
   const overdue = invoices.filter((i) => i.status === "overdue");
 
-  const totalRevenue = paid.reduce((s, i) => s + i.total, 0);
+  const totalRevenue = paid.reduce((s, i) => s + (i.subtotal ?? i.total), 0);
   const totalPending = pending.reduce((s, i) => s + i.total, 0);
   const totalOverdue = overdue.reduce((s, i) => s + i.total, 0);
   const netBalance   = totalRevenue - totalExpenses;
@@ -88,7 +88,7 @@ export default function FinanceDashboard() {
         <StatCard
           label="Total Revenue"
           value={formatNaira(totalRevenue)}
-          sub={`${paid.length} paid invoice${paid.length !== 1 ? "s" : ""}`}
+          sub={`${paid.length} paid invoice${paid.length !== 1 ? "s" : ""} (excl. VAT)`}
           icon={<RevenueIcon />}
           iconClass="bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
           valueClass="text-emerald-400"

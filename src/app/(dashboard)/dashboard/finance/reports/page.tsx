@@ -86,7 +86,7 @@ export default function FinancialReportsPage() {
 
   const plData = MONTHS.map((month, mi) => {
     const period = `${year}-${String(mi + 1).padStart(2, "0")}`;
-    const revenue  = invoices.filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(period)).reduce((s, i) => s + i.total, 0);
+    const revenue  = invoices.filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(period)).reduce((s, i) => s + (i.subtotal ?? i.total), 0);
     const expTotal = expenses
       .filter((e) => (e.status === "paid" || e.status === "approved") && e.date?.startsWith(period))
       .reduce((s, e) => s + e.amount, 0);
@@ -123,7 +123,7 @@ export default function FinancialReportsPage() {
   /* ── Exports ── */
   function exportPL() {
     exportCSV(
-      [["Month", "Revenue (₦)", "Expenses (₦)", "Profit (₦)"],
+      [["Month", "Revenue excl VAT (₦)", "Expenses (₦)", "Profit (₦)"],
        ...plData.map((r) => [r.month, r.revenue.toFixed(2), r.expenses.toFixed(2), r.profit.toFixed(2)]),
        ["TOTAL", totalRevenue.toFixed(2), totalExpenses.toFixed(2), totalProfit.toFixed(2)]],
       `PL-${year}.csv`
@@ -174,8 +174,8 @@ export default function FinancialReportsPage() {
         <td class="ctr">${r.revenue > 0 ? ((r.profit / r.revenue) * 100).toFixed(1) + "%" : "—"}</td>
       </tr>`).join("");
       body = `<h1>P&amp;L Statement — ${esc(year)}</h1>
-        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; Revenue: ${fmtN(totalRevenue)} &nbsp;·&nbsp; Profit: ${fmtN(totalProfit)}</p>
-        <table><thead><tr><th>Month</th><th>Revenue</th><th>Expenses</th><th>Net Profit</th><th>Margin</th></tr></thead>
+        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; Revenue (excl. VAT): ${fmtN(totalRevenue)} &nbsp;·&nbsp; Profit: ${fmtN(totalProfit)}</p>
+        <table><thead><tr><th>Month</th><th>Revenue (excl. VAT)</th><th>Expenses</th><th>Net Profit</th><th>Margin</th></tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr><td>TOTAL</td><td class="num">${fmtN(totalRevenue)}</td><td class="num">${fmtN(totalExpenses)}</td><td class="num">${fmtN(totalProfit)}</td><td></td></tr></tfoot></table>`;
     } else if (tab === "ar") {
@@ -362,9 +362,9 @@ export default function FinancialReportsPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { label: "Total Revenue",  value: formatNaira(totalRevenue),  color: "text-emerald-400" },
-                  { label: "Total Expenses", value: formatNaira(totalExpenses), color: "text-red-400" },
-                  { label: "Net Profit",     value: formatNaira(totalProfit),   color: totalProfit >= 0 ? "text-secondary" : "text-red-400" },
+                  { label: "Total Revenue (excl. VAT)", value: formatNaira(totalRevenue),  color: "text-emerald-400" },
+                  { label: "Total Expenses",            value: formatNaira(totalExpenses), color: "text-red-400" },
+                  { label: "Net Profit",                value: formatNaira(totalProfit),   color: totalProfit >= 0 ? "text-secondary" : "text-red-400" },
                 ].map((c) => (
                   <div key={c.label} className="surface-card p-5 text-center">
                     <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">{c.label}</p>
@@ -381,7 +381,7 @@ export default function FinancialReportsPage() {
                     <thead>
                       <tr className="border-b border-white/10">
                         <th className="px-5 py-3 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Month</th>
-                        <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Revenue</th>
+                        <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Revenue (excl. VAT)</th>
                         <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Expenses</th>
                         <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Net Profit</th>
                         <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Margin</th>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getWHTRecords, getPAYERecords } from "@/lib/tax-service";
+import { getExpenses } from "@/lib/expense-service";
 import { formatNaira } from "@/types/finance";
 import { currentPeriod, ytdStart } from "@/types/tax";
 import { cn } from "@/lib/utils";
@@ -49,8 +50,8 @@ function Spinner() {
   );
 }
 
-function KPICard({ label, value, accent = "text-white", sub, href, icon }: {
-  label: string; value: string; accent?: string; sub?: string; href?: string; icon: string;
+function KPICard({ label, value, accent = "text-white", sub, disclaimer, href, icon }: {
+  label: string; value: string; accent?: string; sub?: string; disclaimer?: string; href?: string; icon: string;
 }) {
   const body = (
     <div className="surface-card p-5 flex flex-col gap-2 min-h-[100px] overflow-hidden hover:border-white/20 transition-colors">
@@ -60,6 +61,7 @@ function KPICard({ label, value, accent = "text-white", sub, href, icon }: {
       </div>
       <p className={cn("font-orbitron text-xl font-bold tabular-nums leading-none truncate", accent)}>{value}</p>
       {sub && <p className="text-xs text-white/30 font-helvetica truncate">{sub}</p>}
+      {disclaimer && <p className="text-[10px] text-white/20 font-helvetica mt-1">{disclaimer}</p>}
     </div>
   );
   return href ? <Link href={href} className="block">{body}</Link> : body;
@@ -70,15 +72,17 @@ export default function TaxDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const period = currentPeriod();
-    const ytd    = ytdStart();
+    const period  = currentPeriod();
+    const ytd     = ytdStart();
+    const ytdYear = String(new Date().getFullYear());
 
     Promise.all([
       getDocs(collection(db, "invoices")).catch(() => ({ docs: [] })),
       getDocs(collection(db, "purchase_orders")).catch(() => ({ docs: [] })),
       getWHTRecords().catch(() => []),
       getPAYERecords(period).catch(() => []),
-    ]).then(([invSnap, poSnap, whtRecs, payeRecs]) => {
+      getExpenses().catch(() => []),
+    ]).then(([invSnap, poSnap, whtRecs, payeRecs, expenseClaims]) => {
       const invoices = invSnap.docs.map((d) => ({ ...d.data() })) as Record<string, unknown>[];
       const pos      = poSnap.docs.map((d) => ({ ...d.data() })) as Record<string, unknown>[];
 
@@ -96,11 +100,17 @@ export default function TaxDashboardPage() {
         .filter((i) => i.status === "paid" && String(i.invoiceDate ?? "") >= ytd)
         .reduce((s, i) => s + (Number(i.total) || 0), 0);
 
-      const ytdExpenses = pos
-        .filter((p) => (p.status === "approved" || p.status === "delivered") && String(p.createdAt ?? "") >= ytd)
+      const claimsTotalYTD = expenseClaims
+        .filter((e) => (e.status === "approved" || e.status === "paid") && String(e.date ?? "").startsWith(ytdYear))
+        .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+      const poTotalYTD = pos
+        .filter((p) => (p.status === "approved" || p.status === "delivered" || p.status === "paid") && String(p.createdAt ?? "").startsWith(ytdYear))
         .reduce((s, p) => s + (Number(p.total) || 0), 0);
 
-      const taxableProfit = Math.max(ytdRevenue - ytdExpenses, 0);
+      const ytdExpenses = claimsTotalYTD + poTotalYTD;
+
+      const taxableProfit  = Math.max(ytdRevenue - ytdExpenses, 0);
       const payeObligation = payeRecs.reduce((s, r) => s + (r.payeAmount || 0), 0);
 
       setData({
@@ -134,7 +144,7 @@ export default function TaxDashboardPage() {
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard label="VAT Payable (MTD)"    value={formatNaira(d.vatNetPayable)}    icon="🧾" accent={d.vatNetPayable > 0 ? "text-amber-400" : "text-white/40"} sub="collected − expenses" href="/dashboard/tax/vat" />
+        <KPICard label="VAT Payable (MTD)"    value={formatNaira(d.vatNetPayable)}    icon="🧾" accent={d.vatNetPayable > 0 ? "text-amber-400" : "text-white/40"} sub="collected − expenses" disclaimer="Estimated — see VAT Return for filed figure" href="/dashboard/tax/vat" />
         <KPICard label="VAT Collected (MTD)"  value={formatNaira(d.vatCollectedMTD)}  icon="📥" accent="text-secondary"  href="/dashboard/tax/vat" />
         <KPICard label="VAT on Expenses"      value={formatNaira(d.vatPaidMTD)}       icon="📤" accent="text-white/70"   href="/dashboard/tax/vat" />
         <KPICard label="WHT Records"          value={String(d.whtRecordsCount)}        icon="📋" accent="text-white"      sub={`${d.whtPendingCerts} certs pending`} href="/dashboard/tax/wht" />
