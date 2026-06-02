@@ -35,6 +35,7 @@ export interface POItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  vatAmount?: number;   // input VAT on this line, if applicable
 }
 
 export interface PurchaseOrder {
@@ -42,8 +43,10 @@ export interface PurchaseOrder {
   poNumber: string;     // PO-250504-XXXX
   vendorId: string;
   vendorName: string;
+  vendorCategory?: VendorCategory; // used for COGS account mapping
   items: POItem[];
   subtotal: number;
+  vatAmount?: number;   // total input VAT (credited to 1110 VAT Recoverable)
   total: number;
   status: POStatus;
   deliveryDate: string;
@@ -51,6 +54,7 @@ export interface PurchaseOrder {
   approvedBy?: string;
   approvedByName?: string;
   approvedAt?: string;
+  paidAt?: string;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

@@ -290,13 +290,14 @@ export default function FinancialReportsPage() {
           {reconcileResult && (
             <div className="mt-3 surface-card p-4">
               <p className="font-orbitron text-xs font-bold text-white mb-3">Reconciliation Complete</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                 {(
                   [
                     { label: "Expenses",  r: reconcileResult.expenses },
                     { label: "Invoices",  r: reconcileResult.invoices },
                     { label: "Payments",  r: reconcileResult.payments },
                     { label: "Payroll",   r: reconcileResult.payroll  },
+                    { label: "POs",       r: reconcileResult.pos      },
                   ] as const
                 ).map(({ label, r }) => (
                   <div key={label} className="bg-white/[0.03] rounded-xl p-3">

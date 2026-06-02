@@ -45,8 +45,8 @@
       "collectionGroup": "expenses",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status",      "order": "ASCENDING"  },
-        { "fieldPath": "expenseDate", "order": "DESCENDING" }
+        { "fieldPath": "status", "order": "ASCENDING"  },
+        { "fieldPath": "date",   "order": "DESCENDING" }
       ]
     },
     {

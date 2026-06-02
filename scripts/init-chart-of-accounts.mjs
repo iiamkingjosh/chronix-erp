@@ -16,8 +16,9 @@ const ACCOUNTS = [
   // ASSETS
   { accountCode: "1010", accountName: "Cash in Bank — Fidelity (5601601109)", accountType: "ASSET",     category: "Current Assets", isActive: true },
   { accountCode: "1020", accountName: "Petty Cash",                            accountType: "ASSET",     category: "Current Assets", isActive: true },
-  { accountCode: "1100", accountName: "Accounts Receivable",                   accountType: "ASSET",     category: "Current Assets", isActive: true },
-  { accountCode: "1200", accountName: "Inventory — Hardware for Resale",       accountType: "ASSET",     category: "Current Assets", isActive: true },
+  { accountCode: "1100", accountName: "Accounts Receivable",                   accountType: "ASSET",     category: "Current Assets",               isActive: true },
+  { accountCode: "1110", accountName: "VAT Recoverable (Input)",               accountType: "ASSET",     category: "Current Assets", subCategory: "Tax", isActive: true },
+  { accountCode: "1200", accountName: "Inventory — Hardware for Resale",       accountType: "ASSET",     category: "Current Assets",               isActive: true },
   { accountCode: "1300", accountName: "Prepaid Expenses",                      accountType: "ASSET",     category: "Current Assets", isActive: true },
   { accountCode: "1400", accountName: "Office Equipment",                      accountType: "ASSET",     category: "Fixed Assets",   isActive: true },
   { accountCode: "1500", accountName: "Computer Equipment",                    accountType: "ASSET",     category: "Fixed Assets",   isActive: true },

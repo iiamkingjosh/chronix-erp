@@ -2,6 +2,7 @@ import { createJournalEntry } from "./journal-entries";
 import type { Invoice, JournalEntry, JournalLineItem, Payment } from "@/types/finance";
 import type { Expense as ExpenseClaim } from "@/types/expense";
 import type { PayrollRun } from "@/types/hr";
+import type { PurchaseOrder, VendorCategory } from "@/types/procurement";
 import { round } from "@/lib/utils";
 
 /* ── Expense account lookup ───────────────────────────────────────────────── */
@@ -242,6 +243,69 @@ export async function createPayrollJournalEntry(
     reference:     `PAY-${run.year}-${mm}`,
     referenceType: "payroll",
     referenceId:   run.id,
+    lineItems,
+    status:    "posted",
+    createdBy: userId,
+    postedBy:  userId,
+    postedAt:  new Date().toISOString(),
+  });
+}
+
+/* ── Purchase Order paid ──────────────────────────────────────────────────── */
+/*
+ *  Debit  50XX  COGS Account (hardware→5010, services→5020, software→5030)
+ *  Debit  1110  VAT Recoverable    (input VAT, if any)
+ *  Credit 1010  Cash in Bank       (po.total)
+ */
+function poCogsAccount(category?: VendorCategory): { code: string; name: string } {
+  if (category === "hardware" || category === "consumables")
+    return { code: "5010", name: "Cost of Hardware Sold" };
+  if (category === "services" || category === "logistics")
+    return { code: "5020", name: "Direct Project Costs" };
+  return { code: "5030", name: "Subcontractor Costs" };
+}
+
+export async function createPOJournalEntry(
+  po: PurchaseOrder,
+  userId: string
+): Promise<JournalEntry> {
+  const cogs    = poCogsAccount(po.vendorCategory);
+  const vatAmt  = round(po.vatAmount ?? 0);
+  const netCost = round(po.total - vatAmt);
+
+  const lineItems: JournalLineItem[] = [
+    {
+      accountCode: cogs.code,
+      accountName: cogs.name,
+      debit:  netCost,
+      credit: 0,
+      description: `PO ${po.poNumber} — ${po.vendorName}`,
+    },
+    {
+      accountCode: "1010",
+      accountName: "Cash in Bank — Fidelity",
+      debit:  0,
+      credit: round(po.total),
+      description: `Payment to ${po.vendorName}`,
+    },
+  ];
+
+  if (vatAmt > 0) {
+    lineItems.push({
+      accountCode: "1110",
+      accountName: "VAT Recoverable (Input)",
+      debit:  vatAmt,
+      credit: 0,
+      description: `Input VAT on PO ${po.poNumber}`,
+    });
+  }
+
+  return createJournalEntry({
+    entryDate:     po.createdAt.slice(0, 10),
+    description:   `PO ${po.poNumber} — ${po.vendorName}`,
+    reference:     po.poNumber,
+    referenceType: "manual",
+    referenceId:   po.id,
     lineItems,
     status:    "posted",
     createdBy: userId,

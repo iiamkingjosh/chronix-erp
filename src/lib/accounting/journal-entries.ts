@@ -1,7 +1,7 @@
 import { db } from "@/lib/firebase";
 import {
   collection, doc, getDoc, getDocs,
-  setDoc, query, where, orderBy, runTransaction, Timestamp,
+  setDoc, updateDoc, query, where, orderBy, runTransaction, Timestamp,
 } from "firebase/firestore";
 import type { JournalEntry, JournalLineItem } from "@/types/finance";
 import { round } from "@/lib/utils";
@@ -89,4 +89,56 @@ export async function getJournalEntriesByReference(referenceId: string): Promise
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as JournalEntry));
+}
+
+/* ── Void ────────────────────────────────────────────────────────────────── */
+/**
+ * Voids a posted journal entry by:
+ * 1. Marking the original entry status = "void"
+ * 2. Posting a reversing entry (all debits/credits swapped) with the same date
+ *
+ * Journal entries are immutable by Firestore rules — this is the only correct
+ * way to correct an error in the ledger.
+ */
+export async function voidJournalEntry(
+  id: string,
+  reason: string,
+  userId: string
+): Promise<JournalEntry> {
+  const original = await getJournalEntry(id);
+  if (!original) throw new Error(`Journal entry ${id} not found`);
+  if (original.status !== "posted")
+    throw new Error(`Entry ${id} is already ${original.status} — cannot void`);
+
+  const now = new Date().toISOString();
+
+  // Mark original as voided
+  await updateDoc(doc(db, "journal_entries", id), {
+    status:     "void",
+    voidedBy:   userId,
+    voidedAt:   now,
+    voidReason: reason,
+  });
+
+  // Post reversing entry
+  const reversedLines: JournalLineItem[] = original.lineItems.map((l) => ({
+    accountCode:  l.accountCode,
+    accountName:  l.accountName,
+    debit:        l.credit,   // swap
+    credit:       l.debit,    // swap
+    description:  l.description,
+  }));
+
+  return createJournalEntry({
+    entryDate:     original.entryDate,
+    description:   `VOID — ${original.description}`,
+    reference:     original.reference,
+    referenceType: original.referenceType ?? "manual",
+    referenceId:   original.id,
+    lineItems:     reversedLines,
+    status:        "posted",
+    createdBy:     userId,
+    postedBy:      userId,
+    postedAt:      now,
+  });
 }

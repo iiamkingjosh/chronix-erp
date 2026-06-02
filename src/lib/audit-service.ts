@@ -8,7 +8,8 @@ export type AuditAction =
   | "login" | "logout" | "assign" | "resolve" | "export";
 
 export type AuditModule =
-  | "invoices" | "expenses" | "leave" | "disciplinary" | "assets"
+  | "invoices" | "payments" | "expenses" | "purchase_orders" | "payroll"
+  | "leave" | "disciplinary" | "assets"
   | "time" | "tickets" | "projects" | "crm" | "hr" | "procurement"
   | "subscriptions" | "knowledge" | "incidents" | "changes" | "users";
 

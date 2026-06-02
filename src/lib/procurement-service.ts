@@ -4,6 +4,8 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Vendor, PurchaseOrder, POStatus, VendorRating } from "@/types/procurement";
+import { createPOJournalEntry } from "@/lib/accounting/auto-journal";
+import { logAuditEvent } from "@/lib/audit-service";
 
 const VND = "vendors";
 const PO  = "purchase_orders";
@@ -66,14 +68,37 @@ export async function updatePOStatus(
   status: POStatus,
   author?: { uid: string; name: string }
 ): Promise<void> {
-  const updates: Record<string, unknown> = {
-    status,
-    updatedAt: new Date().toISOString(),
-  };
+  const now = new Date().toISOString();
+  const updates: Record<string, unknown> = { status, updatedAt: now };
   if (status === "approved" && author) {
     updates.approvedBy     = author.uid;
     updates.approvedByName = author.name;
-    updates.approvedAt     = new Date().toISOString();
+    updates.approvedAt     = now;
+  }
+  if (status === "paid") {
+    updates.paidAt = now;
   }
   await updateDoc(doc(db, PO, poId), updates);
+
+  // Audit log
+  if (author) {
+    logAuditEvent({
+      actorUid: author.uid, actorName: author.name, actorRole: "Finance",
+      action: status === "approved" ? "approve" : "update",
+      module: "purchase_orders", entityId: poId,
+      details: `PO status → ${status}`,
+      timestamp: now,
+    }).catch(() => {});
+  }
+
+  if (status === "paid" && author) {
+    const po = await getPO(poId);
+    if (po) {
+      createPOJournalEntry(po, author.uid).catch((e) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[accounting] PO journal failed:", msg);
+        updateDoc(doc(db, PO, poId), { _journalError: msg }).catch(() => {});
+      });
+    }
+  }
 }

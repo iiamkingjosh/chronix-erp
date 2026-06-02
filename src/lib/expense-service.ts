@@ -5,6 +5,7 @@ import {
 import { db } from "./firebase";
 import type { Expense, ExpenseStatus } from "@/types/expense";
 import { createExpenseJournalEntry } from "@/lib/accounting/auto-journal";
+import { logAuditEvent } from "@/lib/audit-service";
 
 const COL = "expenses";
 
@@ -34,7 +35,7 @@ export async function updateExpenseStatus(
   id: string,
   status: ExpenseStatus,
   actorName: string,
-  extra?: { rejectionReason?: string }
+  extra?: { rejectionReason?: string; actorUid?: string }
 ): Promise<void> {
   const now = new Date().toISOString();
   const update: Record<string, unknown> = { status };
@@ -43,11 +44,20 @@ export async function updateExpenseStatus(
   if (status === "paid")     { update.paidAt = now; }
   await updateDoc(doc(db, COL, id), update);
 
+  // Audit log
+  logAuditEvent({
+    actorUid: extra?.actorUid ?? actorName, actorName, actorRole: "Finance",
+    action: status === "approved" ? "approve" : status === "rejected" ? "reject" : "update",
+    module: "expenses", entityId: id,
+    details: `Expense status → ${status}${extra?.rejectionReason ? `: ${extra.rejectionReason}` : ""}`,
+    timestamp: now,
+  }).catch(() => {});
+
   if (status === "paid") {
     const expense = await getExpense(id);
     if (expense) {
       try {
-        await createExpenseJournalEntry(expense, actorName);
+        await createExpenseJournalEntry(expense, extra?.actorUid ?? actorName);
         await updateDoc(doc(db, COL, id), { _journalError: null });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

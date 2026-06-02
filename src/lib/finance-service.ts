@@ -13,6 +13,7 @@ import {
 import { db } from "./firebase";
 import type { Invoice, Payment, InvoiceStatus, ApprovalStatus } from "@/types/finance";
 import { createInvoiceJournalEntry, createPaymentJournalEntry } from "@/lib/accounting/auto-journal";
+import { logAuditEvent } from "@/lib/audit-service";
 
 const INV = "invoices";
 const PAY = "payments";
@@ -27,6 +28,13 @@ export async function createInvoice(data: Omit<Invoice, "id">): Promise<Invoice>
     console.error("[accounting] Failed to create invoice journal entry:", msg);
     updateDoc(doc(db, INV, ref.id), { _journalError: msg }).catch(() => {});
   }
+  logAuditEvent({
+    actorUid: data.createdBy, actorName: data.createdBy, actorRole: "Finance",
+    action: "create", module: "invoices", entityId: ref.id,
+    entityRef: invoice.invoiceNumber,
+    details: `Invoice ${invoice.invoiceNumber} created for ${invoice.client.name} — ₦${invoice.total.toLocaleString()}`,
+    timestamp: new Date().toISOString(),
+  }).catch(() => {});
   return invoice;
 }
 
@@ -67,6 +75,13 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
     console.error("[accounting] Failed to create payment journal entry:", msg);
     updateDoc(doc(db, PAY, paymentRef.id), { _journalError: msg }).catch(() => {});
   }
+  logAuditEvent({
+    actorUid: data.recordedBy, actorName: data.recordedBy, actorRole: "Finance",
+    action: "create", module: "payments", entityId: paymentRef.id,
+    entityRef: data.invoiceNumber,
+    details: `Payment recorded for invoice ${data.invoiceNumber} — ₦${data.amount.toLocaleString()} from ${data.clientName}`,
+    timestamp: new Date().toISOString(),
+  }).catch(() => {});
   return payment;
 }
 
@@ -86,7 +101,7 @@ export async function updateInvoiceApproval(
   id: string,
   approvalStatus: ApprovalStatus,
   actorName: string,
-  extra?: { rejectionReason?: string }
+  extra?: { rejectionReason?: string; actorUid?: string }
 ): Promise<void> {
   const now = new Date().toISOString();
   const update: Record<string, unknown> = { approvalStatus };
@@ -94,4 +109,11 @@ export async function updateInvoiceApproval(
   if (approvalStatus === "approved")  { update.approvedBy = actorName; update.approvedAt = now; }
   if (approvalStatus === "rejected")  { update.rejectedBy = actorName; update.rejectedAt = now; update.rejectionReason = extra?.rejectionReason ?? ""; }
   await updateDoc(doc(db, INV, id), update);
+  logAuditEvent({
+    actorUid: extra?.actorUid ?? actorName, actorName, actorRole: "Finance",
+    action: approvalStatus === "approved" ? "approve" : approvalStatus === "rejected" ? "reject" : "update",
+    module: "invoices", entityId: id,
+    details: `Invoice approval status → ${approvalStatus}${extra?.rejectionReason ? `: ${extra.rejectionReason}` : ""}`,
+    timestamp: now,
+  }).catch(() => {});
 }
