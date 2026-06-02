@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,40 +47,43 @@ export default function CreateReviewModal({
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState("");
 
-  const fetchLocked = useCallback(async (uid: string, m: number, y: number) => {
-    if (!uid) return;
-    // Abort any in-flight request
+  useEffect(() => {
+    if (!empUid) return;
+    let cancelled = false;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    setComputing(true);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) {
-        setError("Authentication error. Please refresh and try again.");
-        return;
-      }
-      const res = await fetch(
-        `/api/performance/compute?uid=${uid}&month=${m}&year=${y}`,
-        { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
-      );
-      if (res.ok) {
-        const data = await res.json() as { taskCompletionRate: number; ticketResolutionRate: number };
-        setLocked(data);
-      } else {
-        setError("Could not load automated KPIs. Please retry.");
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return; // expected — ignore
-      setError("Could not load automated KPIs. Please retry.");
-    } finally {
-      setComputing(false);
-    }
-  }, []);
 
-  useEffect(() => {
-    fetchLocked(empUid, month, year);
-  }, [empUid, month, year, fetchLocked]);
+    async function doFetch() {
+      setComputing(true);
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) {
+          if (!cancelled) setError("Authentication error. Please refresh and try again.");
+          return;
+        }
+        const res = await fetch(
+          `/api/performance/compute?uid=${empUid}&month=${month}&year=${year}`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json() as { taskCompletionRate: number; ticketResolutionRate: number };
+          setLocked(data);
+        } else {
+          setError("Could not load automated KPIs. Please retry.");
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        if (!cancelled) setError("Could not load automated KPIs. Please retry.");
+      } finally {
+        if (!cancelled) setComputing(false);
+      }
+    }
+
+    doFetch();
+    return () => { cancelled = true; };
+  }, [empUid, month, year]);
 
   const scores: KPIScores = { ...locked, ...manual };
   const overallScore  = calcOverallScore(scores);
