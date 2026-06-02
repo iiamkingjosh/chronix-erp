@@ -7,7 +7,7 @@ import Link from "next/link";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/types/roles";
-import { getEmployee, getEmployees } from "@/lib/hr-service";
+import { getEmployee } from "@/lib/hr-service";
 import { MONTHS, ENTITLEMENT_STYLES, KPI_LABELS, KPI_LOCKED } from "@/types/hr";
 import type { Employee, PerformanceReview, KPIScores } from "@/types/hr";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,6 @@ export default function IndividualPerformancePage() {
     : false;
 
   const [employee,  setEmployee]  = useState<Employee | null>(null);
-  const [allEmps,   setAllEmps]   = useState<Employee[]>([]);
   const [reviews,   setReviews]   = useState<PerformanceReview[]>([]);
   const [selected,  setSelected]  = useState<PerformanceReview | null>(null);
   const [loading,   setLoading]   = useState(true);
@@ -55,9 +54,8 @@ export default function IndividualPerformancePage() {
     if (!uid) return;
     let cancelled = false;
     async function load() {
-      const [emp, emps, snap] = await Promise.all([
+      const [emp, snap] = await Promise.all([
         getEmployee(uid),
-        getEmployees(),
         getDocs(
           query(
             collection(db, "performance_reviews"),
@@ -68,7 +66,6 @@ export default function IndividualPerformancePage() {
       ]);
       if (cancelled) return;
       setEmployee(emp);
-      setAllEmps(emps);
       const revs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PerformanceReview));
       setReviews(revs);
       setSelected(revs[0] ?? null);
