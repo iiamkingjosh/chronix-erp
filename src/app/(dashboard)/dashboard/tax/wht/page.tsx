@@ -16,7 +16,7 @@ import { auth } from "@/lib/firebase";
 import { cn, round } from "@/lib/utils";
 import { createJournalEntry } from "@/lib/accounting/journal-entries";
 
-const DEFAULT_WHT_RATE = 7.5;
+const DEFAULT_WHT_RATE = 5;
 
 type PeriodOption = { label: string; value: string };
 
@@ -219,7 +219,7 @@ export default function WHTPage() {
             </select>
           </div>
           <div className="pb-2.5 space-y-0.5">
-            <p className="text-white/30 text-xs font-helvetica">5% services / contracts · 5% goods · 10% rent, dividends, interest</p>
+            <p className="text-white/30 text-xs font-helvetica">5% services &amp; contracts · 2.5% goods/products · 10% rent, dividends &amp; interest</p>
             <p className="text-white/20 text-[10px] font-helvetica">Remit to FIRS by the 21st of the following month</p>
           </div>
         </div>
@@ -326,7 +326,7 @@ export default function WHTPage() {
             <div>
               <label className="field-label">WHT Rate (%)</label>
               <input type="number" min="0" max="20" step="0.5" value={form.whtRate} onChange={(e) => setForm((p) => ({ ...p, whtRate: e.target.value }))} className="input-field" />
-              <p className="mt-1 text-[10px] text-white/20 font-helvetica">7.5% default (VAT rate) · adjust as needed</p>
+              <p className="mt-1 text-[10px] text-white/20 font-helvetica">5% services &amp; contracts · 2.5% goods/products · 10% rent, dividends, interest</p>
             </div>
             <div>
               <label className="field-label">WHT Amount (auto)</label>
