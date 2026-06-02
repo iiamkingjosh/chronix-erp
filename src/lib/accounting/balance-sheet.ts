@@ -63,7 +63,7 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
     currentLiabilities: {
       accountsPayable: -g("2010"),
       vatPayable:      -g("2100"),
-      vatRecoverable:  -g("2110"), // legacy entries that used 2110 before migration
+      vatRecoverable:  -g("1110"),
       whtPayable:      -g("2200"),
       payePayable:     -g("2300"),
       total: 0,

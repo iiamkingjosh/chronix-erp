@@ -115,7 +115,7 @@ export default function FinancialReportsPage() {
   const revenueByClient = invoices
     .filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(year))
     .reduce<Record<string, number>>((acc, i) => {
-      acc[i.client.name] = (acc[i.client.name] ?? 0) + i.total;
+      acc[i.client.name] = (acc[i.client.name] ?? 0) + (i.subtotal ?? i.total);
       return acc;
     }, {});
   const revenueClientRows = Object.entries(revenueByClient).sort((a, b) => b[1] - a[1]);
