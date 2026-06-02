@@ -97,29 +97,62 @@ export async function createInvoiceJournalEntry(
 
 /* ── Payment received ────────────────────────────────────────────────────── */
 /*
+ *  Standard:
  *  Debit  1010  Cash in Bank          (amount received)
  *  Credit 1100  Accounts Receivable   (clears the debt)
+ *
+ *  VAT Direct (client remitted VAT to FIRS on our behalf):
+ *  Debit  1010  Cash in Bank          (amount - vatAmount — cash actually received)
+ *  Debit  2100  VAT Payable           (vatAmount — liability discharged by client)
+ *  Credit 1100  Accounts Receivable   (amount — full invoice cleared)
  */
 export async function createPaymentJournalEntry(
   payment: Payment,
   userId: string
 ): Promise<JournalEntry> {
-  const lineItems: JournalLineItem[] = [
-    {
+  const lineItems: JournalLineItem[] = [];
+
+  if (payment.method === "vat_direct" && payment.vatAmount && payment.vatAmount > 0) {
+    const cashReceived = round(payment.amount - payment.vatAmount);
+    const vatAmt       = round(payment.vatAmount);
+
+    lineItems.push({
+      accountCode: "1010",
+      accountName: "Cash in Bank — Fidelity",
+      debit:  cashReceived,
+      credit: 0,
+      description: `Cash received from ${payment.clientName} (VAT paid directly to FIRS)`,
+    });
+    lineItems.push({
+      accountCode: "2100",
+      accountName: "VAT Payable (7.5%)",
+      debit:  vatAmt,
+      credit: 0,
+      description: `VAT remitted to FIRS by ${payment.clientName}`,
+    });
+    lineItems.push({
+      accountCode: "1100",
+      accountName: "Accounts Receivable",
+      debit:  0,
+      credit: round(payment.amount),
+      description: `Full AR cleared — ${payment.clientName}`,
+    });
+  } else {
+    lineItems.push({
       accountCode: "1010",
       accountName: "Cash in Bank — Fidelity",
       debit:  round(payment.amount),
       credit: 0,
       description: "Bank transfer received",
-    },
-    {
+    });
+    lineItems.push({
       accountCode: "1100",
       accountName: "Accounts Receivable",
       debit:  0,
       credit: round(payment.amount),
       description: `Payment from ${payment.clientName}`,
-    },
-  ];
+    });
+  }
 
   return createJournalEntry({
     entryDate:     payment.paymentDate,

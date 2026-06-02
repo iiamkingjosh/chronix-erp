@@ -16,7 +16,7 @@ export const COMPANY = {
 
 export type InvoiceStatus   = "pending" | "paid" | "overdue";
 export type ApprovalStatus  = "draft" | "pending_approval" | "approved" | "rejected";
-export type PaymentMethod   = "bank_transfer" | "cash" | "cheque" | "other";
+export type PaymentMethod   = "bank_transfer" | "cash" | "cheque" | "vat_direct" | "other";
 
 export interface InvoiceItem {
   id: string;
@@ -79,6 +79,7 @@ export interface Payment {
   invoiceNumber: string;
   clientName: string;
   amount: number;
+  vatAmount?: number;
   paymentDate: string;
   method: PaymentMethod;
   reference?: string;
@@ -89,9 +90,10 @@ export interface Payment {
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   bank_transfer: "Bank Transfer",
-  cash: "Cash",
-  cheque: "Cheque",
-  other: "Other",
+  cash:          "Cash",
+  cheque:        "Cheque",
+  vat_direct:    "VAT Direct (Client paid FIRS)",
+  other:         "Other",
 };
 
 export function formatNaira(amount: number): string {

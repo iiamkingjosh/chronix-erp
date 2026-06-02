@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getPayments, getInvoices, createPayment } from "@/lib/finance-service";
 import { formatNaira, formatDate, PAYMENT_METHOD_LABELS, today } from "@/types/finance";
 import type { Invoice, Payment, PaymentMethod } from "@/types/finance";
+import { round } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
@@ -163,7 +164,12 @@ function RecordPaymentForm({
   const [submitting, setSubmitting]                = useState(false);
   const [error, setError]                          = useState<string | null>(null);
 
-  const selectedInv = unpaidInvoices.find((i) => i.id === selectedInvoiceId);
+  const selectedInv   = unpaidInvoices.find((i) => i.id === selectedInvoiceId);
+  const isVatDirect   = method === "vat_direct";
+  const derivedVat    = selectedInv
+    ? round(selectedInv.vatAmount > 0 ? selectedInv.vatAmount : selectedInv.total * 0.075 / 1.075)
+    : 0;
+  const cashReceived  = selectedInv ? round(selectedInv.total - derivedVat) : 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -176,6 +182,7 @@ function RecordPaymentForm({
         invoiceNumber: selectedInv.invoiceNumber,
         clientName:    selectedInv.client.name,
         amount:        selectedInv.total,
+        ...(isVatDirect && derivedVat > 0 ? { vatAmount: derivedVat } : {}),
         paymentDate,
         method,
         reference:     reference || undefined,
@@ -183,7 +190,7 @@ function RecordPaymentForm({
         recordedBy:    profile.uid,
         createdAt:     new Date().toISOString(),
       });
-      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: selectedInv.id, entityRef: selectedInv.invoiceNumber, details: `Payment of ₦${selectedInv.total.toLocaleString()} recorded for invoice ${selectedInv.invoiceNumber}`, timestamp: new Date().toISOString() });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: selectedInv.id, entityRef: selectedInv.invoiceNumber, details: `Payment of ₦${selectedInv.total.toLocaleString()} recorded for invoice ${selectedInv.invoiceNumber}${isVatDirect ? " (VAT Direct — client remitted to FIRS)" : ""}`, timestamp: new Date().toISOString() });
       onSuccess(payment);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to record payment");
@@ -265,7 +272,7 @@ function RecordPaymentForm({
           />
         </div>
 
-        {selectedInv && (
+        {selectedInv && !isVatDirect && (
           <div className="flex items-end">
             <div className="w-full bg-accent/5 border border-accent/20 rounded-xl px-4 py-3">
               <p className="text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica mb-1">Amount to Record</p>
@@ -273,7 +280,36 @@ function RecordPaymentForm({
             </div>
           </div>
         )}
+
+        {isVatDirect && selectedInv && (
+          <>
+            <div>
+              <label className="field-label">VAT Amount (auto)</label>
+              <div className="input-field bg-white/[0.02] text-white/50 pointer-events-none">
+                {formatNaira(derivedVat)}
+              </div>
+            </div>
+            <div>
+              <label className="field-label">Cash You Will Receive</label>
+              <div className="input-field bg-white/[0.02] text-white/50 pointer-events-none">
+                {formatNaira(cashReceived)}
+              </div>
+            </div>
+          </>
+        )}
       </div>
+
+      {isVatDirect && (
+        <div className="mt-4 flex items-start gap-3 px-4 py-3 bg-amber-500/8 border border-amber-500/20 rounded-xl">
+          <span className="text-amber-400 shrink-0 mt-0.5">ℹ</span>
+          <p className="text-amber-300/80 text-xs font-helvetica leading-relaxed">
+            Select this when a client has confirmed they remitted the VAT directly to FIRS.
+            The cash amount you received will be recorded to your bank account, and your{" "}
+            <strong className="text-amber-300">VAT Payable</strong> account will be discharged automatically.
+            The full invoice AR balance will be cleared.
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
