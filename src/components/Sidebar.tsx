@@ -105,14 +105,36 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   useEffect(() => {
     if (!profile) return;
-    const q = query(
+
+    const qRole = query(
       collection(db, "notifications"),
       where("targetRoles", "array-contains", profile.role),
+      where("read", "==", false),
     );
-    const unsub = onSnapshot(q, (snap) => {
-      setUnread(snap.docs.filter((d) => d.data().read === false).length);
+    const qUid = query(
+      collection(db, "notifications"),
+      where("targetUids", "array-contains", profile.uid),
+      where("read", "==", false),
+    );
+
+    let roleIds = new Set<string>();
+    let uidIds  = new Set<string>();
+
+    function recount() {
+      setUnread(new Set([...roleIds, ...uidIds]).size);
+    }
+
+    const unsubRole = onSnapshot(qRole, (snap) => {
+      roleIds = new Set(snap.docs.map((d) => d.id));
+      recount();
     }, () => {});
-    return unsub;
+
+    const unsubUid = onSnapshot(qUid, (snap) => {
+      uidIds = new Set(snap.docs.map((d) => d.id));
+      recount();
+    }, () => {});
+
+    return () => { unsubRole(); unsubUid(); };
   }, [profile]);
 
   if (!profile) return null;
