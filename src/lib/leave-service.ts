@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs, updateDoc,
-  query, orderBy, where,
+  query, orderBy, where, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { LeaveRequest, LeaveStatus } from "@/types/leave";
@@ -30,7 +30,7 @@ export async function createLeaveRequest(data: Omit<LeaveRequest, "id">): Promis
 }
 
 export async function getLeaveRequests(): Promise<LeaveRequest[]> {
-  const snap = await getDocs(query(collection(db, COL), orderBy("submittedAt", "desc")));
+  const snap = await getDocs(query(collection(db, COL), orderBy("submittedAt", "desc"), limit(100)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as LeaveRequest));
 }
 

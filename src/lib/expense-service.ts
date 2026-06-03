@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs,
-  updateDoc, deleteDoc, query, orderBy, where,
+  updateDoc, deleteDoc, query, orderBy, where, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Expense, ExpenseStatus } from "@/types/expense";
@@ -32,13 +32,13 @@ export async function createExpense(data: Omit<Expense, "id">): Promise<Expense>
 }
 
 export async function getExpenses(): Promise<Expense[]> {
-  const snap = await getDocs(query(collection(db, COL), orderBy("submittedAt", "desc")));
+  const snap = await getDocs(query(collection(db, COL), orderBy("submittedAt", "desc"), limit(100)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
 }
 
 export async function getMyExpenses(uid: string): Promise<Expense[]> {
   const snap = await getDocs(
-    query(collection(db, COL), where("submittedByUid", "==", uid), orderBy("submittedAt", "desc"))
+    query(collection(db, COL), where("submittedByUid", "==", uid), orderBy("submittedAt", "desc"), limit(50))
   );
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
 }

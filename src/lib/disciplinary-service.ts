@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDocs, updateDoc,
-  query, orderBy, where,
+  query, orderBy, where, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { DiscEntry, DiscStatus } from "@/types/disciplinary";
@@ -13,7 +13,7 @@ export async function createDiscEntry(data: Omit<DiscEntry, "id">): Promise<Disc
 }
 
 export async function getDiscEntries(): Promise<DiscEntry[]> {
-  const snap = await getDocs(query(collection(db, COL), orderBy("issuedAt", "desc")));
+  const snap = await getDocs(query(collection(db, COL), orderBy("issuedAt", "desc"), limit(50)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as DiscEntry));
 }
 

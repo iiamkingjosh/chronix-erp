@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -112,7 +112,7 @@ export default function StaffPage() {
     }
   }
 
-  const filtered = users.filter((u) => {
+  const filtered = useMemo(() => users.filter((u) => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -120,7 +120,7 @@ export default function StaffPage() {
       u.email.toLowerCase().includes(q) ||
       u.role.toLowerCase().includes(q)
     );
-  });
+  }), [users, search]);
 
   return (
     <ProtectedRoute requiredAnyPermission={["manage:staff", "manage:hr"]}>

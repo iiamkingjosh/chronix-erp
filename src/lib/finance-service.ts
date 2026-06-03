@@ -8,6 +8,7 @@ import {
   deleteDoc,
   query,
   orderBy,
+  limit,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -97,7 +98,7 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
 }
 
 export async function getPayments(): Promise<Payment[]> {
-  const snap = await getDocs(query(collection(db, PAY), orderBy("createdAt", "desc")));
+  const snap = await getDocs(query(collection(db, PAY), orderBy("createdAt", "desc"), limit(100)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Payment));
 }
 

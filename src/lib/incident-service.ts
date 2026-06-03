@@ -1,4 +1,4 @@
-import { collection, doc, addDoc, getDoc, getDocs, updateDoc, query, orderBy, arrayUnion } from "firebase/firestore";
+import { collection, doc, addDoc, getDoc, getDocs, updateDoc, query, orderBy, arrayUnion, limit } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Incident, IncidentStatus, IncidentUpdate } from "@/types/incident";
 
@@ -10,7 +10,7 @@ export async function createIncident(data: Omit<Incident, "id">): Promise<Incide
 }
 
 export async function getIncidents(): Promise<Incident[]> {
-  const snap = await getDocs(query(collection(db, COL), orderBy("detectedAt", "desc")));
+  const snap = await getDocs(query(collection(db, COL), orderBy("detectedAt", "desc"), limit(50)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Incident));
 }
 

@@ -1,4 +1,4 @@
-import { collection, doc, addDoc, getDoc, getDocs, updateDoc, query, orderBy } from "firebase/firestore";
+import { collection, doc, addDoc, getDoc, getDocs, updateDoc, query, orderBy, limit } from "firebase/firestore";
 import { db } from "./firebase";
 import type { ChangeEntry, ChangeStatus } from "@/types/change";
 
@@ -10,7 +10,7 @@ export async function createChange(data: Omit<ChangeEntry, "id">): Promise<Chang
 }
 
 export async function getChanges(): Promise<ChangeEntry[]> {
-  const snap = await getDocs(query(collection(db, COL), orderBy("createdAt", "desc")));
+  const snap = await getDocs(query(collection(db, COL), orderBy("createdAt", "desc"), limit(50)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChangeEntry));
 }
 

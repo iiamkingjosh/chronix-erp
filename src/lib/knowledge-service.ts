@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs, updateDoc,
-  query, orderBy, increment,
+  query, orderBy, increment, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { KBArticle, KBStatus } from "@/types/knowledge";
@@ -13,7 +13,7 @@ export async function createArticle(data: Omit<KBArticle, "id">): Promise<KBArti
 }
 
 export async function getArticles(): Promise<KBArticle[]> {
-  const snap = await getDocs(query(collection(db, COL), orderBy("updatedAt", "desc")));
+  const snap = await getDocs(query(collection(db, COL), orderBy("updatedAt", "desc"), limit(50)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as KBArticle));
 }
 

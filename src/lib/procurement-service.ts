@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs,
-  updateDoc, query, orderBy, arrayUnion, where,
+  updateDoc, query, orderBy, arrayUnion, where, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Vendor, PurchaseOrder, POStatus, VendorRating } from "@/types/procurement";
@@ -18,7 +18,7 @@ export async function createVendor(data: Omit<Vendor, "id">): Promise<Vendor> {
 }
 
 export async function getVendors(): Promise<Vendor[]> {
-  const snap = await getDocs(query(collection(db, VND), orderBy("createdAt", "desc")));
+  const snap = await getDocs(query(collection(db, VND), orderBy("createdAt", "desc"), limit(50)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Vendor));
 }
 
@@ -49,7 +49,7 @@ export async function createPO(data: Omit<PurchaseOrder, "id">): Promise<Purchas
 }
 
 export async function getPOs(): Promise<PurchaseOrder[]> {
-  const snap = await getDocs(query(collection(db, PO), orderBy("createdAt", "desc")));
+  const snap = await getDocs(query(collection(db, PO), orderBy("createdAt", "desc"), limit(100)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as PurchaseOrder));
 }
 

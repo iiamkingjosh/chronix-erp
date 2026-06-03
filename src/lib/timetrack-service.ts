@@ -1,5 +1,5 @@
 import {
-  collection, addDoc, getDocs, updateDoc, doc, query, orderBy, where,
+  collection, addDoc, getDocs, updateDoc, doc, query, orderBy, where, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { TimeEntry } from "@/types/timetrack";
@@ -12,13 +12,13 @@ export async function createTimeEntry(data: Omit<TimeEntry, "id">): Promise<Time
 }
 
 export async function getAllTimeEntries(): Promise<TimeEntry[]> {
-  const snap = await getDocs(query(collection(db, COL), orderBy("date", "desc")));
+  const snap = await getDocs(query(collection(db, COL), orderBy("date", "desc"), limit(200)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TimeEntry));
 }
 
 export async function getMyTimeEntries(uid: string): Promise<TimeEntry[]> {
   const snap = await getDocs(
-    query(collection(db, COL), where("employeeUid", "==", uid), orderBy("date", "desc"))
+    query(collection(db, COL), where("employeeUid", "==", uid), orderBy("date", "desc"), limit(100))
   );
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TimeEntry));
 }

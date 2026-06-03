@@ -1,6 +1,6 @@
 import {
   collection, doc, setDoc, getDoc, getDocs,
-  updateDoc, query, orderBy, arrayUnion, addDoc, runTransaction,
+  updateDoc, query, orderBy, arrayUnion, addDoc, runTransaction, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { auth } from "./firebase";
@@ -264,7 +264,7 @@ export async function createPayrollRun(data: Omit<PayrollRun, "id">): Promise<Pa
 }
 
 export async function getPayrollRuns(): Promise<PayrollRun[]> {
-  const snap = await getDocs(query(collection(db, PAY), orderBy("year", "desc")));
+  const snap = await getDocs(query(collection(db, PAY), orderBy("year", "desc"), limit(24)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as PayrollRun));
 }
 

@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs,
-  updateDoc, query, orderBy,
+  updateDoc, query, orderBy, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Asset, AssetStatus, AssetCondition } from "@/types/asset";
@@ -13,7 +13,7 @@ export async function createAsset(data: Omit<Asset, "id">): Promise<Asset> {
 }
 
 export async function getAssets(): Promise<Asset[]> {
-  const snap = await getDocs(query(collection(db, COL), orderBy("createdAt", "desc")));
+  const snap = await getDocs(query(collection(db, COL), orderBy("createdAt", "desc"), limit(50)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Asset));
 }
 

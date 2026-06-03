@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import Link from "next/link";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -61,7 +61,7 @@ interface KPIProps {
   href?:   string;
 }
 
-function KPI({ label, value, icon, accent = "text-white", sub, href }: KPIProps) {
+const KPI = memo(function KPI({ label, value, icon, accent = "text-white", sub, href }: KPIProps) {
   const card = (
     <div className={cn(
       "surface-card p-5 flex flex-col gap-2 min-h-[100px] overflow-hidden",
@@ -78,9 +78,9 @@ function KPI({ label, value, icon, accent = "text-white", sub, href }: KPIProps)
     </div>
   );
   return href ? <Link href={href} className="block">{card}</Link> : card;
-}
+});
 
-function QuickAction({ label, href, icon }: { label: string; href: string; icon: string }) {
+const QuickAction = memo(function QuickAction({ label, href, icon }: { label: string; href: string; icon: string }) {
   return (
     <Link href={href} className="flex items-center gap-3 px-4 py-3 bg-white/[0.04] border border-white/10 rounded-xl hover:bg-white/[0.07] hover:border-accent/20 transition-all group">
       <span className="text-base leading-none">{icon}</span>
@@ -88,7 +88,7 @@ function QuickAction({ label, href, icon }: { label: string; href: string; icon:
       <span className="text-white/20 group-hover:text-accent text-xs transition-colors">→</span>
     </Link>
   );
-}
+});
 
 function SectionHeader({ title, role, color }: { title: string; role: string; color: string }) {
   return (

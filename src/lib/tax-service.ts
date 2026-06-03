@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs,
-  updateDoc, deleteDoc, query, orderBy, where,
+  updateDoc, deleteDoc, query, orderBy, where, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -96,7 +96,7 @@ export async function seedDefaultTaxRules(createdBy: string): Promise<void> {
 /* ── VAT Records ────────────────────────────────────────────── */
 
 export async function getVATRecords(period?: string): Promise<VATRecord[]> {
-  const snap = await getDocs(query(collection(db, VAT), orderBy("date", "desc")));
+  const snap = await getDocs(query(collection(db, VAT), orderBy("date", "desc"), limit(100)));
   const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as VATRecord));
   return period ? all.filter((r) => r.period === period) : all;
 }
@@ -109,7 +109,7 @@ export async function createVATRecord(data: Omit<VATRecord, "id">): Promise<VATR
 /* ── WHT Records ────────────────────────────────────────────── */
 
 export async function getWHTRecords(): Promise<WHTRecord[]> {
-  const snap = await getDocs(query(collection(db, WHT), orderBy("createdAt", "desc")));
+  const snap = await getDocs(query(collection(db, WHT), orderBy("createdAt", "desc"), limit(100)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as WHTRecord));
 }
 
@@ -135,7 +135,7 @@ export async function updateWHTRecord(
 /* ── PAYE Records ───────────────────────────────────────────── */
 
 export async function getPAYERecords(period?: string): Promise<PAYERecord[]> {
-  const snap = await getDocs(query(collection(db, PAYE), orderBy("period", "desc")));
+  const snap = await getDocs(query(collection(db, PAYE), orderBy("period", "desc"), limit(100)));
   const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PAYERecord));
   return period ? all.filter((r) => r.period === period) : all;
 }
@@ -155,7 +155,7 @@ export async function getPAYEByEmployee(uid: string): Promise<PAYERecord[]> {
 /* ── Tax Reports ────────────────────────────────────────────── */
 
 export async function getTaxReports(): Promise<TaxReport[]> {
-  const snap = await getDocs(query(collection(db, REPORT), orderBy("generatedAt", "desc")));
+  const snap = await getDocs(query(collection(db, REPORT), orderBy("generatedAt", "desc"), limit(50)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaxReport));
 }
 
