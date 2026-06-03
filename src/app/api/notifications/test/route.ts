@@ -12,14 +12,16 @@ export async function POST(req: NextRequest) {
     const decoded = await getAdminAuth().verifyIdToken(idToken);
     const db      = getAdminDb();
 
-    /* Fetch the caller's own profile for tokens + email */
+    /* Fetch the caller's own profile for email + role */
     const userDoc = await db.collection("users").doc(decoded.uid).get();
-    const user    = userDoc.data() as { email: string; role: string; fcmTokens?: string[] } | undefined;
+    const user    = userDoc.data() as { email: string; role: string } | undefined;
 
     if (!user) return NextResponse.json({ error: "user profile not found" }, { status: 404 });
 
-    const tokens = user.fcmTokens ?? [];
-    const email  = user.email;
+    /* Fetch push tokens from dedicated collection */
+    const ptSnap  = await db.collection("push_tokens").doc(decoded.uid).get();
+    const tokens: string[] = ptSnap.exists ? (ptSnap.data()?.tokens ?? []) : [];
+    const email   = user.email;
 
     const title   = `Test Notification — Chronix ERP ${APP_VERSION_SHORT_LABEL}`;
     const message = `This is a test notification for the ${user.role} role. Push and email delivery confirmed.`;
