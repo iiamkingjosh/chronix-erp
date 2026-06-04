@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase";
 import { collection, doc, setDoc, getDocs, query, where } from "firebase/firestore";
-import { getJournalEntriesByDateRange } from "./journal-entries";
+import { getJournalEntriesByDateRange, createJournalEntry } from "./journal-entries";
+import { round } from "@/lib/utils";
 import type { VATReturn } from "@/types/finance";
 
 export async function saveVATReturn(report: VATReturn, userId: string): Promise<VATReturn> {
@@ -11,6 +12,26 @@ export async function saveVATReturn(report: VATReturn, userId: string): Promise<
     createdBy: userId,
   };
   await setDoc(doc(db, "vat_returns", report.id), filed);
+
+  // Post cash-out journal entry when VAT is remitted to FIRS
+  if (report.vatPayable > 0 && report.status !== "filed") {
+    createJournalEntry({
+      entryDate:     filed.filedDate!,
+      description:   `VAT remittance to FIRS — ${report.period}`,
+      reference:     filed.returnNumber,
+      referenceType: "manual",
+      referenceId:   report.id,
+      lineItems: [
+        { accountCode: "2100", accountName: "VAT Payable",             debit: round(report.vatPayable), credit: 0,                        description: `VAT paid to FIRS — ${report.period}` },
+        { accountCode: "1010", accountName: "Cash in Bank — Fidelity", debit: 0,                        credit: round(report.vatPayable), description: `FIRS remittance — ${report.period}` },
+      ],
+      status:    "posted",
+      createdBy: userId,
+      postedBy:  userId,
+      postedAt:  new Date().toISOString(),
+    }).catch((e) => console.error("[VAT] FIRS remittance journal failed:", e));
+  }
+
   return filed;
 }
 

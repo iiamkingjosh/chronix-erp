@@ -12,7 +12,8 @@ import type { Invoice } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
-import { auth } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 import { cn, round } from "@/lib/utils";
 import { createJournalEntry } from "@/lib/accounting/journal-entries";
 
@@ -194,22 +195,27 @@ export default function WHTPage() {
       });
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT record logged: ₦${rec.whtAmount.toLocaleString()} deducted from ${rec.vendorName}`, timestamp: new Date().toISOString() });
 
-      createJournalEntry({
-        entryDate:     rec.paymentDate,
-        description:   `WHT deducted — ${rec.vendorName}`,
-        reference:     rec.whtId,
-        referenceType: "manual",
-        referenceId:   rec.id,
-        lineItems: [
-          { accountCode: "2010", accountName: "Accounts Payable",         debit: round(rec.invoiceAmount),                         credit: 0,                                        description: `Vendor payment — ${rec.vendorName}` },
-          { accountCode: "2200", accountName: "WHT Payable",              debit: 0,                                                credit: round(rec.whtAmount),                     description: `WHT ${rec.whtRate}% withheld` },
-          { accountCode: "1010", accountName: "Cash in Bank — Fidelity",  debit: 0,                                                credit: round(rec.invoiceAmount - rec.whtAmount), description: `Net payment to ${rec.vendorName}` },
-        ],
-        status:    "posted",
-        createdBy: profile.uid,
-        postedBy:  profile.uid,
-        postedAt:  new Date().toISOString(),
-      }).catch((e) => console.error("[WHT] journal entry failed:", e));
+      try {
+        await createJournalEntry({
+          entryDate:     rec.paymentDate,
+          description:   `WHT deducted — ${rec.vendorName}`,
+          reference:     rec.whtId,
+          referenceType: "manual",
+          referenceId:   rec.id,
+          lineItems: [
+            { accountCode: "2010", accountName: "Accounts Payable",         debit: round(rec.invoiceAmount),                         credit: 0,                                        description: `Vendor payment — ${rec.vendorName}` },
+            { accountCode: "2200", accountName: "WHT Payable",              debit: 0,                                                credit: round(rec.whtAmount),                     description: `WHT ${rec.whtRate}% withheld` },
+            { accountCode: "1010", accountName: "Cash in Bank — Fidelity",  debit: 0,                                                credit: round(rec.invoiceAmount - rec.whtAmount), description: `Net payment to ${rec.vendorName}` },
+          ],
+          status:    "posted",
+          createdBy: profile.uid,
+          postedBy:  profile.uid,
+          postedAt:  new Date().toISOString(),
+        });
+        updateDoc(doc(db, "withholding_tax", rec.id), { _journalPosted: true }).catch(() => {});
+      } catch (e) {
+        console.error("[WHT] journal entry failed:", e);
+      }
 
       setAllRecords((prev) => [rec, ...prev]);
       setShowForm(false);
