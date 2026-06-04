@@ -54,6 +54,7 @@ export const DEFAULT_ACCOUNTS: Omit<ChartOfAccount, "id" | "createdAt" | "create
   { accountCode: "6060", accountName: "Marketing & Advertising",               accountType: "EXPENSE", category: "Operating Expenses", isActive: true },
   { accountCode: "6070", accountName: "Professional Fees (Legal, Accounting)", accountType: "EXPENSE", category: "Operating Expenses", isActive: true },
   { accountCode: "6080", accountName: "Bank Charges",                          accountType: "EXPENSE", category: "Operating Expenses", isActive: true },
+  { accountCode: "6090", accountName: "Other Operating Expenses",              accountType: "EXPENSE", category: "Operating Expenses", isActive: true },
   { accountCode: "6100", accountName: "Insurance",                             accountType: "EXPENSE", category: "Operating Expenses", isActive: true },
   { accountCode: "6200", accountName: "Utilities (Electricity, Water)",        accountType: "EXPENSE", category: "Operating Expenses", isActive: true },
   { accountCode: "6300", accountName: "Subscriptions (Software, SaaS)",        accountType: "EXPENSE", category: "Operating Expenses", isActive: true },
