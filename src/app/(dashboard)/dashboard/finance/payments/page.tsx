@@ -22,6 +22,7 @@ export default function PaymentsPage() {
   useEffect(() => {
     Promise.all([getPayments(), getInvoices()])
       .then(([pays, invs]) => { setPayments(pays); setInvoices(invs); })
+      .catch((e) => console.error("[finance/payments] Failed to load data:", e))
       .finally(() => setLoading(false));
   }, []);
 

@@ -62,6 +62,7 @@ export default function FinanceDashboard() {
         // Approved-but-unpaid expenses are AP liabilities, not yet P&L cash expenses.
         setTotalExpenses(claimsTotal + poTotal);
       })
+      .catch((e) => console.error("[finance] Failed to load data:", e))
       .finally(() => setLoading(false));
   }, []);
 

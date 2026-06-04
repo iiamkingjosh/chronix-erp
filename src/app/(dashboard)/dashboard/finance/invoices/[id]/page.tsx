@@ -65,6 +65,7 @@ export default function InvoiceViewPage() {
           setWhtInvoiceAmount(String(inv.subtotal ?? 0));
         }
       })
+      .catch((e) => console.error("[finance/invoices] Failed to load data:", e))
       .finally(() => setLoading(false));
   }, [id]);
 

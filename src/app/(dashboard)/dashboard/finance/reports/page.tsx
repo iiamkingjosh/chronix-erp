@@ -76,6 +76,7 @@ export default function FinancialReportsPage() {
       .then(([inv, pay, exp, poList]) => {
         setInvoices(inv); setPayments(pay); setExpenses(exp); setPos(poList);
       })
+      .catch((e) => console.error("[finance/reports] Failed to load data:", e))
       .finally(() => setLoading(false));
   }, []);
 
