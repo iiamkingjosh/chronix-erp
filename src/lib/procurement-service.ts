@@ -95,11 +95,18 @@ export async function updatePOStatus(
   if (status === "paid" && author) {
     const po = await getPO(poId);
     if (po) {
-      createPOJournalEntry(po, author.uid).catch((e) => {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error("[accounting] PO journal failed:", msg);
-        updateDoc(doc(db, PO, poId), { _journalError: msg }).catch(() => {});
-      });
+      if ((po as unknown as Record<string, unknown>)._journalPosted === true) {
+        console.info(`[accounting] PO ${poId} journal already posted — skipping.`);
+      } else {
+        try {
+          await createPOJournalEntry(po, author.uid);
+          await updateDoc(doc(db, PO, poId), { _journalPosted: true, _journalError: null });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[accounting] PO journal failed:", msg);
+          updateDoc(doc(db, PO, poId), { _journalError: msg }).catch(() => {});
+        }
+      }
     }
   }
 }

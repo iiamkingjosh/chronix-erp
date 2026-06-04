@@ -54,11 +54,12 @@ export default function FinanceDashboard() {
       .then(([invs, exps, pos]) => {
         setInvoices(invs);
         const claimsTotal = exps
-          .filter((e) => e.status === "approved" || e.status === "paid")
+          .filter((e) => e.status === "paid")
           .reduce((s, e) => s + e.amount, 0);
         const poTotal = pos
-          .filter((p) => p.status === "approved" || p.status === "delivered" || p.status === "paid")
+          .filter((p) => p.status === "paid")
           .reduce((s, p) => s + p.total, 0);
+        // Approved-but-unpaid expenses are AP liabilities, not yet P&L cash expenses.
         setTotalExpenses(claimsTotal + poTotal);
       })
       .finally(() => setLoading(false));
@@ -96,7 +97,7 @@ export default function FinanceDashboard() {
         <StatCard
           label="Total Expenses"
           value={formatNaira(totalExpenses)}
-          sub="expense claims + purchase orders"
+          sub="paid expense claims + purchase orders"
           icon={<ExpensesIcon />}
           iconClass="bg-red-500/10 border-red-500/20 text-red-400"
           valueClass="text-red-400"

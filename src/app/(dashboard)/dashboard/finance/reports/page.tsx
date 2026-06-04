@@ -87,11 +87,13 @@ export default function FinancialReportsPage() {
   const plData = MONTHS.map((month, mi) => {
     const period = `${year}-${String(mi + 1).padStart(2, "0")}`;
     const revenue  = invoices.filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(period)).reduce((s, i) => s + (i.subtotal ?? i.total), 0);
+    // Only count PAID expenses — these match what is journalized into the ledger.
+    // Approved-but-unpaid are Accounts Payable (see AP Aging tab), not yet cash expenses.
     const expTotal = expenses
-      .filter((e) => (e.status === "paid" || e.status === "approved") && e.date?.startsWith(period))
+      .filter((e) => e.status === "paid" && e.date?.startsWith(period))
       .reduce((s, e) => s + e.amount, 0);
     const poTotal = pos
-      .filter((p) => (p.status === "approved" || p.status === "delivered" || p.status === "paid") && p.createdAt?.startsWith(period))
+      .filter((p) => p.status === "paid" && p.createdAt?.slice(0, 7) === period)
       .reduce((s, p) => s + p.total, 0);
     const totalExp = expTotal + poTotal;
     return { month, revenue, expenses: totalExp, profit: revenue - totalExp };
@@ -100,6 +102,15 @@ export default function FinancialReportsPage() {
   const totalRevenue  = plData.reduce((s, r) => s + r.revenue, 0);
   const totalExpenses = plData.reduce((s, r) => s + r.expenses, 0);
   const totalProfit   = totalRevenue - totalExpenses;
+
+  // Approved-but-unpaid liabilities — surfaced separately so nothing is hidden
+  const approvedUnpaidExpenses = expenses
+    .filter((e) => e.status === "approved" && e.date?.startsWith(year))
+    .reduce((s, e) => s + e.amount, 0);
+  const approvedUnpaidPOs = pos
+    .filter((p) => (p.status === "approved" || p.status === "delivered") && p.createdAt?.startsWith(year))
+    .reduce((s, p) => s + p.total, 0);
+  const totalUnliquidated = approvedUnpaidExpenses + approvedUnpaidPOs;
 
   /* ── AR Aging ── */
   const arRows = invoices.filter((i) => i.status !== "paid" && i.approvalStatus !== "draft");
@@ -360,15 +371,19 @@ export default function FinancialReportsPage() {
           {/* P&L */}
           {tab === "pl" && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
-                  { label: "Total Revenue (excl. VAT)", value: formatNaira(totalRevenue),  color: "text-emerald-400" },
-                  { label: "Total Expenses",            value: formatNaira(totalExpenses), color: "text-red-400" },
-                  { label: "Net Profit",                value: formatNaira(totalProfit),   color: totalProfit >= 0 ? "text-secondary" : "text-red-400" },
+                  { label: "Total Revenue (excl. VAT)", value: formatNaira(totalRevenue),      color: "text-emerald-400" },
+                  { label: "Paid Expenses",             value: formatNaira(totalExpenses),     color: "text-red-400" },
+                  { label: "Net Profit",                value: formatNaira(totalProfit),       color: totalProfit >= 0 ? "text-secondary" : "text-red-400" },
+                  { label: "Approved (Unliquidated)",   value: formatNaira(totalUnliquidated), color: "text-amber-400" },
                 ].map((c) => (
                   <div key={c.label} className="surface-card p-5 text-center">
                     <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">{c.label}</p>
                     <p className={cn("font-orbitron text-xl font-bold tabular-nums", c.color)}>{c.value}</p>
+                    {c.label === "Approved (Unliquidated)" && (
+                      <p className="text-white/20 text-[10px] font-helvetica mt-1">AP — not yet cash</p>
+                    )}
                   </div>
                 ))}
               </div>

@@ -67,10 +67,11 @@ export async function backfillExpenseJournals(
 
   for (const expense of paid) {
     if (ids.has(expense.id)) { result.skipped++; continue; }
+    if ((expense as unknown as Record<string, unknown>)._journalPosted === true) { result.skipped++; continue; }
     try {
       await createExpenseJournalEntry(expense, userId);
       result.created++;
-      clearJournalError("expenses", expense.id);
+      updateDoc(doc(db, "expenses", expense.id), { _journalPosted: true, _journalError: null }).catch(() => {});
     } catch (e) {
       console.error(`[backfill] expense ${expense.id}:`, e);
       result.errors++;
@@ -177,10 +178,11 @@ export async function backfillPOJournals(
 
   for (const po of paid) {
     if (ids.has(po.id)) { result.skipped++; continue; }
+    if ((po as unknown as Record<string, unknown>)._journalPosted === true) { result.skipped++; continue; }
     try {
       await createPOJournalEntry(po, userId);
       result.created++;
-      clearJournalError("purchase_orders", po.id);
+      updateDoc(doc(db, "purchase_orders", po.id), { _journalPosted: true, _journalError: null }).catch(() => {});
     } catch (e) {
       console.error(`[backfill] PO ${po.id}:`, e);
       result.errors++;

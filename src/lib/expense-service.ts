@@ -99,13 +99,17 @@ export async function updateExpenseStatus(
   if (status === "paid") {
     const expense = await getExpense(id);
     if (expense) {
-      try {
-        await createExpenseJournalEntry(expense, extra?.actorUid ?? actorName);
-        await updateDoc(doc(db, COL, id), { _journalError: null });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error("[accounting] Failed to create expense journal entry:", msg);
-        updateDoc(doc(db, COL, id), { _journalError: msg }).catch(() => {});
+      if ((expense as unknown as Record<string, unknown>)._journalPosted === true) {
+        console.info(`[accounting] Expense ${id} journal already posted — skipping.`);
+      } else {
+        try {
+          await createExpenseJournalEntry(expense, extra?.actorUid ?? actorName);
+          await updateDoc(doc(db, COL, id), { _journalPosted: true, _journalError: null });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[accounting] Failed to create expense journal entry:", msg);
+          updateDoc(doc(db, COL, id), { _journalError: msg }).catch(() => {});
+        }
       }
     }
   }
