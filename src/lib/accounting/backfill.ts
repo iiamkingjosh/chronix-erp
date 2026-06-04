@@ -95,10 +95,11 @@ export async function backfillInvoiceJournals(
 
   for (const invoice of invoices) {
     if (ids.has(invoice.id)) { result.skipped++; continue; }
+    if ((invoice as unknown as Record<string, unknown>)._journalPosted === true) { result.skipped++; continue; }
     try {
       await createInvoiceJournalEntry(invoice, userId);
       result.created++;
-      clearJournalError("invoices", invoice.id);
+      updateDoc(doc(db, "invoices", invoice.id), { _journalPosted: true, _journalError: null }).catch(() => {});
     } catch (e) {
       console.error(`[backfill] invoice ${invoice.id}:`, e);
       result.errors++;
@@ -122,10 +123,11 @@ export async function backfillPaymentJournals(
 
   for (const payment of payments) {
     if (ids.has(payment.id)) { result.skipped++; continue; }
+    if ((payment as unknown as Record<string, unknown>)._journalPosted === true) { result.skipped++; continue; }
     try {
       await createPaymentJournalEntry(payment, userId);
       result.created++;
-      clearJournalError("payments", payment.id);
+      updateDoc(doc(db, "payments", payment.id), { _journalPosted: true, _journalError: null }).catch(() => {});
     } catch (e) {
       console.error(`[backfill] payment ${payment.id}:`, e);
       result.errors++;
@@ -150,10 +152,11 @@ export async function backfillPayrollJournals(
 
   for (const run of completed) {
     if (ids.has(run.id)) { result.skipped++; continue; }
+    if ((run as unknown as Record<string, unknown>)._journalPosted === true) { result.skipped++; continue; }
     try {
       await createPayrollJournalEntry(run, userId);
       result.created++;
-      clearJournalError("payroll_runs", run.id);
+      updateDoc(doc(db, "payroll_runs", run.id), { _journalPosted: true, _journalError: null }).catch(() => {});
     } catch (e) {
       console.error(`[backfill] payroll run ${run.id}:`, e);
       result.errors++;

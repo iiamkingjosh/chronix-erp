@@ -63,7 +63,6 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
     currentLiabilities: {
       accountsPayable: -g("2010"),
       vatPayable:      -g("2100"),
-      vatRecoverable:  -g("1110"),
       whtPayable:      -g("2200"),
       payePayable:     -g("2300"),
       total: 0,
@@ -73,7 +72,6 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
   liabilities.currentLiabilities.total =
     Math.max(0, liabilities.currentLiabilities.accountsPayable) +
     Math.max(0, liabilities.currentLiabilities.vatPayable)      +
-    Math.max(0, liabilities.currentLiabilities.vatRecoverable)  +
     Math.max(0, liabilities.currentLiabilities.whtPayable)      +
     Math.max(0, liabilities.currentLiabilities.payePayable);
   liabilities.total = liabilities.currentLiabilities.total;

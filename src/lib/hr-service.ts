@@ -294,11 +294,16 @@ export async function markEntryPaid(
     const run = await getPayrollRun(runId);
     if (run) {
       const fullRun = { ...run, entries: updated };
-      createPayrollJournalEntry(fullRun, userId).catch((e) => {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error("[accounting] payroll journal failed:", msg);
-        updateDoc(doc(db, PAY, runId), { _journalError: msg }).catch(() => {});
-      });
+      if (!(run as unknown as Record<string, unknown>)._journalPosted) {
+        try {
+          await createPayrollJournalEntry(fullRun, userId);
+          updateDoc(doc(db, PAY, runId), { _journalPosted: true, _journalError: null }).catch(() => {});
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[accounting] payroll journal failed:", msg);
+          updateDoc(doc(db, PAY, runId), { _journalError: msg }).catch(() => {});
+        }
+      }
     }
   }
 }
@@ -319,10 +324,15 @@ export async function markAllPaid(
   const run = await getPayrollRun(runId);
   if (run) {
     const fullRun = { ...run, entries: updated };
-    createPayrollJournalEntry(fullRun, userId).catch((e) => {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("[accounting] payroll journal failed:", msg);
-      updateDoc(doc(db, PAY, runId), { _journalError: msg }).catch(() => {});
-    });
+    if (!(run as unknown as Record<string, unknown>)._journalPosted) {
+      try {
+        await createPayrollJournalEntry(fullRun, userId);
+        updateDoc(doc(db, PAY, runId), { _journalPosted: true, _journalError: null }).catch(() => {});
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[accounting] payroll journal failed:", msg);
+        updateDoc(doc(db, PAY, runId), { _journalError: msg }).catch(() => {});
+      }
+    }
   }
 }

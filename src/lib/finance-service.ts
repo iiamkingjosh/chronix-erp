@@ -34,6 +34,7 @@ export async function createInvoice(data: Omit<Invoice, "id">): Promise<Invoice>
   const invoice = { ...data, id: ref.id };
   try {
     await createInvoiceJournalEntry(invoice, data.createdBy);
+    await updateDoc(doc(db, INV, ref.id), { _journalPosted: true, _journalError: null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[accounting] Failed to create invoice journal entry:", msg);
@@ -82,6 +83,7 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
   const payment = { ...data, id: paymentRef.id };
   try {
     await createPaymentJournalEntry(payment, data.recordedBy);
+    await updateDoc(doc(db, PAY, paymentRef.id), { _journalPosted: true, _journalError: null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[accounting] Failed to create payment journal entry:", msg);
