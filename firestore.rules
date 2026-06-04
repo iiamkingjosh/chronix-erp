@@ -268,7 +268,10 @@ service cloud.firestore {
     match /payments/{paymentId} {
       allow read: if hasViewFinance();
       allow create: if canManageFinance();
-      allow update, delete: if false;
+      allow update: if canManageFinance() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["_journalPosted", "_journalError"]);
+      allow delete: if false;
     }
 
     /* ── Tickets ──────────────────────────────────────────── */
@@ -586,4 +589,5 @@ service cloud.firestore {
     }
   }
 }
+
 
