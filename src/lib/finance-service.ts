@@ -14,6 +14,7 @@ import {
 import { db } from "./firebase";
 import type { Invoice, Payment, InvoiceStatus, ApprovalStatus } from "@/types/finance";
 import { createInvoiceJournalEntry, createPaymentJournalEntry } from "@/lib/accounting/auto-journal";
+import { getJournalEntriesByReference, voidJournalEntry } from "@/lib/accounting/journal-entries";
 import { logAuditEvent } from "@/lib/audit-service";
 import { createNotification } from "@/lib/notifications-service";
 import { validateAmount } from "@/lib/utils";
@@ -71,6 +72,9 @@ export async function deleteInvoice(id: string): Promise<void> {
 
 export async function createPayment(data: Omit<Payment, "id">): Promise<Payment> {
   validateAmount(data.amount);
+  if (data.vatAmount !== undefined && data.vatAmount > data.amount) {
+    throw new Error(`VAT amount (${data.vatAmount}) cannot exceed the payment amount (${data.amount})`);
+  }
   const batch      = writeBatch(db);
   const paymentRef = doc(collection(db, PAY));
   const invoiceRef = doc(db, INV, data.invoiceId);
@@ -123,6 +127,19 @@ export async function updateInvoiceApproval(
   if (approvalStatus === "approved")  { update.approvedBy = actorName; update.approvedAt = now; }
   if (approvalStatus === "rejected")  { update.rejectedBy = actorName; update.rejectedAt = now; update.rejectionReason = extra?.rejectionReason ?? ""; }
   await updateDoc(doc(db, INV, id), update);
+
+  if (approvalStatus === "rejected") {
+    const entries = await getJournalEntriesByReference(id);
+    for (const entry of entries) {
+      if (entry.status === "posted") {
+        await voidJournalEntry(
+          entry.id,
+          `Invoice rejected: ${extra?.rejectionReason ?? "no reason given"}`,
+          extra?.actorUid ?? actorName,
+        ).catch((e) => console.error("[accounting] Failed to void invoice journal on rejection:", e));
+      }
+    }
+  }
 
   if (approvalStatus === "pending_approval") {
     const invoice = await getInvoice(id);

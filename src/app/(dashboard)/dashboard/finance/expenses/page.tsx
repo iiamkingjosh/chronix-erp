@@ -168,7 +168,17 @@ export default function ExpensesPage() {
                   {filtered.map((exp) => (
                     <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-5 py-3.5">
-                        <p className="text-sm font-semibold text-white font-helvetica">{exp.title}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-white font-helvetica">{exp.title}</p>
+                          {(exp as unknown as Record<string, unknown>)._journalError && (
+                            <span
+                              title={String((exp as unknown as Record<string, unknown>)._journalError)}
+                              className="text-[10px] text-red-400 border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 rounded font-helvetica shrink-0"
+                            >
+                              ⚠ Journal
+                            </span>
+                          )}
+                        </div>
                         {exp.description && <p className="text-xs text-white/30 font-helvetica truncate max-w-xs">{exp.description}</p>}
                       </td>
                       <td className="px-5 py-3.5 text-xs text-white/50 font-helvetica">{EXPENSE_CATEGORY_LABELS[exp.category]}</td>

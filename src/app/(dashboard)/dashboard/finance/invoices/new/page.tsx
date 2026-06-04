@@ -30,7 +30,10 @@ const schema = z.object({
   clientPhone:   z.string().min(1, "Required"),
   items:         z.array(lineItemSchema).min(1, "Add at least one item"),
   notes:         z.string().optional(),
-});
+}).refine(
+  (d) => !d.invoiceDate || !d.dueDate || d.dueDate >= d.invoiceDate,
+  { message: "Due date must be on or after the invoice date", path: ["dueDate"] }
+);
 
 type FormData = z.infer<typeof schema>;
 

@@ -48,12 +48,23 @@ export async function getExpense(id: string): Promise<Expense | null> {
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as Expense) : null;
 }
 
+const EXPENSE_TRANSITIONS: Partial<Record<ExpenseStatus, ExpenseStatus[]>> = {
+  pending:  ["approved", "rejected"],
+  approved: ["paid", "rejected"],
+};
+
 export async function updateExpenseStatus(
   id: string,
   status: ExpenseStatus,
   actorName: string,
   extra?: { rejectionReason?: string; actorUid?: string }
 ): Promise<void> {
+  const current = await getExpense(id);
+  if (!current) throw new Error("Expense not found");
+  if (!EXPENSE_TRANSITIONS[current.status]?.includes(status)) {
+    throw new Error(`Cannot change expense from "${current.status}" to "${status}"`);
+  }
+
   const now = new Date().toISOString();
   const update: Record<string, unknown> = { status };
   if (status === "approved") { update.approvedBy = actorName; update.approvedAt = now; }
