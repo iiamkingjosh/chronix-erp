@@ -87,7 +87,7 @@ export async function signUp(email: string, password: string, displayName: strin
 /* ── signIn ───────────────────────────────────────────────── */
 
 export async function signIn(email: string, password: string): Promise<ChronixUser> {
-  const credential = await signInWithEmailAndPassword(auth, email, password);
+  const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
   const profile    = await fetchUserProfile(credential.user);
 
   /* Session cookie lets the Next.js proxy know the user is authed */
@@ -112,7 +112,7 @@ export async function signOutUser(): Promise<void> {
 /* ── sendReset ────────────────────────────────────────────── */
 
 export async function sendReset(email: string): Promise<void> {
-  await sendPasswordResetEmail(auth, email);
+  await sendPasswordResetEmail(auth, email.trim());
 }
 
 /* ── onAuthChange ─────────────────────────────────────────── */

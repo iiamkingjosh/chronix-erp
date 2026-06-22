@@ -45,7 +45,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
-    const { email, password, displayName, department } = parsed.data;
+    const email = parsed.data.email.trim();
+    const { password, displayName, department } = parsed.data;
     const targetRole = resolveRole(parsed.data.role);
 
     if (targetRole === ROLES.CLIENT) {
