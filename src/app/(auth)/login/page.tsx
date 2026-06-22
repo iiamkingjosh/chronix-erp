@@ -75,6 +75,9 @@ function LoginPageInner() {
   const [showPassword, setShowPassword] = useState(false);
   const [resetSent, setResetSent]       = useState(false);
   const [resetting, setResetting]       = useState(false);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetEmail, setResetEmail]         = useState("");
+  const [resetError, setResetError]         = useState<string | null>(null);
 
   const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
   const regForm   = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
@@ -142,19 +145,31 @@ function LoginPageInner() {
     }
   }
 
-  async function handleForgotPassword() {
-    const email = loginForm.getValues("email");
-    if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      setServerError("Enter your email address first, then click Forgot password.");
+  function openResetModal() {
+    setResetEmail(loginForm.getValues("email") ?? "");
+    setResetError(null);
+    setResetModalOpen(true);
+  }
+
+  function closeResetModal() {
+    setResetModalOpen(false);
+    setResetError(null);
+  }
+
+  async function handleSendReset() {
+    if (!resetEmail || !/\S+@\S+\.\S+/.test(resetEmail)) {
+      setResetError("Enter a valid email address.");
       return;
     }
     setResetting(true);
-    setServerError(null);
+    setResetError(null);
     try {
-      await sendReset(email);
+      await sendReset(resetEmail);
+      setResetModalOpen(false);
       setResetSent(true);
+      setServerError(null);
     } catch {
-      setServerError("Could not send reset email. Contact your administrator.");
+      setResetError("Could not send reset email. Contact your administrator.");
     } finally {
       setResetting(false);
     }
@@ -328,11 +343,10 @@ function LoginPageInner() {
                   </label>
                   <button
                     type="button"
-                    onClick={handleForgotPassword}
-                    disabled={resetting}
-                    className="text-[11px] text-accent hover:text-accent/80 font-helvetica transition-colors disabled:opacity-50"
+                    onClick={openResetModal}
+                    className="text-[11px] text-accent hover:text-accent/80 font-helvetica transition-colors"
                   >
-                    {resetting ? "Sending…" : "Forgot password?"}
+                    Forgot password?
                   </button>
                 </div>
                 <div className="relative">
@@ -537,6 +551,53 @@ function LoginPageInner() {
           © {new Date().getFullYear()} Chronix Technology Limited · All rights reserved · {APP_VERSION_SHORT_LABEL}
         </p>
       </div>
+
+      {/* ═══════════════════════════════════════════
+          Forgot password modal
+      ═══════════════════════════════════════════ */}
+      {resetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="surface-card w-full max-w-sm p-6 bg-primary-mid border border-white/10 rounded-2xl">
+            <h3 className="font-orbitron text-sm font-bold text-white mb-2">Reset your password</h3>
+            <p className="text-white/40 text-xs font-helvetica mb-4 leading-relaxed">
+              Enter your account email and we&apos;ll send you a link to reset your password.
+            </p>
+            <label htmlFor="reset-email" className="block text-[11px] font-semibold tracking-[0.15em] text-white/40 uppercase mb-2 font-helvetica">
+              Email Address
+            </label>
+            <input
+              id="reset-email"
+              type="email"
+              autoComplete="email"
+              value={resetEmail}
+              onChange={(e) => setResetEmail(e.target.value)}
+              placeholder="you@chronixtech.com"
+              className="input-field mb-3"
+            />
+            {resetError && (
+              <p className="mb-3 text-xs text-red-400 font-helvetica">{resetError}</p>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={closeResetModal}
+                disabled={resetting}
+                className="text-xs text-white/40 hover:text-white font-helvetica px-3 py-2 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendReset}
+                disabled={resetting}
+                className="btn-primary text-xs px-5 py-2 disabled:opacity-50"
+              >
+                {resetting ? "Sending…" : "Send reset link"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

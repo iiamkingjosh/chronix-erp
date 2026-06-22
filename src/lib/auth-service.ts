@@ -25,62 +25,63 @@ function clearSessionCookie() {
 }
 
 /* ── fetchUserProfile ─────────────────────────────────────
-   Reads the users/{uid} document from Firestore.
-   If the document does not yet exist (e.g. Firebase Auth user
-   was created directly in the console without a matching
-   Firestore profile), a minimal "Staff" profile is created
-   automatically so the user can still log in.  An admin can
-   later update the role via Firestore Console or Admin SDK API.
+   Read-only lookup of the users/{uid} document.  Signing in
+   must never create an account — only signUp() (the explicit
+   "Create account" action) or an admin-provisioning route may
+   create a profile.  If no profile exists (e.g. a Firebase Auth
+   account was created outside the app, or an admin deleted the
+   profile), this throws so the caller is forced to register or
+   contact an administrator instead of being silently logged in.
    ─────────────────────────────────────────────────────────── */
 export async function fetchUserProfile(user: User): Promise<ChronixUser> {
   const ref  = doc(db, "users", user.uid);
   const snap = await getDoc(ref);
 
-  if (snap.exists()) {
-    const data = snap.data();
-    /* Normalise: ensure uid is always correct and role is canonical */
-    const profile: ChronixUser = {
-      uid:         user.uid,
-      email:       data.email       ?? user.email ?? "",
-      displayName: data.displayName ?? user.displayName ?? user.email?.split("@")[0] ?? "User",
-      role:        resolveRole(data.role ?? "") as Role,
-      department:  data.department,
-      photoURL:    data.photoURL ?? user.photoURL,
-      createdAt:   data.createdAt   ?? new Date().toISOString(),
-      lastLoginAt: data.lastLoginAt ?? new Date().toISOString(),
-    };
-    return profile;
+  if (!snap.exists()) {
+    throw new Error("No account found for this login. Please create an account or contact an administrator.");
   }
 
-  /* No profile document — create a baseline one so login succeeds.
-     The role defaults to "Staff"; update it in Firestore to promote
-     the user.                                                       */
-  const now = new Date().toISOString();
+  const data = snap.data();
+  /* Normalise: ensure uid is always correct and role is canonical */
   const profile: ChronixUser = {
     uid:         user.uid,
-    email:       user.email ?? "",
-    displayName: user.displayName ?? user.email?.split("@")[0] ?? "User",
-    role:        ROLES.STAFF,
-    createdAt:   now,
-    lastLoginAt: now,
+    email:       data.email       ?? user.email ?? "",
+    displayName: data.displayName ?? user.displayName ?? user.email?.split("@")[0] ?? "User",
+    role:        resolveRole(data.role ?? "") as Role,
+    department:  data.department,
+    photoURL:    data.photoURL ?? user.photoURL,
+    createdAt:   data.createdAt   ?? new Date().toISOString(),
+    lastLoginAt: data.lastLoginAt ?? new Date().toISOString(),
   };
-  await setDoc(ref, profile);
   return profile;
 }
 
 /**
  * Public self-registration (Firebase Auth + Firestore Staff bootstrap).
  * Disabled in UI when NEXT_PUBLIC_ENABLE_SELF_SIGNUP=false.
+ * This is the only sign-up path that may create a new profile —
+ * signIn()/fetchUserProfile() are read-only.
  */
 export async function signUp(email: string, password: string, displayName: string): Promise<ChronixUser> {
-  const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const trimmedEmail = email.trim();
+  const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
   const dn = displayName.trim();
   if (dn) await updateProfile(credential.user, { displayName: dn }).catch(() => {});
-  const profile = await fetchUserProfile(credential.user);
+
+  const now = new Date().toISOString();
+  const profile: ChronixUser = {
+    uid:         credential.user.uid,
+    email:       trimmedEmail,
+    displayName: dn || trimmedEmail.split("@")[0],
+    role:        ROLES.STAFF,
+    createdAt:   now,
+    lastLoginAt: now,
+  };
+  await setDoc(doc(db, "users", credential.user.uid), profile);
+
   const token = await credential.user.getIdToken();
   setSessionCookie(token);
-  setDoc(doc(db, "users", credential.user.uid), { lastLoginAt: new Date().toISOString() }, { merge: true }).catch(() => {});
-  logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "users", entityId: profile.uid, entityRef: profile.email, details: "New account registered", timestamp: new Date().toISOString() });
+  logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "users", entityId: profile.uid, entityRef: profile.email, details: "New account registered", timestamp: now });
   return profile;
 }
 
@@ -88,7 +89,15 @@ export async function signUp(email: string, password: string, displayName: strin
 
 export async function signIn(email: string, password: string): Promise<ChronixUser> {
   const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
-  const profile    = await fetchUserProfile(credential.user);
+  let profile: ChronixUser;
+  try {
+    profile = await fetchUserProfile(credential.user);
+  } catch (err) {
+    /* Auth succeeded but no profile exists — don't leave a dangling
+       authenticated session with nothing to show for it. */
+    await signOut(auth).catch(() => {});
+    throw err;
+  }
 
   /* Session cookie lets the Next.js proxy know the user is authed */
   const token = await credential.user.getIdToken();

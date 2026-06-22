@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
+import { deleteEmployee as deleteUserAccount } from "@/lib/hr-service";
 
 function rootLikeRoleStr(r: string): boolean {
   return r === "Root Admin" || r === "Chronix Root" || r === "Root";
@@ -35,6 +36,9 @@ export default function StaffPage() {
   const [draftRoles, setDraftRoles] = useState<Partial<Record<string, Role>>>({});
   const [savingUid, setSavingUid]     = useState<string | null>(null);
   const [saveError, setSaveError]   = useState<string | null>(null);
+  const [confirmDeleteUid, setConfirmDeleteUid] = useState<string | null>(null);
+  const [deletingUid, setDeletingUid]           = useState<string | null>(null);
+  const [deleteError, setDeleteError]           = useState<string | null>(null);
 
   const loadUsers = useCallback(() => {
     setLoading(true);
@@ -68,6 +72,9 @@ export default function StaffPage() {
   const editorMayManageRootRoles =
     !!profile && (hasPermission(profile.role, "manage:staff") || isRootAdmin(profile.role));
 
+  /** Matches the admin-provisioning API's ALLOWED_ROLES (System Admin + Root Admin). */
+  const canDeleteAccounts = !!profile && hasPermission(profile.role, "manage:staff");
+
   const assignableRoles = profile ? rolesAssignableByCaller(profile.role) : [];
 
   function canEditRow(u: ChronixUser): boolean {
@@ -75,6 +82,27 @@ export default function StaffPage() {
     if (u.uid === profile.uid) return false;
     if (rootLikeRoleStr(u.role) && !editorMayManageRootRoles) return false;
     return true;
+  }
+
+  function canDeleteRow(u: ChronixUser): boolean {
+    if (!profile || !canDeleteAccounts) return false;
+    if (u.uid === profile.uid) return false;
+    if (rootLikeRoleStr(u.role) && !isRootAdmin(profile.role)) return false;
+    return true;
+  }
+
+  async function handleDeleteUser(uid: string) {
+    setDeleteError(null);
+    setDeletingUid(uid);
+    try {
+      await deleteUserAccount(uid);
+      setConfirmDeleteUid(null);
+      await loadUsers();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Unable to delete user.");
+    } finally {
+      setDeletingUid(null);
+    }
   }
 
   function effectiveRole(u: ChronixUser): Role {
@@ -165,6 +193,11 @@ export default function StaffPage() {
             {saveError}
           </div>
         )}
+        {deleteError && (
+          <div className="mb-4 text-sm text-red-400 font-helvetica bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+            {deleteError}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -247,15 +280,47 @@ export default function StaffPage() {
                             : "—"}
                         </td>
                         <td className="px-5 py-3.5 text-right">
-                          {canEditRow(u) && roleDirty(u) && (
-                            <button
-                              type="button"
-                              disabled={savingUid === u.uid}
-                              onClick={() => saveRole(u.uid)}
-                              className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 disabled:opacity-50 font-helvetica"
-                            >
-                              {savingUid === u.uid ? "Saving…" : "Save role"}
-                            </button>
+                          {confirmDeleteUid === u.uid ? (
+                            <div className="flex items-center gap-2 justify-end">
+                              <span className="text-xs text-red-400 font-helvetica">Delete account?</span>
+                              <button
+                                type="button"
+                                disabled={deletingUid === u.uid}
+                                onClick={() => handleDeleteUser(u.uid)}
+                                className="text-[11px] font-semibold text-red-400 border border-red-500/30 hover:bg-red-500/15 px-2.5 py-1.5 rounded-lg font-helvetica transition-colors disabled:opacity-40"
+                              >
+                                {deletingUid === u.uid ? "…" : "Confirm"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteUid(null)}
+                                className="text-[11px] text-white/30 hover:text-white font-helvetica transition-colors px-1"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 justify-end">
+                              {canEditRow(u) && roleDirty(u) && (
+                                <button
+                                  type="button"
+                                  disabled={savingUid === u.uid}
+                                  onClick={() => saveRole(u.uid)}
+                                  className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 disabled:opacity-50 font-helvetica"
+                                >
+                                  {savingUid === u.uid ? "Saving…" : "Save role"}
+                                </button>
+                              )}
+                              {canDeleteRow(u) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteUid(u.uid)}
+                                  className="text-[11px] text-red-400 border border-red-500/20 hover:bg-red-500/10 px-2.5 py-1.5 rounded-lg font-helvetica transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>
