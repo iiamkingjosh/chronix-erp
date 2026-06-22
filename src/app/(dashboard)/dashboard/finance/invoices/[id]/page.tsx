@@ -579,7 +579,7 @@ export default function InvoiceViewPage() {
       )}
 
       {/* Journal error banner */}
-      {(invoice as unknown as Record<string, unknown>)._journalError && (
+      {Boolean((invoice as unknown as Record<string, unknown>)._journalError) && (
         <div className="mb-5 flex items-start gap-3 px-4 py-4 bg-red-500/8 border border-red-500/20 rounded-xl animate-fade-in">
           <span className="text-red-400 shrink-0 mt-0.5 text-base">⚠</span>
           <div className="min-w-0">

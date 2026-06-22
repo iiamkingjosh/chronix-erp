@@ -170,7 +170,7 @@ export default function ExpensesPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-semibold text-white font-helvetica">{exp.title}</p>
-                          {(exp as unknown as Record<string, unknown>)._journalError && (
+                          {Boolean((exp as unknown as Record<string, unknown>)._journalError) && (
                             <span
                               title={String((exp as unknown as Record<string, unknown>)._journalError)}
                               className="text-[10px] text-red-400 border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 rounded font-helvetica shrink-0"
