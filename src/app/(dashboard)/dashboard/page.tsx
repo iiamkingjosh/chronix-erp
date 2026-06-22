@@ -139,8 +139,9 @@ export default function DashboardHome() {
       {canonical === "Project Manager"  && <ProjectManagerDashboard profile={profile} />}
       {canonical === "Finance Officer"  && <FinanceOfficerDashboard />}
       {canonical === "IT Manager"       && <ITManagerDashboard />}
+      {canonical === "Executive Assistant" && <ExecutiveAssistantDashboard />}
       {!["Root Admin","CEO","CFO","System Admin","Brand Lead","Social Media Lead","HR","Staff",
-         "Sales Rep","Project Manager","Finance Officer","IT Manager"].includes(canonical) && (
+         "Sales Rep","Project Manager","Finance Officer","IT Manager","Executive Assistant"].includes(canonical) && (
         <GenericDashboard profile={profile} />
       )}
     </div>
@@ -825,6 +826,71 @@ function ITManagerDashboard() {
           <QuickAction label="On-Call Schedule"    href="/dashboard/oncall"           icon="📞" />
           <QuickAction label="Knowledge Base"      href="/dashboard/knowledge"        icon="📖" />
           <QuickAction label="Notifications"       href="/dashboard/notifications"    icon="🔔" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/* Executive Assistant — read-only briefing view for the CEO    */
+/* ──────────────────────────────────────────────────────────── */
+function ExecutiveAssistantDashboard() {
+  interface M {
+    outstanding: number; overdueCount: number;
+    openTickets: number; expiringSubs30: number;
+    activeProjects: number; activeClients: number;
+  }
+  const [m, setM]             = useState<M | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      safeDocs("invoices"),
+      safeDocs("tickets"),
+      safeDocs("subscriptions"),
+      safeDocs("projects"),
+      safeDocs("clients"),
+    ]).then(([invoices, tickets, subs, projects, clients]) => {
+      const now = new Date();
+      const expiringSubs30 = subs.filter((s) => {
+        if (s.cancelled) return false;
+        const exp = String(s.expiryDate ?? "");
+        if (!exp) return false;
+        const days = Math.ceil((new Date(exp + "T00:00:00").getTime() - now.getTime()) / 86_400_000);
+        return days >= 0 && days <= 30;
+      }).length;
+      setM({
+        outstanding:    invoices.filter((i) => i.status === "pending" || i.status === "overdue").reduce((s, i) => s + (Number(i.total) || 0), 0),
+        overdueCount:   invoices.filter((i) => i.status === "overdue").length,
+        openTickets:    tickets.filter((t) => t.status === "open" || t.status === "in_progress").length,
+        expiringSubs30,
+        activeProjects: projects.filter((p) => p.status === "in_progress").length,
+        activeClients:  clients.length,
+      });
+    }).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Spinner />;
+  const v = m ?? { outstanding: 0, overdueCount: 0, openTickets: 0, expiringSubs30: 0, activeProjects: 0, activeClients: 0 };
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="CEO Briefing" role="Executive Assistant" color="bg-violet-900/20 text-violet-200 border-violet-700/30" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <KPI label="Outstanding (₦)"      value={formatNaira(v.outstanding)}    icon="📄" accent={v.outstanding > 0 ? "text-amber-400" : "text-white/50"} sub={v.overdueCount > 0 ? `${v.overdueCount} overdue` : undefined} />
+        <KPI label="Open Tickets"         value={v.openTickets}                 icon="🎫" accent={v.openTickets > 5 ? "text-accent" : "text-white"} />
+        <KPI label="Expiring ≤30 days"    value={v.expiringSubs30}              icon="🔔" accent={v.expiringSubs30 > 0 ? "text-amber-400" : "text-white/50"} href="/dashboard/subscriptions" />
+        <KPI label="Active Projects"      value={v.activeProjects}              icon="📋" accent="text-secondary" />
+        <KPI label="Active Clients"       value={v.activeClients}               icon="🏢" accent="text-emerald-400" />
+      </div>
+      <div className="surface-card p-6">
+        <p className="font-orbitron text-xs text-white/30 uppercase tracking-widest mb-4">Quick Actions</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <QuickAction label="Financial Reports" href="/dashboard/finance/reports" icon="📈" />
+          <QuickAction label="Analytics"          href="/dashboard/analytics"       icon="📊" />
+          <QuickAction label="Knowledge Base"     href="/dashboard/knowledge"       icon="📖" />
+          <QuickAction label="Notifications"      href="/dashboard/notifications"   icon="🔔" />
         </div>
       </div>
     </div>

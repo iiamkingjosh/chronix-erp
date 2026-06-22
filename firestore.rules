@@ -52,13 +52,17 @@ service cloud.firestore {
     function isITManager() {
       return role() == 'IT Manager';
     }
+    function isExecutiveAssistant() {
+      return role() == 'Executive Assistant';
+    }
     function isInternalStaff() {
       return !isClientRole();
     }
 
-    /** App: CEO + System Admin have view:all (read-most dashboards). */
+    /** App: CEO + System Admin + Executive Assistant have view:all (read-most dashboards).
+        EA is read-only — never add it to a create/update/delete rule. */
     function hasViewAll() {
-      return isRootAdmin() || isCEO() || isSystemAdmin();
+      return isRootAdmin() || isCEO() || isSystemAdmin() || isExecutiveAssistant();
     }
 
     /** ROLE_PERMISSIONS — manage:crm */
@@ -153,14 +157,14 @@ service cloud.firestore {
       return hasViewAll() || isCFO() || isHR() || isStaffLike() || isProjectManager();
     }
 
-    /** view:tax — CEO (view only), CFO (view + manage), System Admin (view only) */
+    /** view:tax — CEO (view only), CFO (view + manage), System Admin (view only), Executive Assistant (view only) */
     function hasViewTax() {
-      return isRootAdmin() || isCEO() || isCFO() || isSystemAdmin();
+      return isRootAdmin() || isCEO() || isCFO() || isSystemAdmin() || isExecutiveAssistant();
     }
 
-    /** view:paye — CEO, CFO, HR */
+    /** view:paye — CEO, CFO, HR, Executive Assistant */
     function hasViewPAYE() {
-      return isRootAdmin() || isCEO() || isCFO() || isHR();
+      return isRootAdmin() || isCEO() || isCFO() || isHR() || isExecutiveAssistant();
     }
 
     /** Matches dashboard CRM reads + CEO KPI safeDocs — broad listing queries require broad reads */
@@ -359,7 +363,7 @@ service cloud.firestore {
     /* ── Performance Reviews ─────────────────────────────────── */
     match /performance_reviews/{reviewId} {
       allow read: if isAuth() && (
-        canManageHR() || isCEO() ||
+        canManageHR() || isCEO() || isExecutiveAssistant() ||
         request.auth.uid == resource.data.employeeId
       );
       allow write: if isAuth() && (canManageHR() || isCEO());
@@ -437,7 +441,7 @@ service cloud.firestore {
     /* ── Leave Requests ──────────────────────────────────── */
     match /leave_requests/{leaveId} {
       allow read: if isAuth() && (
-        canManageHR() || isCEO() ||
+        canManageHR() || isCEO() || isExecutiveAssistant() ||
         resource.data.employeeUid == request.auth.uid
       );
       allow create: if isAuth() && !isClientRole();
@@ -454,7 +458,7 @@ service cloud.firestore {
 
     /* ── Disciplinary Records ────────────────────────────── */
     match /disciplinary_records/{discId} {
-      allow read:   if isAuth() && (canManageHR() || isCEO());
+      allow read:   if isAuth() && (canManageHR() || isCEO() || isExecutiveAssistant());
       allow create: if isAuth() && (canManageHR() || isCEO());
       allow update: if isAuth() && (canManageHR() || isCEO());
       allow delete: if false;
@@ -482,7 +486,7 @@ service cloud.firestore {
 
     /* ── Audit Logs ──────────────────────────────────────── */
     match /audit_logs/{logId} {
-      allow read:   if isAuth() && (isRootAdmin() || isCEO() || isSystemAdmin());
+      allow read:   if isAuth() && (isRootAdmin() || isCEO() || isSystemAdmin() || isExecutiveAssistant());
       allow create: if isAuth() && !isClientRole();
       allow update, delete: if false;
     }

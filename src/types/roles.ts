@@ -12,6 +12,7 @@ export const ROLES = {
   PROJECT_MANAGER:   "Project Manager",
   FINANCE_OFFICER:   "Finance Officer",
   IT_MANAGER:        "IT Manager",
+  EXECUTIVE_ASSISTANT: "Executive Assistant",
 } as const;
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
@@ -182,6 +183,21 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:projects",      "view:subscriptions",
     "view:analytics",     "view:notifications",
   ],
+
+  /* ── Executive Assistant — read-only mirror of the CEO's view,
+      scoped strictly to supporting the CEO (briefing, scheduling
+      visibility, correspondence). No approve:* or manage:* rights
+      over any department — that stays with the CEO/department heads. */
+  [ROLES.EXECUTIVE_ASSISTANT]: [
+    "view:own",
+    "view:all",
+    "view:analytics",    "view:notifications",
+    "view:reports",      "view:subscriptions",
+    "view:tax",          "view:settings",
+    "view:assets",       "view:knowledge",
+    "view:audit",
+    "submit:expenses",
+  ],
 };
 
 /**
@@ -224,6 +240,7 @@ export const ROLE_REDIRECTS: Record<Role, string> = {
   [ROLES.PROJECT_MANAGER]:   "/dashboard",
   [ROLES.FINANCE_OFFICER]:   "/dashboard/finance",
   [ROLES.IT_MANAGER]:        "/dashboard",
+  [ROLES.EXECUTIVE_ASSISTANT]: "/dashboard",
 };
 
 export const ROLE_COLORS: Record<Role, string> = {
@@ -240,4 +257,5 @@ export const ROLE_COLORS: Record<Role, string> = {
   [ROLES.PROJECT_MANAGER]:   "bg-indigo-900/30 text-indigo-300 border-indigo-700",
   [ROLES.FINANCE_OFFICER]:   "bg-lime-900/30 text-lime-300 border-lime-700",
   [ROLES.IT_MANAGER]:        "bg-rose-900/30 text-rose-300 border-rose-700",
+  [ROLES.EXECUTIVE_ASSISTANT]: "bg-violet-900/30 text-violet-300 border-violet-700",
 };
