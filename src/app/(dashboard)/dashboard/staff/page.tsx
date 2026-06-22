@@ -146,7 +146,11 @@ export default function StaffPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {["CEO", "System Admin", "Staff", "Client"].map((role) => {
-            const count = users.filter((u) => u.role === role).length;
+            const count = users.filter((u) =>
+              role === "Staff"
+                ? u.role !== "CEO" && u.role !== "System Admin" && u.role !== "Client"
+                : u.role === role
+            ).length;
             return (
               <div key={role} className="surface-card p-4 text-center">
                 <p className="font-orbitron text-xl font-bold text-white">{count}</p>
