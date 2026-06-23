@@ -35,6 +35,7 @@ const ALL_NAV: NavItem[] = [
   { label: "Audit Log",     href: "/dashboard/audit",                icon: <AuditIcon /> },
   { label: "Notifications", href: "/dashboard/notifications",        icon: <BellIcon /> },
   { label: "My Payslip",    href: "/dashboard/payslip",              icon: <PayslipIcon /> },
+  { label: "Payroll Summary", href: "/dashboard/payroll-summary",    icon: <PayslipIcon /> },
   { label: "My Performance", href: "/dashboard/my-performance",       icon: <PerformanceIcon /> },
   { label: "Settings",      href: "/dashboard/settings",             icon: <SettingsIcon /> },
 ];
@@ -61,6 +62,7 @@ const NAV_GATE: Record<string, string[] | null> = {
   "/dashboard/audit":                ["view:audit"],
   "/dashboard/notifications":        ["view:notifications"],
   "/dashboard/payslip":              ["view:own", "manage:hr"],
+  "/dashboard/payroll-summary":      ["view:payroll-summary"],
   "/dashboard/my-performance":       ["view:own", "manage:hr"],
   "/dashboard/settings":             ["view:settings", "manage:settings"],
 };

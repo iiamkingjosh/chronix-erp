@@ -81,6 +81,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:tax",           "manage:tax",
     "approve:invoices",   "approve:expenses",
     "view:expenses",      "manage:expenses",
+    "view:payroll-summary",
   ],
 
   /* ── System Admin — full platform access ─────────────── */

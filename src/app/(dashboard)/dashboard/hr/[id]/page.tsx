@@ -57,8 +57,13 @@ export default function EmployeeProfilePage() {
   const canManage        = profile ? hasPermission(profile.role, "manage:hr") : false;
   const isSelf           = profile?.uid === id;
   const canView          = canManage || isSelf;
+  // CEO and Executive Assistant both have view:all but neither has
+  // manage:hr — they were removed from individual-payslip API access in
+  // Stage 1 (canManageOthersPayslips is manage:hr only), so this no longer
+  // includes view:all; showing them a tab that 403s on click is worse than
+  // not showing it. Both get the aggregate payroll summary view instead.
   const canViewPayslipTab = profile
-    ? hasPermission(profile.role, "manage:hr") || hasPermission(profile.role, "view:all") || isSelf
+    ? hasPermission(profile.role, "manage:hr") || isSelf
     : false;
 
   useEffect(() => {
