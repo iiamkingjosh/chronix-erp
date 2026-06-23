@@ -215,7 +215,7 @@ service cloud.firestore {
     }
 
     function privilegedUserManagers() {
-      return canManageHR() || isCFO() || canManageStaff();
+      return canManageHR() || canManageStaff();
     }
 
     /** First-login bootstrap doc created by the client — Staff only, email must match Auth token. */

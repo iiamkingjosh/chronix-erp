@@ -2,7 +2,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  sendPasswordResetEmail,
   onAuthStateChanged,
   updateProfile,
   User,
@@ -119,9 +118,21 @@ export async function signOutUser(): Promise<void> {
 }
 
 /* ── sendReset ────────────────────────────────────────────── */
-
+/** Routes through /api/auth/send-password-reset (Admin SDK link + Resend)
+ * instead of Firebase Auth's own default mail relay: Firebase's default
+ * sender has no custom-domain reputation and is commonly spam-filtered,
+ * while Resend's chronixtechnology.com is verified and already used for
+ * every other transactional email in this app. */
 export async function sendReset(email: string): Promise<void> {
-  await sendPasswordResetEmail(auth, email.trim());
+  const res = await fetch("/api/auth/send-password-reset", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim() }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? "Could not send reset email");
+  }
 }
 
 /* ── onAuthChange ─────────────────────────────────────────── */

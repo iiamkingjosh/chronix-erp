@@ -21,10 +21,12 @@ function rootLikeRoleStr(r: string): boolean {
   return r === "Root Admin" || r === "Chronix Root" || r === "Root";
 }
 
-/** Roles an editor may assign (HR cannot assign Root Admin). */
+/** Roles an editor may assign (HR cannot assign Root Admin). Matches
+ * editorMayManageRootRoles below — both gate root-like-role grants on
+ * manage:staff/isRootAdmin, mirroring firestore.rules' canManageStaff(). */
 function rolesAssignableByCaller(rawRole: string): Role[] {
   const internal = Object.values(ROLES).filter((r) => r !== ROLES.CLIENT);
-  if (isRootAdmin(rawRole)) return internal;
+  if (hasPermission(rawRole, "manage:staff") || isRootAdmin(rawRole)) return internal;
   return internal.filter((r) => r !== ROLES.ROOT_ADMIN);
 }
 

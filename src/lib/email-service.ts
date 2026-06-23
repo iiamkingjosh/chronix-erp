@@ -120,6 +120,21 @@ export function subscriptionAlertEmail(title: string, message: string, link: str
   );
 }
 
+/** Password reset link comes from Admin SDK's generatePasswordResetLink() —
+ * already a full, absolute URL (Firebase's own hosted action handler), so
+ * it's used as-is here instead of via bodyRow() (which prefixes APP_URL). */
+export function passwordResetEmail(link: string): string {
+  return shell(
+    "#1a1a2e",
+    "Password Reset",
+    `<tr><td style="padding:32px;">
+      <p style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:600;">Reset your password</p>
+      <p style="margin:0 0 28px;color:rgba(255,255,255,0.55);font-size:14px;line-height:1.7;">Follow this link to choose a new password for your Chronix ERP account. If you didn't request this, you can ignore this email.</p>
+      <a href="${link}" style="display:inline-block;background:#e85d04;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:8px;">Reset Password →</a>
+    </td></tr>`,
+  );
+}
+
 export function invoiceEmail(invoiceNumber: string, clientName: string, total: string, dueDate: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f4f4f5;font-family:system-ui,-apple-system,sans-serif;">
