@@ -40,7 +40,9 @@ Thumbs.db
 
 # Firebase Admin Credentials
 config/chronix-erp-firebase-adminsdk-fbsvc-3ba562100b.json
-docs
+docs/*
+!docs/prd/
+!docs/prd/**
 scripts/.sa-temp.json
 scripts/*.sa-temp.*
 

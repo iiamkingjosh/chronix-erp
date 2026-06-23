@@ -1,0 +1,44 @@
+# HR/Payroll & Auth/Admin — Invariant Test Suite Results
+
+> Detection only. No application code was changed. Run via `npm run test:emulator`.
+> Tests live under `tests/hr/`, reusing the harness from `tests/helpers/` (plus a
+> new `tests/helpers/admin-emulator.ts` for Admin-SDK-backed API routes).
+
+## What's new in the harness for this module
+
+The payslip, performance-compute, and migrate-employee-numbers routes use the **Firebase Admin SDK** (`firebase-admin`), not the client SDK — a separate code path from everything tested in Finance & Tax. Confirmed empirically that the Admin SDK connects to the emulators and operates correctly with **zero real GCP credentials** (it falls through to `applicationDefault()`, which works fine once `FIRESTORE_EMULATOR_HOST`/`FIREBASE_AUTH_EMULATOR_HOST` are set — no service account needed for emulator-only testing).
+
+## Five test-harness bugs caught and fixed before trusting results (all in my test code, not the app)
+
+1. Passed a plain `Request` to routes typed as `NextRequest` — those routes read `.nextUrl.searchParams`, which only exists on the real `NextRequest` subclass. Fixed by constructing actual `NextRequest` instances for the GET routes that need it.
+2. Tested `createEmployee` against a target uid with **no pre-existing Firestore profile** — unrealistic, since HR's "Add Employee" flow only ever links an *existing* self-registered account. This made the write look like a rules `create` (self-uid-only) instead of the realistic `update` (which HR is actually allowed to do), masking the real finding behind an unrelated rejection. Fixed by seeding a pre-existing target profile first, matching real usage.
+3. The original D1 test called `createUserProfile` while **signed out entirely** — a trivial, uninteresting rejection. Rewritten to test the actually-interesting case: an authenticated admin role bootstrapping a *different* uid's profile.
+4. Asserted on error *message text* (`/permission/i`) for a Firestore `list` (query) rejection — the SDK formats query-rejection messages differently from single-document rejections and doesn't always include the word "permission" in the text. Switched to checking the FirebaseError's `.code === "permission-denied"`, which is consistent across both.
+5. Found a genuine race in the **application code itself**: `markAllPaid`'s catch block writes `_journalError` via `updateDoc(...).catch(() => {})` with no `await` — so the function can return before that write commits. My test was reading the result too early. This is not a test bug to paper over by removing the assertion — added a short bounded poll so the test waits for the actual eventual state, and flagged the underlying raciness as a finding in its own right (see below).
+
+## Confirmed deviations (matching the PRD's D-numbers, with real reproduced evidence)
+
+| # | Test | Expected (invariant) | Actual (reproduced) |
+|---|---|---|---|
+| D1 (revised) | `createUserProfile` | An admin should be able to bootstrap a different user's profile (per the function's own doc comment) | The `users` create rule is strictly self-uid-only (`request.auth.uid == userId`) with no privileged-admin clause — a System Admin attempting this for someone else is rejected. It only "works" for Root Admin via the rules' catch-all, and even then produces a structural orphan: a Firestore profile with no Firebase Auth account behind it, since the function never touches Auth at all |
+| D2 | `migrate-employee-numbers` | A caller stored with a legacy role alias should be treated identically to its canonical role everywhere | A user stored with the literal string `"Root"` (which `ROLE_ALIASES` maps to Root Admin) is rejected with 403, because this route does a raw `role !== ROLES.ROOT_ADMIN` comparison with no `resolveRole()` call. The identical caller succeeds once the stored string is exactly `"Root Admin"` |
+| D3 | payslip API vs. `payroll_runs` rules | One consistent definition of "payroll staff" | CFO can read the entire `payroll_runs` collection directly (rules), but is rejected (403) by the payslip API's `MANAGER_ROLES` set, which doesn't include CFO at all. CEO is the mirror image: accepted (200) by the payslip API, but rejected (`permission-denied`) reading `payroll_runs` directly |
+| D4 | `createPayrollRun` totals | The page's pre-computed totals should be used, or the architecture should make clear they aren't | Passing a deliberately wrong pre-PAYE `totalNet` (₦500,000) gets silently discarded and recomputed server-side with real PAYE/pension/NHF applied — the persisted figure is provably lower, and `payeAmount` on the entry is confirmed greater than zero |
+| D5 | legacy `employees` collection | One employee-record entity | `createEmployee` (run successfully as Root Admin) confirmed to write only to `users` — the `employees/{uid}` doc that `firestore.rules` still declares rules for is never touched |
+| D7 | Executive Assistant + `performance_reviews` | A UI button should not be shown for a write rules will reject | A direct `performance_reviews` write (mirroring what `CreateReviewModal` does) is rejected for Executive Assistant despite their `view:all`-driven UI gate showing the Create Review button; the identical write succeeds for HR |
+
+## New findings — surfaced only by actually running this
+
+- **HR's own primary job (creating an employee record) is broken**, and not for the reason the original PRD guessed. `assignEmployeeNumber()`'s transaction writes to `counters/employeeNumber` — and **`firestore.rules` has no `/counters/{id}` match block at all**. Every write that falls through every other rule lands on the final catch-all, which is **Root-Admin-only**. So HR can merge the HR fields onto the employee's profile (that part succeeds, `canManageHR()` covers it), but the employee-number assignment throws `permission-denied` — confirmed by running it as HR (throws) and as Root Admin (succeeds end-to-end) back to back. Every "Add Employee" submission by an HR user fails partway through, leaving a profile with HR fields but no employee number.
+- **HR can complete a payroll run, but cannot post its journal entry — and CFO can't even create the run.** `payroll_runs` create/update requires `canManageHR() || isSystemAdmin()` — CFO has neither, so `createPayrollRun` is rejected outright for CFO (confirmed). HR *does* satisfy that gate, so HR can create a run and mark it fully paid — but posting the resulting journal entry requires `canManageFinance() || isSalesRep()`, and HR is in neither set. Confirmed: HR's `markAllPaid` call resolves successfully, the run shows `status: "completed"`, but **zero journal entries exist** for it, and the only trace is an `_journalError` field that (per the harness bug above) isn't even guaranteed to be written by the time the caller's own promise resolves. In practice, **only Root Admin or System Admin can run payroll all the way through to a posted journal entry** — confirmed working end-to-end for System Admin in a separate test.
+
+## Confirmed-correct (the invariant genuinely holds here)
+
+- **Login still never creates an account** (this session's earlier fix): signing in with a real Auth credential that has no Firestore profile throws and signs the dangling session back out — verified against the real emulator, not just read from source.
+- **Admin provisioning role restrictions work correctly**: a Staff caller can create another Staff account but is blocked (403) from provisioning a CFO account; a System Admin caller can provision any non-Client role.
+- **Leave request boundaries are all correctly enforced**: the submitting employee can self-cancel their own pending request; a different, non-manager Staff member cannot cancel someone else's; HR can approve any pending request; a non-HR, non-manager Staff member cannot. All four boundary cases confirmed exactly as the permission model intends — this part of the system has no gap.
+- **The one role that satisfies every gate in the payroll chain (System Admin) completes it correctly**: create run → mark all paid → exactly one journal entry posted, `_journalPosted: true`.
+
+## What this doesn't cover yet
+
+Disciplinary records' `manage:disciplinary` dead-permission-token finding (D6) wasn't given a dedicated runtime test this round — it's an architectural observation (no code path consults that specific permission string; access is gated by a literal `isCEO()` check in rules instead) rather than something with an observable pass/fail divergence today, since CEO happens to satisfy both mechanisms. D8 (leave-cancel field-set fragility) was exercised at its current boundaries and held — but "fragile" was always a forward-looking concern about what happens if a future change adds a field to the cancel write, not a currently-reproducible failure, so today's green result there shouldn't be read as "this can never break."
