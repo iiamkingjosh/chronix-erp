@@ -1,6 +1,5 @@
 export type LeadStage  = "lead" | "prospect" | "client" | "retained";
 export type LeadSource = "manual" | "form" | "campaign" | "referral" | "social" | "other";
-export type SubStatus  = "active" | "expired" | "cancelled";
 
 export interface ActivityEntry {
   id: string;
@@ -43,16 +42,6 @@ export interface Lead {
   updatedAt: string;
 }
 
-export interface ClientSubscription {
-  id: string;
-  name: string;
-  type: string;
-  startDate: string;
-  endDate?: string;
-  monthlyValue: number;
-  status: SubStatus;
-}
-
 export interface Client {
   id: string;
   clientId: string;       // CLT-250504-A3B7
@@ -62,7 +51,6 @@ export interface Client {
   phone: string;
   address?: string;
   leadId?: string;
-  subscriptions: ClientSubscription[];
   notes: string;
   tags: string[];
   assignedTo: string;
@@ -111,12 +99,6 @@ export const SOURCE_STYLES: Record<LeadSource, string> = {
   referral: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   social:   "bg-pink-500/15 text-pink-400 border-pink-500/30",
   other:    "bg-white/8 text-white/30 border-white/10",
-};
-
-export const SUB_STATUS_STYLES: Record<SubStatus, string> = {
-  active:    "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  expired:   "bg-red-500/15 text-red-400 border-red-500/30",
-  cancelled: "bg-white/8 text-white/30 border-white/10",
 };
 
 /* ── Helpers ── */

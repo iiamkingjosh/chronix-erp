@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { connectEmulators, clearAll, teardownEmulators, signInAs, readDocAsAdmin, seedDoc } from "../helpers/emulator";
-import { addSubscription } from "@/lib/crm-service";
+import { connectEmulators, clearAll, teardownEmulators, signInAs, readDocAsAdmin } from "../helpers/emulator";
 import { createSubscription, cancelSubscription, renewSubscription } from "@/lib/subscriptions-service";
 import { getPortalSubscriptions } from "@/lib/client-portal-service";
-import type { Client, ClientSubscription } from "@/types/crm";
 import type { Subscription } from "@/types/subscriptions";
 
 beforeAll(async () => {
@@ -17,35 +15,15 @@ afterAll(async () => {
 });
 
 describe("Invariant #2 — \"this client's subscriptions\" must mean the same thing everywhere", () => {
-  it("DEVIATION D2: a subscription added on the CRM client profile never appears in that client's portal view", async () => {
-    await signInAs("Sales Rep");
-    const clientId = "client-" + Date.now();
-    const clientData: Client = {
-      id: clientId, clientId: "CLT-TEST", fullName: "Test Client", company: "Test Co Ltd",
-      email: "client@test.local", phone: "+2348000000000", subscriptions: [], notes: "", tags: [],
-      assignedTo: "test-uid", assignedName: "Test Rep",
-      createdAt: new Date().toISOString(), createdBy: "test-uid", updatedAt: new Date().toISOString(),
-    };
-    await seedDoc("clients", clientId, clientData as unknown as Record<string, unknown>);
-
-    const embeddedSub: ClientSubscription = {
-      id: "sub-1", name: "Annual Hosting Plan", type: "hosting", startDate: "2026-01-01",
-      monthlyValue: 50_000, status: "active",
-    };
-    await addSubscription(clientId, embeddedSub);
-
-    const persistedClient = await readDocAsAdmin<Client>("clients", clientId);
-    expect(persistedClient?.subscriptions).toHaveLength(1); // it's recorded on the client profile...
-
-    // ...but the portal reads ONLY the top-level `subscriptions` collection.
-    const portalView = await getPortalSubscriptions("Test Co Ltd");
-    expect(portalView).toHaveLength(0); // the client sees zero subscriptions despite having one on file internally
-  });
-
+  // RESOLVED (subscriptions rebuild, Step A): the CRM-embedded ClientSubscription
+  // model (which used to disagree with the portal's top-level-only view — the
+  // original D2 finding) has been retired entirely. Confirmed zero production
+  // data existed for it. The top-level `subscriptions` collection is now the
+  // single source of truth, so there is nothing left to reconcile.
   it("a top-level subscription IS visible in the portal view (confirming the portal's own collection works correctly in isolation)", async () => {
     await signInAs("CFO");
     await createSubscription({
-      subId: "SUB-TEST", itemName: "Domain Renewal", clientName: "Test Co Ltd",
+      subId: "SUB-TEST", itemName: "Domain Renewal", clientId: "client-test", clientName: "Test Co Ltd",
       type: "domain", provider: "namecheap", startDate: "2026-01-01", expiryDate: "2027-01-01",
       renewalCost: 25_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [],
       cancelled: false, createdAt: new Date().toISOString(), createdBy: "test-uid", updatedAt: new Date().toISOString(),
@@ -56,11 +34,15 @@ describe("Invariant #2 — \"this client's subscriptions\" must mean the same th
   });
 });
 
-describe("DEVIATION D3 — \"cancelled\" is a boolean in one subscription model, an enum string in the other", () => {
+// RESOLVED (subscriptions rebuild, Step A): this described the embedded
+// model's string-enum `status` disagreeing with the top-level model's
+// boolean `cancelled` for the same business fact. The embedded model (and
+// its enum) is gone; the boolean below is now the only representation.
+describe("Cancellation state — top-level model only, boolean flag", () => {
   it("the top-level model uses a boolean flag", async () => {
     await signInAs("CFO");
     const sub = await createSubscription({
-      subId: "SUB-BOOL", itemName: "License", clientName: "Test Co",
+      subId: "SUB-BOOL", itemName: "License", clientId: "client-bool", clientName: "Test Co",
       type: "license", provider: "microsoft", startDate: "2026-01-01", expiryDate: "2027-01-01",
       renewalCost: 10_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [],
       cancelled: false, createdAt: new Date().toISOString(), createdBy: "test-uid", updatedAt: new Date().toISOString(),
@@ -70,35 +52,13 @@ describe("DEVIATION D3 — \"cancelled\" is a boolean in one subscription model,
     expect(typeof persisted?.cancelled).toBe("boolean");
     expect(persisted?.cancelled).toBe(true);
   });
-
-  it("the CRM-embedded model uses an enum string for the identical business state", async () => {
-    await signInAs("Sales Rep");
-    const clientId = "client-enum-" + Date.now();
-    await seedDoc("clients", clientId, {
-      id: clientId, clientId: "CLT-TEST2", fullName: "Test", company: "Test", email: "x@test.local",
-      phone: "+2348000000000", subscriptions: [], notes: "", tags: [], assignedTo: "x", assignedName: "x",
-      createdAt: new Date().toISOString(), createdBy: "x", updatedAt: new Date().toISOString(),
-    });
-    const embeddedSub: ClientSubscription = {
-      id: "sub-enum", name: "Support Contract", type: "contract", startDate: "2026-01-01",
-      monthlyValue: 30_000, status: "cancelled", // <-- string enum, not a boolean
-    };
-    await addSubscription(clientId, embeddedSub);
-    const persisted = await readDocAsAdmin<Client>("clients", clientId);
-    expect(typeof persisted?.subscriptions[0].status).toBe("string");
-    expect(persisted?.subscriptions[0].status).toBe("cancelled");
-    // Same business fact ("this subscription is cancelled"), two
-    // structurally incompatible representations — `cancelled: true` here
-    // vs `cancelled: true` as a boolean over there. Any future code that
-    // tries to treat both as one concept must special-case both shapes.
-  });
 });
 
 describe("DEVIATION D4 — manual renewal posts no journal entry and writes no dedupe key, unlike the cron-triggered renewal", () => {
   it("renewSubscription only updates the subscription itself — it has no knowledge of invoices or journal entries at all", async () => {
     await signInAs("CFO");
     const sub = await createSubscription({
-      subId: "SUB-RENEW", itemName: "SSL Cert", clientName: "Test Co",
+      subId: "SUB-RENEW", itemName: "SSL Cert", clientId: "client-renew", clientName: "Test Co",
       type: "ssl", provider: "namecheap", startDate: "2025-01-01", expiryDate: "2026-01-01",
       renewalCost: 15_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [],
       cancelled: false, createdAt: new Date().toISOString(), createdBy: "test-uid", updatedAt: new Date().toISOString(),

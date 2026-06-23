@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
@@ -23,7 +23,7 @@ const COMMON_PROVIDERS: SubProvider[] = [
 
 const schema = z.object({
   itemName:      z.string().min(2, "Required"),
-  clientName:    z.string().optional(),
+  clientId:      z.string().min(1, "Required"),
   type:          z.enum(["domain","license","contract","service","ssl","other"]),
   provider:      z.string().min(1, "Required"),
   startDate:     z.string().min(1, "Required"),
@@ -37,13 +37,24 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function NewSubscriptionPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>}>
+      <NewSubscriptionForm />
+    </Suspense>
+  );
+}
+
+function NewSubscriptionForm() {
   const { profile } = useAuth();
   const router      = useRouter();
+  const searchParams = useSearchParams();
   const [clients, setClients]         = useState<CRMClient[]>([]);
+  const [clientsLoaded, setClientsLoaded] = useState(false);
   const [customProvider, setCustomProvider] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const canManage = profile ? hasPermission(profile.role, "manage:subscriptions") : false;
+  const prefillClientId = searchParams.get("clientId") ?? "";
 
   const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -63,18 +74,29 @@ export default function NewSubscriptionPage() {
   const vatApplicableOn = vatApplicableValue !== false;
 
   useEffect(() => {
-    getClients().then(setClients).catch((e) => console.error("Failed to load clients:", e));
-  }, []);
+    getClients().then((cs) => {
+      setClients(cs);
+      if (prefillClientId && cs.some((c) => c.id === prefillClientId)) {
+        setValue("clientId", prefillClientId);
+      }
+    }).catch((e) => console.error("Failed to load clients:", e)).finally(() => setClientsLoaded(true));
+  }, [prefillClientId, setValue]);
 
   async function onSubmit(data: FormData) {
     if (!profile || !canManage) return;
+    const selectedClient = clients.find((c) => c.id === data.clientId);
+    if (!selectedClient) {
+      setServerError("Select a valid client.");
+      return;
+    }
     setServerError(null);
     try {
       const now = new Date().toISOString();
       const sub = await createSubscription({
         subId:         generateSubId(),
         itemName:      data.itemName,
-        clientName:    data.clientName ?? "",
+        clientId:      selectedClient.id,
+        clientName:    selectedClient.company || selectedClient.fullName,
         type:          data.type as SubType,
         provider:      data.provider,
         startDate:     data.startDate,
@@ -170,18 +192,18 @@ export default function NewSubscriptionPage() {
               </div>
 
               <div>
-                <label className="field-label">Client (optional)</label>
-                <input
-                  {...register("clientName")}
-                  list="clients-list"
-                  placeholder="Link to a client…"
-                  className="input-field"
-                />
-                <datalist id="clients-list">
+                <label className="field-label">Client</label>
+                <select {...register("clientId")} className="input-field" disabled={!clientsLoaded}>
+                  <option value="" className="bg-primary-dark">
+                    {clientsLoaded ? "Select a client…" : "Loading clients…"}
+                  </option>
                   {clients.map((c) => (
-                    <option key={c.id} value={c.company || c.fullName} />
+                    <option key={c.id} value={c.id} className="bg-primary-dark">
+                      {c.company || c.fullName}
+                    </option>
                   ))}
-                </datalist>
+                </select>
+                {errors.clientId && <p className="mt-1 text-xs text-red-400">{errors.clientId.message}</p>}
               </div>
 
               <div>

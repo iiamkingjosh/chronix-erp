@@ -19,7 +19,7 @@ export interface Subscription {
   subId:        string;   // SUB-250504-XXXX
   itemName:     string;
   clientName:   string;
-  clientId?:    string;
+  clientId:     string;
   type:         SubType;
   provider:     string;   // SubProvider or custom string
   startDate:    string;

@@ -5,7 +5,7 @@ import {
 import { db } from "./firebase";
 import type {
   Lead, Client, LeadStage, ActivityEntry,
-  FollowUp, ClientSubscription,
+  FollowUp,
 } from "@/types/crm";
 import { STAGE_LABELS, generateClientId } from "@/types/crm";
 import { getStaffList, type StaffMember } from "./tickets-service";
@@ -162,7 +162,6 @@ export async function convertToClient(
     email:         lead.email,
     phone:         lead.phone,
     leadId:        lead.id,
-    subscriptions: [],
     notes:         lead.notes,
     tags:          [],
     assignedTo:    lead.assignedTo,
@@ -204,16 +203,6 @@ export async function getClients(): Promise<Client[]> {
 export async function getClient(id: string): Promise<Client | null> {
   const snap = await getDoc(doc(db, CLIENTS, id));
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as Client) : null;
-}
-
-export async function addSubscription(
-  clientId: string,
-  sub: ClientSubscription
-): Promise<void> {
-  await updateDoc(doc(db, CLIENTS, clientId), {
-    subscriptions: arrayUnion(sub),
-    updatedAt:     new Date().toISOString(),
-  });
 }
 
 export async function updateClientNotes(clientId: string, notes: string): Promise<void> {

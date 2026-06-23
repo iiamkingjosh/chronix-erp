@@ -92,10 +92,16 @@ export async function getPortalSubscriptions(clientName: string, clientId?: stri
     }
   }
   return subs
-    .filter((s) =>
-      (s as { clientName?: string }).clientName?.toLowerCase().trim() === normalised ||
-      (s as { clientId?: string }).clientId === clientId
-    )
+    .filter((s) => {
+      const sClientId = (s as { clientId?: string }).clientId;
+      // clientId is the authoritative link going forward — only trust an
+      // id-only match (excluding any stale/coincidental name match) when
+      // BOTH sides actually have one to compare. If either the record
+      // predates this field, or the caller doesn't have a resolved
+      // clientId to pass in, fall back to the exact clientName match.
+      if (sClientId && clientId) return sClientId === clientId;
+      return (s as { clientName?: string }).clientName?.toLowerCase().trim() === normalised;
+    })
     .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
 }
 
