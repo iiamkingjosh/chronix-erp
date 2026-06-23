@@ -44,3 +44,10 @@ firestore.rules
 docs
 scripts/.sa-temp.json
 scripts/*.sa-temp.*
+
+# Local-only emulator tooling and logs (see scripts/run-emulator-tests.mjs)
+.tools/
+firestore-debug.log
+ui-debug.log
+firebase-debug.log
+service-account.json

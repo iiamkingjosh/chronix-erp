@@ -12,6 +12,8 @@
     "typecheck": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next typegen && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
     "check-env": "node scripts/check-env.mjs",
     "verify": "npm run check-env && npm run typecheck && npm run lint:strict && npm run build",
+    "test": "vitest run",
+    "test:emulator": "node scripts/run-emulator-tests.mjs",
     "git:fetch": "node scripts/git-run.mjs fetch origin",
     "git:pull": "node scripts/git-run.mjs pull origin master",
     "git:push": "node scripts/git-run.mjs push origin master",
@@ -34,6 +36,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
     "@next/bundle-analyzer": "^16.2.7",
     "@types/node": "^20",
     "@types/react": "^18",
@@ -41,8 +44,10 @@
     "autoprefixer": "^10.0.1",
     "eslint": "^9.17.0",
     "eslint-config-next": "^16.2.4",
+    "firebase-tools": "^15.22.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }
