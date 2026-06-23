@@ -263,9 +263,10 @@ export default function InvoiceViewPage() {
   }
 
   const statusStyle = {
-    paid:    "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-    pending: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-    overdue: "bg-red-500/15 text-red-400 border-red-500/30",
+    paid:            "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    partially_paid:  "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    pending:         "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    overdue:         "bg-red-500/15 text-red-400 border-red-500/30",
   }[invoice.status];
 
   return (
@@ -595,6 +596,22 @@ export default function InvoiceViewPage() {
         </div>
       )}
 
+      {Boolean((invoice as unknown as Record<string, unknown>)._journalVoidError) && (
+        <div className="mb-5 flex items-start gap-3 px-4 py-4 bg-red-500/8 border border-red-500/20 rounded-xl animate-fade-in">
+          <span className="text-red-400 shrink-0 mt-0.5 text-base">⚠</span>
+          <div className="min-w-0">
+            <p className="text-red-300 text-sm font-semibold font-helvetica mb-0.5">Ledger Entry Not Reversed</p>
+            <p className="text-red-300/70 text-xs font-helvetica leading-relaxed">
+              This invoice was rejected, but its original journal entry could not be voided — the ledger still
+              shows it as posted. An admin needs to void it manually, or contact Root Admin.
+            </p>
+            <p className="text-red-300/40 text-[10px] font-mono font-helvetica mt-1 break-all">
+              {String((invoice as unknown as Record<string, unknown>)._journalVoidError)}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Invoice card */}
       <div className="surface-card overflow-hidden">
         {/* Header band */}
@@ -629,7 +646,7 @@ export default function InvoiceViewPage() {
             <div>
               <p className="text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica mb-1">Payment Status</p>
               <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize font-helvetica", statusStyle)}>
-                {invoice.status}
+                {invoice.status.replace(/_/g, " ")}
               </span>
             </div>
             {invoice.approvalStatus && (

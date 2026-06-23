@@ -9,7 +9,7 @@ import {
   query,
   orderBy,
   limit,
-  writeBatch,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Invoice, Payment, InvoiceStatus, ApprovalStatus } from "@/types/finance";
@@ -17,7 +17,10 @@ import { createInvoiceJournalEntry, createPaymentJournalEntry } from "@/lib/acco
 import { getJournalEntriesByReference, voidJournalEntry } from "@/lib/accounting/journal-entries";
 import { logAuditEvent } from "@/lib/audit-service";
 import { createNotification } from "@/lib/notifications-service";
-import { validateAmount } from "@/lib/utils";
+import { validateAmount, round } from "@/lib/utils";
+
+/** Amounts within this tolerance of each other are treated as equal (floating-point rounding). */
+const AMOUNT_TOLERANCE = 0.01;
 
 const INV = "invoices";
 const PAY = "payments";
@@ -75,14 +78,39 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
   if (data.vatAmount !== undefined && data.vatAmount > data.amount) {
     throw new Error(`VAT amount (${data.vatAmount}) cannot exceed the payment amount (${data.amount})`);
   }
-  const batch      = writeBatch(db);
   const paymentRef = doc(collection(db, PAY));
   const invoiceRef = doc(db, INV, data.invoiceId);
 
-  batch.set(paymentRef, stripUndefined(data));
-  batch.update(invoiceRef, { status: "paid" as const });
+  // Transactional (not batch): deciding the invoice's new status depends on
+  // reading its current amountPaid first, and a transaction guarantees that
+  // read-then-decide-then-write is atomic against concurrent payments on the
+  // same invoice — a plain batch (or a query run before the batch) cannot
+  // make that guarantee. Firestore transactions only support single-document
+  // reads, which is exactly what this needs (the running total lives on the
+  // invoice doc itself, not derived from a cross-collection query).
+  await runTransaction(db, async (tx) => {
+    const invoiceSnap = await tx.get(invoiceRef);
+    if (!invoiceSnap.exists()) {
+      throw new Error(`Invoice ${data.invoiceId} not found`);
+    }
+    const invoice = invoiceSnap.data() as Invoice;
 
-  await batch.commit();
+    const amountPaidBefore = round(invoice.amountPaid ?? 0);
+    const amountPaidAfter  = round(amountPaidBefore + data.amount);
+
+    if (amountPaidAfter - invoice.total > AMOUNT_TOLERANCE) {
+      throw new Error(
+        `Payment of ${data.amount} would bring total paid to ${amountPaidAfter}, exceeding the invoice total of ${invoice.total}. ` +
+        `Record a partial amount, or use a credit/refund process for overpayment — this invoice was not updated.`
+      );
+    }
+
+    const status: InvoiceStatus =
+      amountPaidAfter >= invoice.total - AMOUNT_TOLERANCE ? "paid" : "partially_paid";
+
+    tx.set(paymentRef, stripUndefined(data));
+    tx.update(invoiceRef, { status, amountPaid: amountPaidAfter });
+  });
 
   const payment = { ...data, id: paymentRef.id };
   try {
@@ -130,15 +158,28 @@ export async function updateInvoiceApproval(
 
   if (approvalStatus === "rejected") {
     const entries = await getJournalEntriesByReference(id);
+    const voidErrors: string[] = [];
     for (const entry of entries) {
       if (entry.status === "posted") {
-        await voidJournalEntry(
-          entry.id,
-          `Invoice rejected: ${extra?.rejectionReason ?? "no reason given"}`,
-          extra?.actorUid ?? actorName,
-        ).catch((e) => console.error("[accounting] Failed to void invoice journal on rejection:", e));
+        try {
+          await voidJournalEntry(
+            entry.id,
+            `Invoice rejected: ${extra?.rejectionReason ?? "no reason given"}`,
+            extra?.actorUid ?? actorName,
+          );
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[accounting] Failed to void invoice journal on rejection:", msg);
+          voidErrors.push(`${entry.entryNumber}: ${msg}`);
+        }
       }
     }
+    // Aggregated across every posted entry so one success doesn't clear the
+    // flag for a different entry that failed — visible on the invoice the
+    // same way _journalError already flags a failed posting.
+    await updateDoc(doc(db, INV, id), {
+      _journalVoidError: voidErrors.length ? voidErrors.join("; ") : null,
+    }).catch(() => {});
   }
 
   if (approvalStatus === "pending_approval") {

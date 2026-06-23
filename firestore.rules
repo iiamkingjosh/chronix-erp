@@ -264,7 +264,17 @@ service cloud.firestore {
         userPortalBillingMatches(resource.data.client.name)
       );
       allow create: if canManageFinance() || isSalesRep();
-      allow update: if canManageFinance();
+      /** Whoever created the invoice may always report the outcome of the
+          journal-posting side-effect from that same creation call — e.g. a
+          Sales Rep (who can create invoices but isn't canManageFinance())
+          must be able to write _journalPosted/_journalError on their own
+          invoice. Creator-scoped, not role-scoped, and only these two
+          fields — not a blanket re-opening of `update`. */
+      allow update: if canManageFinance() || (
+        isAuth() &&
+        resource.data.createdBy == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['_journalPosted', '_journalError'])
+      );
       allow delete: if canDeleteUnpaidInvoice() && resource.data.status != 'paid';
     }
 
@@ -564,7 +574,14 @@ service cloud.firestore {
     match /journal_entries/{entryId} {
       allow read:   if isAuth() && hasViewFinance();
       allow create: if isAuth() && (canManageFinance() || isSalesRep());
-      allow update: if false; // Never allow updates - void instead
+      /** Only the specific posted->void transition voidJournalEntry() performs —
+          not a blanket unlock. The reversing entry it also posts goes through
+          `create` above, which already permits this same role set. */
+      allow update: if isAuth() && canManageFinance() &&
+        resource.data.status == 'posted' &&
+        request.resource.data.status == 'void' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'voidedBy', 'voidedAt', 'voidReason']);
       allow delete: if false; // Never allow deletes - void instead
     }
 

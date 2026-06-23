@@ -14,7 +14,7 @@ export const COMPANY = {
   },
 } as const;
 
-export type InvoiceStatus   = "pending" | "paid" | "overdue";
+export type InvoiceStatus   = "pending" | "partially_paid" | "paid" | "overdue";
 export type ApprovalStatus  = "draft" | "pending_approval" | "approved" | "rejected";
 export type PaymentMethod   = "bank_transfer" | "cash" | "cheque" | "vat_direct" | "other";
 
@@ -32,6 +32,8 @@ export interface Invoice {
   invoiceDate: string;
   dueDate: string;
   status: InvoiceStatus;
+  /** Running sum of all payments recorded against this invoice. Drives `status`. */
+  amountPaid?: number;
   approvalStatus?: ApprovalStatus;
   submittedBy?: string;
   submittedAt?: string;

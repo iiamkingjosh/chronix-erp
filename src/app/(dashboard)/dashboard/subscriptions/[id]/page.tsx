@@ -16,6 +16,7 @@ import {
 import type { Subscription, RenewalLog, SubType } from "@/types/subscriptions";
 import { formatNaira } from "@/types/finance";
 import { createInvoice } from "@/lib/finance-service";
+import { getNextInvoiceNumber } from "@/lib/invoiceCounter";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
@@ -71,11 +72,7 @@ export default function SubscriptionDetailPage() {
       if (amount > 0) {
         try {
           const d            = new Date();
-          const yy           = String(d.getFullYear()).slice(2);
-          const mm           = String(d.getMonth() + 1).padStart(2, "0");
-          const dd           = String(d.getDate()).padStart(2, "0");
-          const rand         = Math.random().toString(36).slice(2, 6).toUpperCase();
-          const invNumber    = `CT${yy}${mm}${dd}-${rand}`;
+          const invNumber    = await getNextInvoiceNumber();
           const subtotal     = round(amount);
           const applyVat     = sub.vatApplicable !== false;
           const vatAmount    = applyVat ? round(subtotal * 0.075) : 0;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { sendPushToTokens } from "@/lib/push-service";
 import { sendEmail, subscriptionAlertEmail } from "@/lib/email-service";
+import { getNextInvoiceNumberAdmin } from "@/lib/invoiceCounter-admin";
 
 function isCronRequest(req: NextRequest): boolean {
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -81,8 +82,7 @@ export async function GET(req: NextRequest) {
             const yy   = String(d.getFullYear()).slice(2);
             const mm   = String(d.getMonth() + 1).padStart(2, "0");
             const dd   = String(d.getDate()).padStart(2, "0");
-            const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-            const invoiceNumber = `CT${yy}${mm}${dd}-${rand}`;
+            const invoiceNumber = await getNextInvoiceNumberAdmin();
             const cost      = sub.renewalCost;
             const applyVat  = sub.vatApplicable !== false;
             const vatAmount = applyVat ? Math.round(cost * 0.075 * 100) / 100 : 0;
@@ -151,6 +151,11 @@ export async function GET(req: NextRequest) {
               });
             } catch (jeErr) {
               console.error("[cron/subscriptions] journal entry failed for invoice", invRef.id, jeErr);
+              // Known gap, not fixed here (separate, lower-priority finding):
+              // this swallow has the same silent-failure shape D11 fixed for
+              // the client-SDK path, but for a different reason — Admin SDK
+              // failures here, not rule rejections (Admin SDK bypasses rules
+              // entirely, so there's nothing to reconfigure away).
               await invRef.update({ _journalError: String(jeErr) }).catch(() => {});
             }
 
