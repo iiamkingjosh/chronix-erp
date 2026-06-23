@@ -16,8 +16,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const link = await getAdminAuth().generatePasswordResetLink(email);
-    await sendEmail([email], "Reset your Chronix ERP password", passwordResetEmail(link));
+    const link   = await getAdminAuth().generatePasswordResetLink(email);
+    const result = await sendEmail([email], "Reset your Chronix ERP password", passwordResetEmail(link));
+    if (!result.sent) {
+      console.error("[send-password-reset] sendEmail failed for", email, ":", result.error ?? result.skipped);
+    }
   } catch (e) {
     const code = (e as { code?: string })?.code;
     // Anti-enumeration: never reveal whether the account exists — always
