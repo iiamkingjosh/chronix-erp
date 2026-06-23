@@ -6,10 +6,9 @@ import type { ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { BulkPayslipPDFDocument } from "@/lib/payslip-pdf";
+import { canManageOthersPayslips } from "@/lib/payslip-access";
 import { MONTHS } from "@/types/hr";
 import type { PayslipSummary } from "@/types/hr";
-
-const MANAGER_ROLES = new Set(["HR", "CEO", "Root Admin", "System Admin"]);
 
 function readImg(filename: string): { data: Buffer; format: "png" | "jpg" } | undefined {
   try {
@@ -62,7 +61,7 @@ export async function POST(req: NextRequest) {
     if (callerUid !== uid) {
       const callerSnap = await getAdminDb().collection("users").doc(callerUid).get();
       const role       = callerSnap.data()?.role as string | undefined;
-      if (!role || !MANAGER_ROLES.has(role)) {
+      if (!canManageOthersPayslips(role)) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
       }
     }

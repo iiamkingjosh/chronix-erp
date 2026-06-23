@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { isRateLimited } from "@/lib/rate-limit";
+import { canManageOthersPayslips } from "@/lib/payslip-access";
 import type { PayslipSummary } from "@/types/hr";
-
-const MANAGER_ROLES = new Set(["HR", "CEO", "Root Admin", "System Admin"]);
 
 export async function GET(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for") ?? "unknown";
@@ -23,7 +22,7 @@ export async function GET(req: NextRequest) {
     if (callerUid !== uid) {
       const callerSnap = await getAdminDb().collection("users").doc(callerUid).get();
       const role       = callerSnap.data()?.role as string | undefined;
-      if (!role || !MANAGER_ROLES.has(role)) {
+      if (!canManageOthersPayslips(role)) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
       }
     }

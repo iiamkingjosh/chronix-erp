@@ -138,8 +138,15 @@ describe("DEVIATION D4 — the page's pre-computed payroll totals are silently d
   });
 });
 
-describe("DEVIATION D3 — three disagreeing definitions of \"who is payroll staff\"", () => {
-  it("CFO can read payroll_runs directly (rules), but the payslip API's MANAGER_ROLES set does not include CFO at all", async () => {
+// RESOLVED (Payslip module rebuild, Stage 1): the rules-level payroll_runs
+// read rule and the payslip API's access list now agree, instead of three
+// independently-declared MANAGER_ROLES Sets disagreeing with the rule and
+// with each other. Canonical individual-payslip access is now exactly
+// manage:hr (Root Admin, System Admin, HR) on both sides — CFO and CEO are
+// deliberately excluded from both (they get the aggregate payroll summary
+// instead, not individual slips).
+describe("D3 — payroll_runs rule and payslip API access now agree (CFO/CEO consistently excluded from both)", () => {
+  it("CFO can no longer read payroll_runs directly (rules), consistent with always having been excluded from the payslip API", async () => {
     const setupUid = (await signInAs("System Admin")).uid;
     await createPayrollRun({
       month: 6, year: 2026, status: "draft", entries: [makeEntry()],
@@ -149,27 +156,26 @@ describe("DEVIATION D3 — three disagreeing definitions of \"who is payroll sta
     await signOutCurrent();
     await signInAs("CFO");
 
-    // Rules-level read: CFO is explicitly granted in the payroll_runs rule.
-    const snap = await getDocs(query(collection(db, "payroll_runs")));
-    expect(snap.docs.length).toBeGreaterThan(0); // CFO's direct Firestore read succeeds
+    // Rules-level: isCFO() was dropped from the payroll_runs read rule.
+    let code: string | undefined;
+    try {
+      await getDocs(query(collection(db, "payroll_runs")));
+    } catch (e) {
+      code = (e as { code?: string }).code;
+    }
+    expect(code).toBe("permission-denied");
 
-    // API-level read: ask the payslip API for SOMEONE ELSE's payslip as CFO.
+    // API-level: CFO was already excluded, still is.
     const otherUid = "other-employee-" + Date.now();
     const idToken = await auth.currentUser!.getIdToken();
     const req = new NextRequest(`http://localhost/api/payslip?uid=${otherUid}`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     const res = await payslipRoute(req);
-    // EXPECTED under invariant #6 (one consistent definition of payroll
-    // staff): if CFO can read the entire payroll_runs collection directly,
-    // CFO should at least as easily be able to pull one employee's payslip
-    // via the API. ACTUAL: MANAGER_ROLES = {"HR","CEO","Root Admin","System
-    // Admin"} — CFO is in neither this set nor even a canonical match —
-    // the API forbids it.
     expect(res.status).toBe(403);
   });
 
-  it("CEO is in the payslip API's manager set, but is NOT permitted to read payroll_runs directly per firestore.rules", async () => {
+  it("CEO is excluded from both the payslip API and payroll_runs directly, consistently", async () => {
     const setupUid = (await signInAs("System Admin")).uid;
     await createPayrollRun({
       month: 6, year: 2026, status: "draft", entries: [makeEntry()],
@@ -179,19 +185,15 @@ describe("DEVIATION D3 — three disagreeing definitions of \"who is payroll sta
     await signOutCurrent();
     await signInAs("CEO");
 
-    // API-level: CEO is explicitly in MANAGER_ROLES, can pull anyone's payslip.
+    // API-level: CEO is no longer in the canonical access list (manage:hr).
     const idToken = await auth.currentUser!.getIdToken();
     const req = new NextRequest(`http://localhost/api/payslip?uid=some-other-uid`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     const res = await payslipRoute(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
 
-    // Rules-level: the payroll_runs read rule is `canManageHR() || isCFO()
-    // || isSystemAdmin()` — plain CEO is in none of those. Checking the
-    // FirebaseError's `.code` rather than its message text, since list
-    // (query) rejections and single-doc rejections are formatted
-    // differently by the SDK but both set code "permission-denied".
+    // Rules-level: CEO was already excluded from payroll_runs, still is.
     let code: string | undefined;
     try {
       await getDocs(query(collection(db, "payroll_runs")));
@@ -199,6 +201,27 @@ describe("DEVIATION D3 — three disagreeing definitions of \"who is payroll sta
       code = (e as { code?: string }).code;
     }
     expect(code).toBe("permission-denied");
+  });
+
+  it("Root Admin stored as the legacy 'Root' alias can still access another employee's payslip via the API — the actual Stage 1 fix, not just the canonical-string case", async () => {
+    const setupUid = (await signInAs("System Admin")).uid;
+    await createPayrollRun({
+      month: 6, year: 2026, status: "draft", entries: [makeEntry()],
+      totalGross: 0, totalDeductions: 0, totalNet: 0,
+      generatedAt: new Date().toISOString(), generatedBy: setupUid, generatedByName: "Setup Admin",
+    });
+    await signOutCurrent();
+    const { uid } = await signInAs("Root Admin");
+    // Overwrite the seeded canonical role with the legacy alias string the
+    // old raw MANAGER_ROLES Set could never have recognized.
+    await seedUserRole(uid, "Root" as never);
+
+    const idToken = await auth.currentUser!.getIdToken();
+    const req = new NextRequest(`http://localhost/api/payslip?uid=other-employee`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    const res = await payslipRoute(req);
+    expect(res.status).toBe(200);
   });
 });
 

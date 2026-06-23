@@ -157,6 +157,20 @@ service cloud.firestore {
       return hasViewAll() || isCFO() || isHR() || isStaffLike() || isProjectManager();
     }
 
+    /** Same as hasViewHr() but WITHOUT isStaffLike() or isCFO() — the
+        employees collection holds bank account details. A plain Staff role
+        should not be able to read arbitrary employees/{id} docs the way
+        they can read the (less sensitive) basic user directory, and CFO has
+        no current need for direct employees-collection access either (no
+        disbursement feature exists yet, and CFO was already removed from
+        individual payslip access). hasViewHr() is also used by
+        canReadUserDirectory() below, where both Staff and CFO visibility
+        ARE intended, so this is scoped narrowly here rather than changing
+        hasViewHr() itself. */
+    function hasViewHrSensitive() {
+      return hasViewAll() || isHR() || isProjectManager();
+    }
+
     /** view:tax — CEO (view only), CFO (view + manage), System Admin (view only), Executive Assistant (view only) */
     function hasViewTax() {
       return isRootAdmin() || isCEO() || isCFO() || isSystemAdmin() || isExecutiveAssistant();
@@ -358,14 +372,14 @@ service cloud.firestore {
 
     /* ── Employees ────────────────────────────────────────── */
     match /employees/{employeeId} {
-      allow read: if request.auth.uid == employeeId || hasViewHr() || canManageHR() || isCFO();
+      allow read: if request.auth.uid == employeeId || hasViewHrSensitive() || canManageHR();
       allow create, update: if canManageHR();
       allow delete: if false;
     }
 
     /* ── Payroll Runs ─────────────────────────────────────── */
     match /payroll_runs/{runId} {
-      allow read: if canManageHR() || isCFO() || isSystemAdmin();
+      allow read: if canManageHR() || isSystemAdmin();
       allow create, update: if canManageHR() || isSystemAdmin();
       allow delete: if false;
     }
