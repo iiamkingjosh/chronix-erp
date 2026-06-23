@@ -7,6 +7,7 @@ import type { DocumentProps } from "@react-pdf/renderer";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { PayslipPDFDocument } from "@/lib/payslip-pdf";
 import { canManageOthersPayslips } from "@/lib/payslip-access";
+import { isRateLimited } from "@/lib/rate-limit";
 import { MONTHS } from "@/types/hr";
 import type { PayslipSummary } from "@/types/hr";
 
@@ -41,6 +42,11 @@ function normalizeTree(node: unknown): unknown {
 }
 
 export async function GET(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+  if (isRateLimited(`payslip-pdf:${ip}`, 20, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const idToken = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!idToken) return NextResponse.json({ error: "unauthorized" }, { status: 401 });

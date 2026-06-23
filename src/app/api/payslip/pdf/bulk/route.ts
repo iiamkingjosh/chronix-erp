@@ -7,6 +7,7 @@ import type { DocumentProps } from "@react-pdf/renderer";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { BulkPayslipPDFDocument } from "@/lib/payslip-pdf";
 import { canManageOthersPayslips } from "@/lib/payslip-access";
+import { isRateLimited } from "@/lib/rate-limit";
 import { MONTHS } from "@/types/hr";
 import type { PayslipSummary } from "@/types/hr";
 
@@ -40,6 +41,15 @@ function normalizeTree(node: unknown): unknown {
 }
 
 export async function POST(req: NextRequest) {
+  // Stricter than the single-PDF route (20/60s): each request here can
+  // render up to 12 pages in one go (months.length capped below), so the
+  // same per-IP limit would allow a much higher sustained render cost
+  // through this route alone.
+  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+  if (isRateLimited(`payslip-pdf-bulk:${ip}`, 5, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const idToken = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!idToken) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
