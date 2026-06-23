@@ -163,11 +163,14 @@ export async function GET(req: NextRequest) {
         });
       }
       if (emails.length > 0) {
-        await sendEmail(
+        const emailResult = await sendEmail(
           emails,
           reminder.title,
           taxReminderEmail(reminder.title, reminder.message, reminder.link),
         );
+        if (!emailResult.sent) {
+          console.error("[cron/tax] sendEmail failed:", emailResult.error ?? emailResult.skipped);
+        }
       }
 
       sent++;

@@ -64,9 +64,10 @@ export async function POST(req: NextRequest) {
       );
     }
     if (body.sendEmail !== false && emails.length > 0) {
-      await sendEmail(emails, title, taxActivityEmail(title, message, link ?? "/dashboard/tax")).catch((e) =>
-        console.error("[notifications/send] email failed:", e)
-      );
+      const emailResult = await sendEmail(emails, title, taxActivityEmail(title, message, link ?? "/dashboard/tax"));
+      if (!emailResult.sent) {
+        console.error("[notifications/send] email failed:", emailResult.error ?? emailResult.skipped);
+      }
     }
 
     return NextResponse.json({ success: true });

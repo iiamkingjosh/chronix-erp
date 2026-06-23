@@ -67,7 +67,12 @@ export async function GET(req: NextRequest) {
         });
 
         if (tokens.length > 0) await sendPushToTokens(tokens, { title, body: message, link });
-        if (emails.length > 0) await sendEmail(emails, title, subscriptionAlertEmail(title, message, link));
+        if (emails.length > 0) {
+          const emailResult = await sendEmail(emails, title, subscriptionAlertEmail(title, message, link));
+          if (!emailResult.sent) {
+            console.error("[cron/subscriptions] sendEmail failed:", emailResult.error ?? emailResult.skipped);
+          }
+        }
 
         sent++;
 
