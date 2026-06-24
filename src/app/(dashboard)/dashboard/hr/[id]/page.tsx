@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getEmployee, updateEmployee, addPerformanceNote, suspendEmployee, activateEmployee, deleteEmployee } from "@/lib/hr-service";
+import { getEmployee, updateEmployee, updateEmployeeSalary, addPerformanceNote, suspendEmployee, activateEmployee, deleteEmployee } from "@/lib/hr-service";
 import { getTickets } from "@/lib/tickets-service";
 import { getProjects } from "@/lib/projects-service";
 import {
@@ -46,6 +46,13 @@ export default function EmployeeProfilePage() {
   // Status / delete actions
   const [actionLoading, setActionLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Edit salary
+  const [showSalaryEdit, setShowSalaryEdit] = useState(false);
+  const [salaryAmount, setSalaryAmount]     = useState("");
+  const [salaryReason, setSalaryReason]     = useState("");
+  const [savingSalary, setSavingSalary]     = useState(false);
+  const [salaryError, setSalaryError]       = useState<string | null>(null);
 
   const [activeTab, setActiveTab]             = useState<"profile" | "payslip">("profile");
   const [payslips, setPayslips]               = useState<PayslipSummary[]>([]);
@@ -102,6 +109,32 @@ export default function EmployeeProfilePage() {
       setEmployee((prev) => prev ? { ...prev, performanceNotes: [...(prev.performanceNotes ?? []), note] } : prev);
       setPerfNotes("");
     } finally { setSavingPerf(false); }
+  }
+
+  async function handleSaveSalary() {
+    if (!employee || !profile) return;
+    const newSalary = Number(salaryAmount);
+    if (!salaryAmount || isNaN(newSalary) || newSalary < 0) {
+      setSalaryError("Enter a valid amount.");
+      return;
+    }
+    if (!salaryReason.trim()) {
+      setSalaryError("A reason is required.");
+      return;
+    }
+    setSalaryError(null);
+    setSavingSalary(true);
+    try {
+      await updateEmployeeSalary(employee.uid, newSalary, salaryReason.trim(), profile.uid);
+      setEmployee((prev) => prev ? { ...prev, salary: newSalary } : prev);
+      setShowSalaryEdit(false);
+      setSalaryAmount("");
+      setSalaryReason("");
+    } catch (err) {
+      setSalaryError(err instanceof Error ? err.message : "Failed to update salary.");
+    } finally {
+      setSavingSalary(false);
+    }
   }
 
   async function handleToggleSuspend() {
@@ -232,7 +265,56 @@ export default function EmployeeProfilePage() {
             <div className="text-right">
               <p className="font-orbitron text-2xl font-bold text-accent">{formatNaira(employee.salary)}</p>
               <p className="text-white/30 text-xs font-helvetica">per month</p>
+              {canManage && !showSalaryEdit && (
+                <button
+                  onClick={() => { setShowSalaryEdit(true); setSalaryAmount(String(employee.salary)); setSalaryError(null); }}
+                  className="text-xs text-accent hover:text-accent/80 font-helvetica transition-colors mt-1"
+                >
+                  Edit Salary
+                </button>
+              )}
             </div>
+
+            {canManage && showSalaryEdit && (
+              <div className="w-full max-w-xs p-4 bg-white/[0.03] border border-white/10 rounded-xl text-left animate-slide-up">
+                <div className="mb-3">
+                  <label className="field-label">New Amount (₦/month)</label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={salaryAmount}
+                    onChange={(e) => setSalaryAmount(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="field-label">Reason (required)</label>
+                  <textarea
+                    rows={2}
+                    value={salaryReason}
+                    onChange={(e) => setSalaryReason(e.target.value)}
+                    placeholder="e.g. Annual review, promotion to Senior Engineer"
+                    className="input-field resize-none"
+                  />
+                </div>
+                {salaryError && <p className="mb-3 text-xs text-red-400 font-helvetica">{salaryError}</p>}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSaveSalary}
+                    disabled={savingSalary}
+                    className="btn-primary text-xs px-4 py-2 disabled:opacity-50"
+                  >
+                    {savingSalary ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    onClick={() => { setShowSalaryEdit(false); setSalaryError(null); }}
+                    disabled={savingSalary}
+                    className="text-xs text-white/40 hover:text-white font-helvetica transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ── Management actions ── */}
             {canManage && (

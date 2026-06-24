@@ -7,6 +7,8 @@ import { auth } from "./firebase";
 import type { Employee, PayrollRun, PayrollEntry, PerformanceNote } from "@/types/hr";
 import { computeMonthlyPAYE } from "@/types/tax";
 import { createPayrollJournalEntry } from "@/lib/accounting/auto-journal";
+import { logAuditEvent } from "@/lib/audit-service";
+import { hasPermission } from "@/types/roles";
 
 /* ── Employee number helpers ── */
 
@@ -167,6 +169,70 @@ export async function getEmployee(uid: string): Promise<Employee | null> {
 
 export async function updateEmployee(uid: string, data: Partial<Employee>): Promise<void> {
   await updateDoc(doc(db, EMP, uid), { ...data, updatedAt: new Date().toISOString() });
+}
+
+/**
+ * Updates an employee's salary on users/{uid} (HR fields are merged onto
+ * the user doc, not a separate employees collection — see EMP above) and
+ * records a full audit trail (old value, new value, reason, actor).
+ *
+ * Gated to canManageHR() here AND at firestore.rules' users/{userId}
+ * update rule (privilegedUserManagers() — already covers arbitrary field
+ * writes including salary, no rule change needed) — the function-level
+ * check is not just a UI nicety, it's enforced independently of the rule.
+ *
+ * This ONLY ever updates users/{uid}.salary going forward. It must NEVER
+ * touch any existing payroll_runs.entries[].baseSalary — those are
+ * frozen at run-creation time by design (enrichEntriesWithPAYE stamps
+ * them once, nothing re-syncs them afterward). A future payroll run
+ * created after this update will pick up the new salary naturally via
+ * createPayrollRun()'s existing read-at-creation-time logic; nothing
+ * here needs to (or should) reach into payroll_runs at all.
+ */
+export async function updateEmployeeSalary(
+  uid: string,
+  newSalary: number,
+  reason: string,
+  actorUid: string,
+): Promise<void> {
+  if (!reason.trim()) {
+    throw new Error("A reason is required to change an employee's salary.");
+  }
+
+  const [targetSnap, actorSnap] = await Promise.all([
+    getDoc(doc(db, EMP, uid)),
+    getDoc(doc(db, EMP, actorUid)),
+  ]);
+  if (!targetSnap.exists()) {
+    throw new Error("Employee not found.");
+  }
+
+  const actorData = actorSnap.data() as Record<string, unknown> | undefined;
+  const actorRole = (actorData?.role ?? "") as string;
+
+  // Function-level gate, independent of the firestore.rules check — don't
+  // rely on the rule alone to enforce this.
+  if (!hasPermission(actorRole, "manage:hr")) {
+    throw new Error("You do not have permission to change an employee's salary.");
+  }
+
+  const targetData = targetSnap.data() as Record<string, unknown>;
+  const oldSalary  = typeof targetData.salary === "number" ? targetData.salary : 0;
+  const targetName = (targetData.displayName ?? targetData.email ?? uid) as string;
+  const actorName  = (actorData?.displayName ?? actorData?.email ?? actorUid) as string;
+  const now        = new Date().toISOString();
+
+  await updateDoc(doc(db, EMP, uid), { salary: newSalary, updatedAt: now });
+
+  await logAuditEvent({
+    actorUid, actorName, actorRole,
+    action:    "update",
+    module:    "hr",
+    entityId:  uid,
+    entityRef: targetName,
+    details:   `Salary changed for ${targetName}: ₦${oldSalary.toLocaleString("en-NG")} → ₦${newSalary.toLocaleString("en-NG")}. Reason: ${reason.trim()}`,
+    timestamp: now,
+  });
 }
 
 export async function addPerformanceNote(uid: string, note: PerformanceNote): Promise<void> {
