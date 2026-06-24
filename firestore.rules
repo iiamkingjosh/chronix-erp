@@ -536,8 +536,13 @@ service cloud.firestore {
 
     /* ── Time Entries ────────────────────────────────────── */
     match /time_entries/{entryId} {
+      /* HR added to match time/page.tsx's own canViewAll gate exactly
+       * (isRootAdmin || manage:hr || CEO || CFO || System Admin) - Root
+       * Admin/CEO already covered via hasViewAll(), CFO/System Admin
+       * already explicit here; HR was the one role the UI grants that
+       * this rule didn't (D7) - narrow fix, not a blanket widening. */
       allow read: if isAuth() && (
-        hasViewAll() || isCFO() || isSystemAdmin() ||
+        hasViewAll() || isCFO() || isSystemAdmin() || isHR() ||
         resource.data.employeeUid == request.auth.uid
       );
       allow create: if isAuth() && !isClientRole();
