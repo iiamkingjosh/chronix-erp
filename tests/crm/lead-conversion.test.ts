@@ -34,8 +34,8 @@ function makeLead(overrides: Partial<Lead> = {}): Omit<Lead, "id"> {
   };
 }
 
-describe("Invariant #1 — converting a lead to a client must be one atomic event", () => {
-  it("DEVIATION D1: if the lead update fails after the client doc is already created, the client is left permanently orphaned with no rollback", async () => {
+describe("FIXED: Invariant #1 — converting a lead to a client is now one atomic transaction", () => {
+  it("DEVIATION D1 (fixed): if the lead is deleted before the transaction starts, it throws cleanly and leaves NO orphaned client behind", async () => {
     const { uid } = await signInAs("Sales Rep");
     const lead = await createLead(makeLead({ assignedTo: uid }));
 
@@ -45,17 +45,47 @@ describe("Invariant #1 — converting a lead to a client must be one atomic even
     // `lead` object is now stale relative to Firestore.
     await deleteDocAsAdmin("leads", lead.id);
 
-    await expect(convertToClient(lead, { uid, name: "Test Sales Rep" })).rejects.toThrow();
+    await expect(convertToClient(lead, { uid, name: "Test Sales Rep" })).rejects.toThrow(/no longer exists/i);
 
-    // The client document is NOT rolled back — addDoc doesn't know or care
-    // that the subsequent lead update is about to fail.
+    // FIXED: re-read production-shape data after the failed attempt - the
+    // transaction's fresh tx.get(leadRef) saw the lead was gone and threw
+    // BEFORE either tx.set()/tx.update() was ever applied, so neither
+    // write took effect. No orphaned client, confirmed directly.
     const clients = await queryAsAdmin("clients", "leadId", lead.id);
-    expect(clients).toHaveLength(1); // a client record now exists permanently...
+    expect(clients).toHaveLength(0);
     const leadStillGone = await readDocAsAdmin("leads", lead.id);
-    expect(leadStillGone).toBeNull(); // ...with no corresponding "converted" lead at all — there is no trail back
+    expect(leadStillGone).toBeNull();
   });
 
-  it("the happy path (lead exists, nothing races it) does complete both writes correctly", async () => {
+  it("DEVIATION D1 (fixed): two concurrent conversion attempts on the same lead - exactly one succeeds, the second is cleanly rejected, no duplicate client", async () => {
+    const { uid: repAUid } = await signInAs("Sales Rep");
+    const lead = await createLead(makeLead({ assignedTo: repAUid }));
+
+    // Both calls start from the SAME in-memory lead snapshot (stage still
+    // "prospect"), genuinely concurrent - neither has seen the other's
+    // result yet when both transactions begin.
+    const results = await Promise.allSettled([
+      convertToClient(lead, { uid: repAUid, name: "Rep A" }),
+      convertToClient(lead, { uid: repAUid, name: "Rep B" }),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected   = results.filter((r) => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason.message).toMatch(/already been converted/i);
+
+    // Exactly one client document exists - the idempotency guard (fresh
+    // read of stage inside the transaction) stopped the loser before it
+    // ever created a second one.
+    const clients = await queryAsAdmin("clients", "leadId", lead.id);
+    expect(clients).toHaveLength(1);
+
+    const persistedLead = await readDocAsAdmin<Lead>("leads", lead.id);
+    expect(persistedLead?.stage).toBe("client");
+  });
+
+  it("the happy path (lead exists, nothing races it) still completes both writes correctly", async () => {
     const { uid } = await signInAs("Sales Rep");
     const lead = await createLead(makeLead({ assignedTo: uid }));
 

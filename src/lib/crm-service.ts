@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs,
-  updateDoc, query, orderBy, arrayUnion,
+  updateDoc, query, orderBy, arrayUnion, runTransaction,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -150,6 +150,23 @@ export async function updateLeadNotes(leadId: string, notes: string): Promise<vo
   await updateDoc(doc(db, LEADS, leadId), { notes, updatedAt: new Date().toISOString() });
 }
 
+/** D1 (CRM): the lead and the new client reference each other
+ * (lead.clientId -> client doc, client.leadId -> lead) - neither a
+ * client-first nor a lead-first write order is fail-clean on its own
+ * (client-first orphans the client if the lead update fails; lead-first
+ * leaves a "converted" lead pointing at a client that doesn't exist if
+ * the client write fails afterward). A single transaction is required,
+ * unlike Subscriptions' renewSubscription() fix earlier today, which had
+ * only a one-way dependency and could fail-clean via sequencing alone.
+ *
+ * The client ref is pre-generated (no network call) so the lead update
+ * can reference its id within the same transaction. A fresh read of the
+ * lead inside the transaction guards against two different CRM managers
+ * (canManageCRM() isn't scoped to the lead's own assignee - any Sales
+ * Rep/Brand Lead/etc. can convert any lead) both converting the same lead
+ * around the same time - whichever transaction commits first wins; the
+ * second sees stage already "client" and aborts before creating a
+ * duplicate client. */
 export async function convertToClient(
   lead: Lead,
   author: { uid: string; name: string }
@@ -170,27 +187,38 @@ export async function convertToClient(
     createdBy:     author.uid,
     updatedAt:     now,
   };
-  const clientRef = await addDoc(collection(db, CLIENTS), clientData);
-  const client    = { ...clientData, id: clientRef.id };
+  const clientRef = doc(collection(db, CLIENTS));
+  const leadRef    = doc(db, LEADS, lead.id);
 
   const entry: ActivityEntry = {
     id:         crypto.randomUUID(),
     type:       "conversion",
-    content:    `Converted to client (${client.clientId})`,
+    content:    `Converted to client (${clientData.clientId})`,
     authorUid:  author.uid,
     authorName: author.name,
     createdAt:  now,
   };
-  await updateDoc(doc(db, LEADS, lead.id), {
-    stage:       "client" as LeadStage,
-    convertedAt: now,
-    convertedBy: author.uid,
-    clientId:    clientRef.id,
-    activity:    arrayUnion(entry),
-    updatedAt:   now,
+
+  await runTransaction(db, async (tx) => {
+    const leadSnap = await tx.get(leadRef);
+    if (!leadSnap.exists()) {
+      throw new Error("This lead no longer exists - it may have been deleted or merged.");
+    }
+    if (leadSnap.data().stage === "client") {
+      throw new Error("This lead has already been converted to a client.");
+    }
+    tx.set(clientRef, clientData);
+    tx.update(leadRef, {
+      stage:       "client" as LeadStage,
+      convertedAt: now,
+      convertedBy: author.uid,
+      clientId:    clientRef.id,
+      activity:    arrayUnion(entry),
+      updatedAt:   now,
+    });
   });
 
-  return client;
+  return { ...clientData, id: clientRef.id };
 }
 
 /* ── Clients ────────────────────────────────────── */
