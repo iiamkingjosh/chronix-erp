@@ -2,10 +2,39 @@ import {
   collection, addDoc, getDocs, updateDoc,
   query, orderBy, where, doc, writeBatch,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import type { AppNotification, NotificationType } from "@/types/notifications";
 
 const NOTIF = "notifications";
+
+/** Push delivery for the in-app notification just written - best-effort,
+ * never throws past the caller. Checks the response and logs the real
+ * reason on failure rather than swallowing it via a bare .catch(() => {}) -
+ * the same pattern fixed today in send-password-reset, cron/subscriptions,
+ * notifications/send, and cron/tax. */
+async function sendPushBestEffort(data: Omit<AppNotification, "id">): Promise<void> {
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return;
+    const res = await fetch("/api/notifications/push", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({
+        title:       data.title,
+        message:     data.message,
+        link:        data.link,
+        targetUids:  data.targetUids,
+        targetRoles: data.targetRoles,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error("[createNotification] push failed:", res.status, body.error ?? body);
+    }
+  } catch (err) {
+    console.error("[createNotification] push failed:", err);
+  }
+}
 
 export async function createNotification(
   data: Omit<AppNotification, "id">
@@ -17,6 +46,7 @@ export async function createNotification(
     if (!existing.empty) return;
   }
   await addDoc(collection(db, NOTIF), data);
+  await sendPushBestEffort(data);
 }
 
 export async function getNotifications(role: string, uid: string): Promise<AppNotification[]> {

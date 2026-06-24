@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import "../helpers/admin-emulator";
 import { connectEmulators, clearAll, teardownEmulators, signInAs, readDocAsAdmin, queryAsAdmin, seedDoc } from "../helpers/emulator";
 import { notifyAssignment, checkTaxFilingReminders } from "@/lib/notifications-service";
@@ -6,6 +6,7 @@ import { saveFCMToken } from "@/lib/push-token-service";
 import { auth } from "@/lib/firebase";
 import { POST as registerTokenRoute } from "@/app/api/notifications/register-token/route";
 import { POST as sendRoute } from "@/app/api/notifications/send/route";
+import { POST as pushRoute } from "@/app/api/notifications/push/route";
 import type { AppNotification } from "@/types/notifications";
 
 beforeAll(async () => {
@@ -18,8 +19,9 @@ afterAll(async () => {
   await teardownEmulators();
 });
 
-describe("Invariant #1 — DEVIATION D1: the in-app notification path never dispatches push or email, despite both being implemented elsewhere", () => {
-  it("notifyAssignment (used by ticket/project/lead assignment flows) only ever writes a Firestore doc", async () => {
+describe("FIXED: DEVIATION D1 — createNotification() now attempts push delivery, and survives that attempt failing", () => {
+  it("notifyAssignment still writes its Firestore doc and resolves successfully even when the push fetch itself cannot succeed", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     await signInAs("Project Manager");
     await notifyAssignment({
       type: "task_assigned", title: "You were assigned a task", message: "Test task",
@@ -29,11 +31,17 @@ describe("Invariant #1 — DEVIATION D1: the in-app notification path never disp
 
     const notifs = await queryAsAdmin<AppNotification>("notifications", "dedupeKey", "test-assign-1");
     expect(notifs).toHaveLength(1);
-    // There is no push_tokens read anywhere in notifyAssignment/createNotification,
-    // and no call to sendPushToTokens/sendEmail — confirmed by the fact that
-    // this resolves successfully with zero network/Admin-Messaging
-    // dependency at all (if it tried to push, it would need the Admin SDK's
-    // messaging service, which this call path never even imports).
+    // createNotification() now also calls sendPushBestEffort(), which fetches
+    // a relative URL ("/api/notifications/push") - unresolvable outside a
+    // real browser/Next.js request context, so it throws here. The point of
+    // this test: that failure must NOT be silently swallowed (a real reason
+    // is logged) and must NOT propagate past createNotification() - the
+    // Firestore write above already proves the latter; this confirms the
+    // former, closing the exact "bare .catch(() => {})" pattern fixed
+    // elsewhere today.
+    const pushFailureLogs = errSpy.mock.calls.filter((c) => String(c[0]).includes("[createNotification] push failed"));
+    expect(pushFailureLogs.length).toBeGreaterThan(0);
+    errSpy.mockRestore();
   });
 });
 
@@ -187,5 +195,71 @@ describe("FIXED: /api/notifications/send now requires manage:tax / manage:brand 
     expect(rejectedEntries[0].permissionGranted).toBe(false);
     expect(rejectedEntries[0].action).toBe("reject");
     expect(rejectedEntries[0].actorRole).toBe("Client");
+  });
+});
+
+describe("New /api/notifications/push route — push-only delivery for the routine assignment/reminder path, isAuth() && !isClientRole() gate", () => {
+  it("a Client-role account is rejected with 403 calling the push route directly", async () => {
+    await signInAs("Client");
+    const idToken = await auth.currentUser!.getIdToken();
+    const req = new Request("http://localhost/api/notifications/push", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Test", message: "Test", targetRoles: ["CFO"] }),
+    });
+    const res = await pushRoute(req as never);
+    const body = await res.json();
+    expect(res.status).toBe(403);
+    expect(body.error).toBe("Forbidden");
+  });
+
+  it("an internal staff member (non-Client) succeeds calling the push route directly", async () => {
+    await signInAs("Staff");
+    const idToken = await auth.currentUser!.getIdToken();
+    const req = new Request("http://localhost/api/notifications/push", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Test", message: "Test", targetRoles: ["CFO"] }),
+    });
+    const res = await pushRoute(req as never);
+    expect(res.status).toBe(200);
+    expect((await res.json()).success).toBe(true);
+  });
+
+  it("a malformed/invalid push token is NOT silently treated as success - the real per-token failure reason is logged server-side", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { uid: staffUid } = await signInAs("Staff");
+    await seedDoc("push_tokens", staffUid, { tokens: ["this-is-not-a-real-fcm-token"] });
+
+    const idToken = await auth.currentUser!.getIdToken();
+    const req = new Request("http://localhost/api/notifications/push", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Test", message: "Test", targetUids: [staffUid] }),
+    });
+    const res = await pushRoute(req as never);
+    const body = await res.json();
+
+    // sendEachForMulticast() resolves (doesn't throw) for a failed token —
+    // confirmed directly against the real Admin Messaging API before this
+    // fix shipped (a genuinely malformed token there resolves with a
+    // per-token "messaging/invalid-argument", never an exception). This
+    // test harness deliberately runs with no real GCP credentials (see
+    // admin-emulator.ts - there is no FCM emulator), so the specific error
+    // code surfacing here is a credential rejection rather than FCM's own
+    // token-validation error - but the behavior under test is identical
+    // and environment-independent: a naive try/catch around the call would
+    // never fire for either case, so the result itself must be checked.
+    // The route must still report success (the REQUEST was valid) while
+    // surfacing that delivery itself failed, and logging the real reason.
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.sent).toBe(0);
+    expect(body.deliveryFailures).toBe(1);
+
+    const failureLogs = errSpy.mock.calls.filter((c) => String(c[0]).includes("[notifications/push]"));
+    expect(failureLogs.length).toBeGreaterThan(0);
+    expect(String(failureLogs[0])).toMatch(/delivery failed for.*1.*of.*1/);
+    errSpy.mockRestore();
   });
 });
