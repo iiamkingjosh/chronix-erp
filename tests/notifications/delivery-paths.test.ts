@@ -45,12 +45,13 @@ describe("FIXED: DEVIATION D1 — createNotification() now attempts push deliver
   });
 });
 
-describe("Invariant #6 — DEVIATION D6: the dispatching API reports success even when the underlying send genuinely fails", () => {
-  it("sendEmail is reported as successful (success:true) even though RESEND_API_KEY is unset in this environment, so no email was ever actually capable of being sent", async () => {
+describe("FIXED: DEVIATION D6 — the response now reflects actual delivery status instead of an unconditional {success:true}", () => {
+  it("emailSent is accurately false when RESEND_API_KEY is genuinely unset in this environment - not just present in the response shape", async () => {
     await signInAs("Root Admin");
     const idToken = await auth.currentUser!.getIdToken();
     // Seed a target user so there's a real recipient.
     await seedDoc("users", "target-1", { role: "CFO", email: "cfo@test.local" });
+    expect(process.env.RESEND_API_KEY).toBeUndefined(); // confirm the premise, not assumed
 
     const req = new Request("http://localhost/api/notifications/send", {
       method: "POST",
@@ -63,15 +64,39 @@ describe("Invariant #6 — DEVIATION D6: the dispatching API reports success eve
     const res = await sendRoute(req as never);
     const body = await res.json();
 
-    // EXPECTED under invariant #6: if delivery genuinely failed (it did —
-    // RESEND_API_KEY is unset, so sendEmail() resolves {sent:false,
-    // skipped:"RESEND_API_KEY not configured..."}), the caller should be
-    // able to tell. ACTUAL: the route's own .catch() only fires on a
-    // *thrown* error, and sendEmail() never throws (it always resolves) —
-    // so this success path is taken regardless of whether email delivery
-    // could possibly have happened.
+    // FIXED: success:true still means "the request was valid and
+    // processed" (matches REST convention - this is a 200, not a 500),
+    // but emailSent now genuinely reflects what happened. Asserting the
+    // real value (false), not merely that the key exists - sendEmail()
+    // resolves {sent:false, skipped:"RESEND_API_KEY not configured..."}
+    // rather than throwing, so this is the one accurate signal available.
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
+    expect(body.emailSent).toBe(false);
+  });
+
+  it("pushSent/emailSent are null (not false) when neither was attempted - distinguishing \"not attempted\" from \"attempted and failed\"", async () => {
+    const { uid: cfoUid } = await signInAs("CFO");
+    const idToken = await auth.currentUser!.getIdToken();
+    await seedDoc("push_tokens", cfoUid, { tokens: [] }); // no tokens - push will be skipped, not attempted
+
+    const req = new Request("http://localhost/api/notifications/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "renewal_due", title: "Test", message: "Test message",
+        targetRoles: ["CFO"], sendEmail: false, sendPush: true,
+      }),
+    });
+    const res = await sendRoute(req as never);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    // Zero push_tokens means push was never attempted (not attempted !=
+    // failed) - null, not false, correctly distinguishing the two.
+    expect(body.pushSent).toBeNull();
+    expect(body.emailSent).toBeNull();
   });
 });
 

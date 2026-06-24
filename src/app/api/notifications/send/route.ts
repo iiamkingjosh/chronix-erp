@@ -121,7 +121,13 @@ export async function POST(req: NextRequest) {
       pushSent, emailSent,
     });
 
-    return NextResponse.json({ success: true });
+    // success:true here means the request was valid and processed (not a
+    // 500) - emailSent/pushSent (null = not attempted, e.g. sendPush:false
+    // or no recipients) tell the caller what actually happened. A partial
+    // failure (push worked, email didn't) is a valid outcome, not an error
+    // response - threading the same pushSent/emailSent already computed
+    // above for the audit log, not recomputed.
+    return NextResponse.json({ success: true, emailSent, pushSent });
   } catch (err) {
     console.error("[notifications/send] error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
