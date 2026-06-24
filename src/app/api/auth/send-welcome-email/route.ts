@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const role        = (user?.role ?? "Staff") as string;
 
     if (email) {
-      const result = await sendEmail([email], "Welcome to Chronix OS", welcomeEmail(displayName, role));
+      const result = await sendEmail([email], "Welcome to Chronix Technology", welcomeEmail(displayName, role));
       if (!result.sent) {
         console.error("[send-welcome-email] sendEmail failed for", email, ":", result.error ?? result.skipped);
       }
