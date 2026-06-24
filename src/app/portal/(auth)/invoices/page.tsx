@@ -3,25 +3,38 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useClientAuth } from "@/contexts/ClientAuthContext";
-import { getPortalInvoices } from "@/lib/client-portal-service";
+import { getPortalInvoices, type ClientPortalErrorKind } from "@/lib/client-portal-service";
+import PortalLoadError from "@/components/PortalLoadError";
 import type { Invoice } from "@/types/finance";
 import { formatNaira, formatDate } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
 export default function PortalInvoicesPage() {
-  const { clientRecord, profile } = useClientAuth();
+  const { clientRecord, profile, errorKind: contextErrorKind, reload } = useClientAuth();
   const [invoices, setInvoices]   = useState<Invoice[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [fetchErrorKind, setFetchErrorKind] = useState<ClientPortalErrorKind>("none");
 
   const clientName = clientRecord?.company || clientRecord?.fullName || profile?.email || "";
 
   useEffect(() => {
     if (!clientName) return;
-    getPortalInvoices(clientName, clientRecord?.id).then(setInvoices).finally(() => setLoading(false));
+    getPortalInvoices(clientName, clientRecord?.id)
+      .then((invs) => { setInvoices(invs); setFetchErrorKind("none"); })
+      .catch((err) => setFetchErrorKind(err?.code === "permission-denied" ? "denied" : "network"))
+      .finally(() => setLoading(false));
   }, [clientName, clientRecord?.id]);
 
   if (loading) {
     return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
+  // The Context already ran a canary check at load time (contextErrorKind);
+  // this page's own fetch can also independently surface the same failure
+  // (fetchErrorKind) if something changed since then. Either is authoritative.
+  const errorKind = contextErrorKind !== "none" ? contextErrorKind : fetchErrorKind;
+  if (errorKind !== "none") {
+    return <PortalLoadError errorKind={errorKind} onRetry={() => { setLoading(true); reload().finally(() => setLoading(false)); }} />;
   }
 
   const totalPaid = invoices.filter((i) => i.status === "paid").reduce((s, i) => s + i.total, 0);

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useClientAuth } from "@/contexts/ClientAuthContext";
-import { getPortalTickets } from "@/lib/client-portal-service";
+import { getPortalTickets, type ClientPortalErrorKind } from "@/lib/client-portal-service";
+import PortalLoadError from "@/components/PortalLoadError";
 import type { Ticket } from "@/types/tickets";
 import { STATUS_LABELS, STATUS_STYLES, PRIORITY_LABELS, PRIORITY_STYLES } from "@/types/tickets";
 import { cn } from "@/lib/utils";
@@ -13,19 +14,28 @@ function formatDate(iso: string) {
 }
 
 export default function PortalTicketsPage() {
-  const { clientRecord, profile } = useClientAuth();
+  const { clientRecord, profile, errorKind: contextErrorKind, reload } = useClientAuth();
   const [tickets, setTickets]     = useState<Ticket[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [fetchErrorKind, setFetchErrorKind] = useState<ClientPortalErrorKind>("none");
 
   const clientName = clientRecord?.company || clientRecord?.fullName || profile?.email || "";
 
   useEffect(() => {
     if (!clientName) return;
-    getPortalTickets(clientName, clientRecord?.id).then(setTickets).finally(() => setLoading(false));
+    getPortalTickets(clientName, clientRecord?.id)
+      .then((t) => { setTickets(t); setFetchErrorKind("none"); })
+      .catch((err) => setFetchErrorKind(err?.code === "permission-denied" ? "denied" : "network"))
+      .finally(() => setLoading(false));
   }, [clientName, clientRecord?.id]);
 
   if (loading) {
     return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
+  const errorKind = contextErrorKind !== "none" ? contextErrorKind : fetchErrorKind;
+  if (errorKind !== "none") {
+    return <PortalLoadError errorKind={errorKind} onRetry={() => { setLoading(true); reload().finally(() => setLoading(false)); }} />;
   }
 
   const open     = tickets.filter((t) => t.status === "open" || t.status === "in_progress").length;

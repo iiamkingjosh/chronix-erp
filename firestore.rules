@@ -260,6 +260,19 @@ service cloud.firestore {
         || k.hasOnly(['displayName', 'photoURL', 'lastLoginAt']);
     }
 
+    /** D5 self-heal: a Client account may write only its own portal
+     * billing-match fields onto its own doc - nothing in the app has ever
+     * set these (confirmed - no code path populates them), so
+     * loadClientPortalState() backfills them the moment it finds a
+     * matching Client record by email. Narrowly scoped (these 3 fields
+     * only, own doc only, Client role only) - not a general self-update
+     * widening. */
+    function isPortalBillingSelfHeal() {
+      return isClientRole() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['portalBillingCompany', 'portalBillingName', 'portalBillingEmail', 'updatedAt']);
+    }
+
     function privilegedUserManagers() {
       return canManageHR() || canManageStaff();
     }
@@ -295,7 +308,7 @@ service cloud.firestore {
       );
       allow create: if isAuth() && request.auth.uid == userId && userBootstrapCreateValid();
       allow update: if isAuth() && (
-        (request.auth.uid == userId && userSelfCosmeticKeysOnly()) ||
+        (request.auth.uid == userId && (userSelfCosmeticKeysOnly() || isPortalBillingSelfHeal())) ||
         (privilegedUserManagers() && (!involvesRootRoleChange() || canManageStaff()))
       );
       allow delete: if false;

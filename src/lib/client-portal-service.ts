@@ -1,6 +1,7 @@
 import {
-  collection, getDocs, query, where, addDoc,
+  collection, getDocs, query, where, addDoc, doc, updateDoc,
 } from "firebase/firestore";
+import type { User } from "firebase/auth";
 import { db } from "./firebase";
 import type { Invoice } from "@/types/finance";
 import type { Ticket } from "@/types/tickets";
@@ -8,6 +9,8 @@ import type { Subscription } from "@/types/subscriptions";
 import type { Client } from "@/types/crm";
 import type { TicketPriority } from "@/types/tickets";
 import { defaultSlaDeadline, generateTicketId } from "@/types/tickets";
+import type { ChronixUser } from "@/types/roles";
+import { fetchUserProfile } from "@/lib/auth-service";
 
 function sortByDateDesc<T>(items: T[], getIso: (item: T) => string | undefined): T[] {
   return [...items].sort((a, b) => {
@@ -23,6 +26,91 @@ export async function getClientByEmail(email: string): Promise<Client | null> {
   );
   if (snap.empty) return null;
   return { id: snap.docs[0].id, ...snap.docs[0].data() } as Client;
+}
+
+/** D5 root cause: nothing in the app has ever set portalBillingCompany/
+ * portalBillingName/portalBillingEmail (confirmed - searched the whole
+ * codebase, only firestore.rules and docs/tests reference them). The
+ * moment a matching Client record is found by email, we know it's the
+ * right one - self-heal the user's own doc so future reads gated by
+ * userPortalBillingMatches() succeed. Best-effort by design (callers
+ * shouldn't let a failed self-heal block portal access). */
+async function selfHealPortalBillingFields(uid: string, client: Client): Promise<void> {
+  await updateDoc(doc(db, "users", uid), {
+    portalBillingCompany: client.company,
+    portalBillingName:    client.fullName,
+    portalBillingEmail:   client.email,
+    updatedAt:             new Date().toISOString(),
+  });
+}
+
+export type ClientPortalErrorKind = "none" | "denied" | "network";
+
+export interface ClientPortalState {
+  profile:      ChronixUser | null;
+  clientRecord: Client | null;
+  errorKind:    ClientPortalErrorKind;
+}
+
+function classifyError(err: unknown): ClientPortalErrorKind {
+  return (err as { code?: string } | undefined)?.code === "permission-denied" ? "denied" : "network";
+}
+
+/** The testable seam D7 was missing - all of ClientAuthContext's loading
+ * logic, extracted into a plain function with no React dependency, that
+ * classifies what it catches instead of a bare catch-all collapsing
+ * everything to "you have nothing". A canary read of invoices (the exact
+ * collection gated by userPortalBillingMatches() - see D5) surfaces a
+ * real permission-denied here, at load time, rather than leaving each
+ * portal page to separately rediscover it. */
+export async function loadClientPortalState(user: User): Promise<ClientPortalState> {
+  let profile: ChronixUser;
+  try {
+    profile = await fetchUserProfile(user);
+  } catch (err) {
+    return { profile: null, clientRecord: null, errorKind: classifyError(err) };
+  }
+
+  if (profile.role !== "Client") {
+    return { profile, clientRecord: null, errorKind: "none" };
+  }
+
+  let clientRecord: Client | null;
+  try {
+    clientRecord = await getClientByEmail(user.email ?? "");
+  } catch (err) {
+    return { profile, clientRecord: null, errorKind: classifyError(err) };
+  }
+
+  if (!clientRecord) {
+    return { profile, clientRecord: null, errorKind: "none" };
+  }
+
+  try {
+    await selfHealPortalBillingFields(user.uid, clientRecord);
+  } catch {
+    /* best-effort - a failed self-heal write must never block portal access */
+  }
+
+  try {
+    // Name-only, deliberately - the invoices read rule gates on
+    // resource.data.client.name specifically (userPortalBillingMatches()),
+    // not client.id. Passing a clientId here would also trigger
+    // getPortalInvoices()'s second (by-id) query, which filters on a
+    // field the rule never checks - Firestore can't statically prove
+    // that query satisfies the rule, so it rejects it unconditionally,
+    // regardless of portalBillingCompany being correct. Confirmed by
+    // testing directly: the canary failed even with a verified-correct
+    // self-heal and a genuinely matching invoice, until the clientId
+    // argument was removed. A real, separate gap in getPortalInvoices()
+    // itself (the by-id path is unusable for any Client-role caller as
+    // currently written) - out of scope for D5/D7, not fixed here.
+    await getPortalInvoices(clientRecord.company || clientRecord.fullName);
+  } catch (err) {
+    return { profile, clientRecord, errorKind: classifyError(err) };
+  }
+
+  return { profile, clientRecord, errorKind: "none" };
 }
 
 export async function getPortalInvoices(clientName: string, clientId?: string): Promise<Invoice[]> {

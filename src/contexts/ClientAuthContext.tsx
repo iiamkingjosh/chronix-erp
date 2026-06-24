@@ -1,19 +1,21 @@
 "use client";
 
 import {
-  createContext, useContext, useEffect, useState, useCallback, type ReactNode,
+  createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode,
 } from "react";
 import type { User } from "firebase/auth";
 import type { ChronixUser } from "@/types/roles";
 import type { Client } from "@/types/crm";
-import { onAuthChange, fetchUserProfile, signOutUser } from "@/lib/auth-service";
-import { getClientByEmail } from "@/lib/client-portal-service";
+import { onAuthChange, signOutUser } from "@/lib/auth-service";
+import { loadClientPortalState, type ClientPortalErrorKind } from "@/lib/client-portal-service";
 
 interface ClientAuthState {
   firebaseUser:  User | null;
   profile:       ChronixUser | null;
   clientRecord:  Client | null;
   loading:       boolean;
+  errorKind:     ClientPortalErrorKind;
+  reload:        () => Promise<void>;
   signOut:       () => Promise<void>;
 }
 
@@ -24,40 +26,49 @@ export function ClientAuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile]           = useState<ChronixUser | null>(null);
   const [clientRecord, setClientRecord] = useState<Client | null>(null);
   const [loading, setLoading]           = useState(true);
+  const [errorKind, setErrorKind]       = useState<ClientPortalErrorKind>("none");
+  const userRef = useRef<User | null>(null);
+
+  const load = useCallback(async (user: User) => {
+    const state = await loadClientPortalState(user);
+    setProfile(state.profile);
+    setClientRecord(state.clientRecord);
+    setErrorKind(state.errorKind);
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthChange(async (user) => {
       setFirebaseUser(user);
+      userRef.current = user;
       if (user) {
-        try {
-          const prof = await fetchUserProfile(user);
-          setProfile(prof);
-          if (prof.role === "Client") {
-            const rec = await getClientByEmail(user.email ?? "");
-            setClientRecord(rec);
-          }
-        } catch {
-          setProfile(null);
-          setClientRecord(null);
-        }
+        await load(user);
       } else {
         setProfile(null);
         setClientRecord(null);
+        setErrorKind("none");
       }
       setLoading(false);
     });
     return unsub;
-  }, []);
+  }, [load]);
+
+  const reload = useCallback(async () => {
+    if (!userRef.current) return;
+    setLoading(true);
+    await load(userRef.current);
+    setLoading(false);
+  }, [load]);
 
   const signOut = useCallback(async () => {
     await signOutUser();
     setProfile(null);
     setFirebaseUser(null);
     setClientRecord(null);
+    setErrorKind("none");
   }, []);
 
   return (
-    <ClientAuthContext.Provider value={{ firebaseUser, profile, clientRecord, loading, signOut }}>
+    <ClientAuthContext.Provider value={{ firebaseUser, profile, clientRecord, loading, errorKind, reload, signOut }}>
       {children}
     </ClientAuthContext.Provider>
   );

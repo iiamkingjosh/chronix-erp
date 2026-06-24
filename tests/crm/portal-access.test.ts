@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { connectEmulators, clearAll, teardownEmulators, signInAs, seedUserRole, seedDoc } from "../helpers/emulator";
-import { getPortalInvoices } from "@/lib/client-portal-service";
+import { connectEmulators, clearAll, teardownEmulators, signInAs, seedUserRole, seedDoc, readDocAsAdmin } from "../helpers/emulator";
+import { getPortalInvoices, loadClientPortalState } from "@/lib/client-portal-service";
 import { getDocs, collection, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 
 beforeAll(async () => {
   await connectEmulators();
@@ -106,5 +106,71 @@ describe("DEVIATION D8 — the CRM client profile's fuzzy company-name matching 
     // same invoice, two different verdicts depending which screen asks.
     expect(fuzzyMatches.length).toBeGreaterThan(0);
     expect(fuzzyMatches.length).not.toBe(exactMatch.docs.length);
+  });
+});
+
+describe("FIXED: DEVIATION D7 — loadClientPortalState() is a testable seam that classifies failures instead of a bare catch-all", () => {
+  it("a user whose getClientByEmail succeeds but whose invoice read is rules-denied gets errorKind 'denied', not silently nulled", async () => {
+    const { uid } = await signInAs("Client");
+    await seedUserRole(uid, "Client" as never); // no portalBilling* fields - matches reality, nothing ever sets them
+
+    // The Client record IS found by email (getClientByEmail succeeds) -
+    // but it has no usable company/fullName at all (bad/incomplete data).
+    // Self-heal still runs and writes portalBillingCompany="" /
+    // portalBillingName="" - both fail the rule's own `!= ''` guard, so
+    // even with self-heal having genuinely executed, there is nothing
+    // meaningful for userPortalBillingMatches() to match against. The
+    // canary query (clientName resolves to "") cannot be proven to
+    // satisfy the rule, so Firestore rejects it outright - a realistic
+    // "denied" that survives self-heal, since self-heal can only backfill
+    // from data that exists.
+    await seedDoc("clients", "client-1", {
+      clientId: "CLT-TEST-1", fullName: "", company: "",
+      email: auth.currentUser!.email, phone: "+2348000000000", notes: "", tags: [],
+      assignedTo: "x", assignedName: "x", createdAt: new Date().toISOString(), createdBy: "x", updatedAt: new Date().toISOString(),
+    });
+    await seedDoc("invoices", "inv-denied-1", {
+      invoiceNumber: "CT-TEST-DENIED", client: { name: "Acme Holdings Ltd" },
+      status: "paid", subtotal: 100_000, vatAmount: 7_500, total: 107_500,
+      invoiceDate: "2026-06-01", createdAt: new Date().toISOString(), createdBy: "x",
+    });
+
+    const state = await loadClientPortalState(auth.currentUser!);
+    expect(state.errorKind).toBe("denied");
+    expect(state.clientRecord).not.toBeNull();
+  });
+
+  it("the self-heal write actually persists portalBillingCompany/portalBillingName/portalBillingEmail onto the user's own doc when a matching Client record is found", async () => {
+    const { uid } = await signInAs("Client");
+    await seedUserRole(uid, "Client" as never);
+
+    await seedDoc("clients", "client-2", {
+      clientId: "CLT-TEST-2", fullName: "Jane Doe", company: "Beta Logistics Inc",
+      email: auth.currentUser!.email, phone: "+2348000000001", notes: "", tags: [],
+      assignedTo: "x", assignedName: "x", createdAt: new Date().toISOString(), createdBy: "x", updatedAt: new Date().toISOString(),
+    });
+
+    // No invoices seeded - genuinely zero, confirming this is the "none" +
+    // empty-list case, not a denial, AND that self-heal still ran (it's
+    // unconditional once a clientRecord is found).
+    const state = await loadClientPortalState(auth.currentUser!);
+    expect(state.errorKind).toBe("none");
+
+    const persistedUser = await readDocAsAdmin<{
+      portalBillingCompany?: string; portalBillingName?: string; portalBillingEmail?: string;
+    }>("users", uid);
+    expect(persistedUser?.portalBillingCompany).toBe("Beta Logistics Inc");
+    expect(persistedUser?.portalBillingName).toBe("Jane Doe");
+    expect(persistedUser?.portalBillingEmail).toBe(auth.currentUser!.email);
+  });
+
+  it("a Client with no matching Client record at all gets errorKind 'none' with no clientRecord - a genuine non-setup, not an error", async () => {
+    const { uid } = await signInAs("Client");
+    await seedUserRole(uid, "Client" as never);
+    // Deliberately no `clients` doc seeded for this email at all.
+
+    const state = await loadClientPortalState(auth.currentUser!);
+    expect(state.errorKind).toBe("none");
+    expect(state.clientRecord).toBeNull();
   });
 });

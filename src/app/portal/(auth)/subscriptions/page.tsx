@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useClientAuth } from "@/contexts/ClientAuthContext";
-import { getPortalSubscriptions } from "@/lib/client-portal-service";
+import { getPortalSubscriptions, type ClientPortalErrorKind } from "@/lib/client-portal-service";
+import PortalLoadError from "@/components/PortalLoadError";
 import type { Subscription } from "@/types/subscriptions";
 import {
   SUB_TYPE_LABELS, SUB_PROVIDER_LABELS,
@@ -13,19 +14,28 @@ import type { SubType, SubProvider } from "@/types/subscriptions";
 import { cn } from "@/lib/utils";
 
 export default function PortalSubscriptionsPage() {
-  const { clientRecord, profile } = useClientAuth();
+  const { clientRecord, profile, errorKind: contextErrorKind, reload } = useClientAuth();
   const [subs, setSubs]           = useState<Subscription[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [fetchErrorKind, setFetchErrorKind] = useState<ClientPortalErrorKind>("none");
 
   const clientName = clientRecord?.company || clientRecord?.fullName || profile?.email || "";
 
   useEffect(() => {
     if (!clientName) return;
-    getPortalSubscriptions(clientName, clientRecord?.id).then(setSubs).finally(() => setLoading(false));
+    getPortalSubscriptions(clientName, clientRecord?.id)
+      .then((s) => { setSubs(s); setFetchErrorKind("none"); })
+      .catch((err) => setFetchErrorKind(err?.code === "permission-denied" ? "denied" : "network"))
+      .finally(() => setLoading(false));
   }, [clientName, clientRecord?.id]);
 
   if (loading) {
     return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
+  const errorKind = contextErrorKind !== "none" ? contextErrorKind : fetchErrorKind;
+  if (errorKind !== "none") {
+    return <PortalLoadError errorKind={errorKind} onRetry={() => { setLoading(true); reload().finally(() => setLoading(false)); }} />;
   }
 
   const expiringSoon = subs.filter((s) => { const d = getDaysLeft(s.expiryDate); return d >= 0 && d <= 60; }).length;
