@@ -77,8 +77,8 @@ function whiteShell(badge: string, content: string): string {
   ${content}
   <tr><td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
     <p style="margin:0;color:#aaa;font-size:10px;line-height:1.6;">
-      Chronix Technology Limited · No.7 Jerry Iriabe Street, Lekki Phase 1, Lagos<br>
-      TIN: 33646874-0001 · www.chronixtechnology.com
+      Chronix Technology Limited · Lekki Phase 1, Lagos<br>
+      www.chronixtechnology.com
     </p>
   </td></tr>
 </table>
