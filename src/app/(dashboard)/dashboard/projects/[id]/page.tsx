@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getProject, updateProjectStatus, addProjectActivity,
-  updateTasks, completeMilestone, addProjectFile, removeProjectFile, deleteProject,
+  addTask, setTaskStatus, completeMilestone, addProjectFile, removeProjectFile, deleteProject,
 } from "@/lib/projects-service";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
@@ -182,8 +182,8 @@ export default function ProjectDetailPage() {
         createdAt:    new Date().toISOString(),
         createdBy:    profile.uid,
       };
+      await addTask(project.id, task, { uid: profile.uid, name: profile.displayName ?? profile.email });
       const newTasks = [...(project.tasks ?? []), task];
-      await updateTasks(project.id, newTasks);
       setProject((prev) => prev ? { ...prev, tasks: newTasks, progress: calcProgress(newTasks) } : prev);
 
       if (taskAssignee !== profile.uid) {
@@ -209,10 +209,10 @@ export default function ProjectDetailPage() {
       if (!task || task.assignedTo !== profile.uid) return;
     }
     const now = new Date().toISOString();
+    await setTaskStatus(project.id, taskId, status, { uid: profile.uid, name: profile.displayName ?? profile.email });
     const newTasks = project.tasks.map((t) =>
       t.id === taskId ? { ...t, status, completedAt: status === "done" ? now : undefined } : t
     );
-    await updateTasks(project.id, newTasks);
     setProject((prev) => prev ? { ...prev, tasks: newTasks, progress: calcProgress(newTasks) } : prev);
   }
 
@@ -503,6 +503,7 @@ export default function ProjectDetailPage() {
                   e.type === "status_change"  && "border-secondary/20 bg-secondary/5",
                   e.type === "milestone_done" && "border-emerald-500/20 bg-emerald-500/5",
                   e.type === "task_done"      && "border-emerald-500/10 bg-emerald-500/[0.03]",
+                  e.type === "task_created"   && "border-accent/15 bg-accent/5",
                 )}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-semibold text-white/50">{e.authorName}</span>

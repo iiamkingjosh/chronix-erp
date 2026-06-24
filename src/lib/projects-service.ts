@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs, deleteDoc,
-  updateDoc, query, orderBy, arrayUnion, arrayRemove,
+  updateDoc, query, orderBy, arrayUnion, arrayRemove, runTransaction,
 } from "firebase/firestore";
 import { db, storage } from "./firebase";
 import { ref, deleteObject } from "firebase/storage";
@@ -56,13 +56,70 @@ export async function addProjectActivity(
   });
 }
 
-export async function updateTasks(projectId: string, tasks: Task[]): Promise<void> {
-  const progress = calcProgress(tasks);
-  await updateDoc(doc(db, PROJ, projectId), {
-    tasks,
-    progress,
-    updatedAt: new Date().toISOString(),
+/** Re-reads the project's tasks fresh inside a transaction rather than
+ * trusting the caller's (possibly stale) local copy - two concurrent
+ * callers each completing a different task will both survive instead of
+ * one overwriting the other's stale snapshot of the whole array. */
+export async function addTask(
+  projectId: string,
+  task: Task,
+  author: { uid: string; name: string }
+): Promise<void> {
+  const ref = doc(db, PROJ, projectId);
+  await runTransaction(db, async (tx) => {
+    const snap  = await tx.get(ref);
+    const tasks = [...((snap.data()?.tasks as Task[] | undefined) ?? []), task];
+    tx.update(ref, { tasks, progress: calcProgress(tasks), updatedAt: new Date().toISOString() });
   });
+
+  const entry: ProjectActivity = {
+    id:         Date.now().toString(),
+    type:       "task_created",
+    content:    `Task created: "${task.title}"`,
+    authorUid:  author.uid,
+    authorName: author.name,
+    createdAt:  new Date().toISOString(),
+  };
+  await addProjectActivity(projectId, entry);
+}
+
+/** Same re-read-fresh-inside-a-transaction approach as addTask(). Logs a
+ * "task_done" activity entry only on the transition TO "done" - not on
+ * every status change - matching the original gap (task completion never
+ * appeared in the activity log). */
+export async function setTaskStatus(
+  projectId: string,
+  taskId: string,
+  status: TaskStatus,
+  author: { uid: string; name: string }
+): Promise<void> {
+  const ref = doc(db, PROJ, projectId);
+  const now = new Date().toISOString();
+  let completedTask: Task | undefined;
+
+  await runTransaction(db, async (tx) => {
+    const snap  = await tx.get(ref);
+    const current: Task[] = (snap.data()?.tasks as Task[] | undefined) ?? [];
+    const tasks = current.map((t) => {
+      if (t.id !== taskId) return t;
+      if (status === "done" && t.status !== "done") completedTask = t;
+      const { completedAt, ...rest } = t;
+      return status === "done" ? { ...rest, status, completedAt: now } : { ...rest, status };
+    });
+    tx.update(ref, { tasks, progress: calcProgress(tasks), updatedAt: now });
+  });
+
+  if (completedTask) {
+    const entry: ProjectActivity = {
+      id:         Date.now().toString(),
+      type:       "task_done",
+      content:    `Task completed: "${completedTask.title}"`,
+      authorUid:  author.uid,
+      authorName: author.name,
+      createdAt:  now,
+    };
+    await addProjectActivity(projectId, entry);
+  }
 }
 
 export async function updateMilestones(projectId: string, milestones: Milestone[]): Promise<void> {

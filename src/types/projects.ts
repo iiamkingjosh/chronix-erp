@@ -32,7 +32,7 @@ export interface Task {
 
 export interface ProjectActivity {
   id: string;
-  type: "note" | "status_change" | "milestone_done" | "task_done" | "member_added";
+  type: "note" | "status_change" | "milestone_done" | "task_done" | "task_created" | "member_added";
   content: string;
   authorUid: string;
   authorName: string;

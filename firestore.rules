@@ -105,24 +105,42 @@ service cloud.firestore {
       return isRootAdmin() || isSystemAdmin() || isBrandLead() || isProjectManager();
     }
 
-    /** Allow internal staff to update only the files array (for file attachments). */
-    function isFilesOnlyUpdate() {
-      return isInternalStaff() && hasViewProjects() &&
+    /** Allow internal staff to update only the files array (for file attachments).
+     * Takes the already-computed isInternalStaff()&&hasViewProjects() check as a
+     * parameter rather than re-deriving it - see isProjectsSelfServiceUpdate(). */
+    function isFilesOnlyUpdate(canSelfService) {
+      return canSelfService &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['files', 'updatedAt']);
     }
 
     /** Allow any internal staff to update only the tasks array and computed progress. */
-    function isTeamMemberTaskUpdate() {
-      return isInternalStaff() && hasViewProjects() &&
+    function isTeamMemberTaskUpdate(canSelfService) {
+      return canSelfService &&
         request.resource.data.diff(resource.data)
           .affectedKeys().hasOnly(['tasks', 'progress', 'updatedAt']);
     }
 
     /** Allow any internal staff to update only the project activity log. */
-    function isTeamMemberActivityUpdate() {
-      return isInternalStaff() && hasViewProjects() &&
+    function isTeamMemberActivityUpdate(canSelfService) {
+      return canSelfService &&
         request.resource.data.diff(resource.data)
           .affectedKeys().hasOnly(['activity', 'updatedAt']);
+    }
+
+    /** isInternalStaff()&&hasViewProjects() pulls in ~20 role()-backed lookups
+     * (hasViewProjects() alone ORs together 8 role checks, several of which
+     * themselves OR multiple role() calls). The three functions above used to
+     * each independently recompute this same chain, tripling its cost for any
+     * write that falls through to the self-service path - confirmed via the
+     * emulator to exceed Firestore's 1000-expression-evaluation ceiling once
+     * wrapped in a transaction (which itself evaluates the rule twice). This
+     * computes it once via `let` and reuses it - same permission semantics,
+     * roughly a third of the expression cost for this portion. */
+    function isProjectsSelfServiceUpdate() {
+      let canSelfService = isInternalStaff() && hasViewProjects();
+      return isFilesOnlyUpdate(canSelfService) ||
+        isTeamMemberTaskUpdate(canSelfService) ||
+        isTeamMemberActivityUpdate(canSelfService);
     }
 
     function hasViewFinance() {
@@ -351,8 +369,15 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read: if hasViewProjects();
       allow create: if canManageProjects();
-      allow update: if canManageProjects() || resource.data.createdBy == request.auth.uid
-        || isFilesOnlyUpdate() || isTeamMemberTaskUpdate() || isTeamMemberActivityUpdate();
+      /* Ordered cheapest-and-most-common first: a direct field comparison
+       * (no get()) beats canManageProjects() (4 role()-backed checks), which
+       * beats the self-service path (~20 role()-backed checks, now computed
+       * once instead of three times - see isProjectsSelfServiceUpdate()).
+       * Pure short-circuit ordering - || is commutative, so this changes
+       * nothing about which writes are allowed, only how cheaply the
+       * decision is reached. */
+      allow update: if resource.data.createdBy == request.auth.uid
+        || canManageProjects() || isProjectsSelfServiceUpdate();
       allow delete: if isRootAdmin();
     }
 
