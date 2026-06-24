@@ -158,6 +158,27 @@ export async function notifyMilestoneComplete(
   });
 }
 
+/** Fired only from signUp()'s self-registration path (onRegister() in
+ * login/page.tsx) - never from signIn(), which is read-only and creates
+ * no profile. So this can only ever fire on a genuine new account, never
+ * on login. Targets HR/Root Admin/System Admin so the default Staff role
+ * assignment doesn't get missed. Links to the staff list - there's no
+ * per-user detail route to deep-link to. */
+export async function notifyStaffRegistered(
+  user: { uid: string; displayName: string; email: string }
+): Promise<void> {
+  await createNotification({
+    type:        "staff_registered",
+    title:       "New staff account created",
+    message:     `${user.displayName} (${user.email}) just signed up as Staff - review and assign their role.`,
+    link:        "/dashboard/staff",
+    read:        false,
+    targetRoles: ["HR", "Root Admin", "System Admin"],
+    createdAt:   new Date().toISOString(),
+    dedupeKey:   `staff-registered-${user.uid}`,
+  });
+}
+
 export async function checkSubscriptionReminders(
   subs: Array<{ id: string; itemName: string; expiryDate: string; cancelled: boolean; autoRemind: boolean }>
 ): Promise<void> {

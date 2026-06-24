@@ -17,7 +17,8 @@ export type NotificationType =
   | "leave_rejected"
   | "expense_approved"
   | "expense_rejected"
-  | "invoice_approval_needed";
+  | "invoice_approval_needed"
+  | "staff_registered";
 
 export interface AppNotification {
   id:           string;
@@ -52,6 +53,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   expense_approved:        "Expense Approved",
   expense_rejected:        "Expense Rejected",
   invoice_approval_needed: "Invoice Pending",
+  staff_registered:        "New Staff Account",
 };
 
 export const NOTIFICATION_TYPE_STYLES: Record<NotificationType, string> = {
@@ -74,6 +76,7 @@ export const NOTIFICATION_TYPE_STYLES: Record<NotificationType, string> = {
   expense_approved:        "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   expense_rejected:        "bg-red-500/15 text-red-400 border-red-500/30",
   invoice_approval_needed: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  staff_registered:        "bg-secondary/15 text-secondary border-secondary/30",
 };
 
 export const NOTIFICATION_TYPE_ICONS: Record<NotificationType, string> = {
@@ -96,4 +99,5 @@ export const NOTIFICATION_TYPE_ICONS: Record<NotificationType, string> = {
   expense_approved:        "✅",
   expense_rejected:        "❌",
   invoice_approval_needed: "🧾",
+  staff_registered:        "🆕",
 };

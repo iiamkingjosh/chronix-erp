@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { signIn, signUp, sendReset } from "@/lib/auth-service";
+import { notifyStaffRegistered } from "@/lib/notifications-service";
 import { auth } from "@/lib/firebase";
 import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { ROLE_REDIRECTS, resolveRole } from "@/types/roles";
@@ -146,6 +147,15 @@ function LoginPageInner() {
         }
       } catch (e) {
         console.error("[onRegister] welcome email request failed:", e);
+      }
+
+      // HR/Root Admin/System Admin alert — same non-blocking principle:
+      // a notification failure must never block the signup itself, but
+      // must be logged, not silently swallowed.
+      try {
+        await notifyStaffRegistered({ uid: profile.uid, displayName: profile.displayName ?? profile.email, email: profile.email });
+      } catch (e) {
+        console.error("[onRegister] staff-registered notification failed:", e);
       }
 
       router.replace(ROLE_REDIRECTS[canonical] ?? "/dashboard");

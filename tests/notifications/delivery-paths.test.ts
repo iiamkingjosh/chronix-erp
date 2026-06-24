@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from "vitest";
 import "../helpers/admin-emulator";
-import { connectEmulators, clearAll, teardownEmulators, signInAs, readDocAsAdmin, queryAsAdmin, seedDoc } from "../helpers/emulator";
-import { notifyAssignment, checkTaxFilingReminders } from "@/lib/notifications-service";
+import { connectEmulators, clearAll, teardownEmulators, signInAs, signOutCurrent, readDocAsAdmin, queryAsAdmin, seedDoc } from "../helpers/emulator";
+import { notifyAssignment, notifyStaffRegistered, checkTaxFilingReminders } from "@/lib/notifications-service";
 import { saveFCMToken } from "@/lib/push-token-service";
+import { signUp, signIn } from "@/lib/auth-service";
 import { auth } from "@/lib/firebase";
 import { POST as registerTokenRoute } from "@/app/api/notifications/register-token/route";
 import { POST as sendRoute } from "@/app/api/notifications/send/route";
@@ -286,5 +287,54 @@ describe("New /api/notifications/push route — push-only delivery for the routi
     expect(failureLogs.length).toBeGreaterThan(0);
     expect(String(failureLogs[0])).toMatch(/delivery failed for.*1.*of.*1/);
     errSpy.mockRestore();
+  });
+});
+
+describe("New: notifyStaffRegistered() alerts HR/Root Admin/System Admin on genuine new self-registration only", () => {
+  // signUp() sets a session cookie via `document.cookie`, which doesn't
+  // exist in this suite's Node test environment (no real test for signUp()
+  // existed before now - prior auth tests only used signIn() or raw
+  // createUserWithEmailAndPassword()). A minimal stub, not an app change.
+  beforeEach(() => {
+    vi.stubGlobal("document", { cookie: "" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("a new signup correctly creates a notification doc targeted at HR/Root Admin/System Admin, linking to the staff page", async () => {
+    const email = `newstaff-${Date.now()}@test.local`;
+    const profile = await signUp(email, "test-password-123", "New Staff Person");
+
+    // Mirrors exactly what onRegister() does after signUp() succeeds.
+    await notifyStaffRegistered({ uid: profile.uid, displayName: profile.displayName ?? profile.email, email: profile.email });
+
+    const notifs = await queryAsAdmin<AppNotification>("notifications", "dedupeKey", `staff-registered-${profile.uid}`);
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0].type).toBe("staff_registered");
+    expect(notifs[0].targetRoles).toEqual(["HR", "Root Admin", "System Admin"]);
+    expect(notifs[0].link).toBe("/dashboard/staff");
+    expect(notifs[0].message).toContain(email);
+    expect(notifs[0].message).toContain("New Staff Person");
+  });
+
+  it("signUp() alone, without the explicit onRegister()-style call, does NOT create a staff_registered notification - the trigger lives in the page handler, not the account-creation function itself", async () => {
+    const email = `newstaff2-${Date.now()}@test.local`;
+    const profile = await signUp(email, "test-password-123", "Another New Person");
+
+    const notifs = await queryAsAdmin<AppNotification>("notifications", "type", "staff_registered");
+    expect(notifs.find((n) => n.message.includes(profile.email))).toBeUndefined();
+  });
+
+  it("logging in to an EXISTING account never creates a staff_registered notification - only genuine new registrations do", async () => {
+    const email = `existing-${Date.now()}@test.local`;
+    const password = "test-password-123";
+    await signUp(email, password, "Existing Person");
+    await signOutCurrent();
+
+    await signIn(email, password);
+
+    const notifs = await queryAsAdmin<AppNotification>("notifications", "type", "staff_registered");
+    expect(notifs.find((n) => n.message.includes(email))).toBeUndefined();
   });
 });
