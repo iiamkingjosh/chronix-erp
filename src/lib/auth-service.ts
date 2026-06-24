@@ -34,7 +34,23 @@ function clearSessionCookie() {
    ─────────────────────────────────────────────────────────── */
 export async function fetchUserProfile(user: User): Promise<ChronixUser> {
   const ref  = doc(db, "users", user.uid);
-  const snap = await getDoc(ref);
+  let snap = await getDoc(ref);
+
+  // Bridges a real race: signUp()'s createUserWithEmailAndPassword() fires
+  // every onAuthStateChanged listener app-wide (including AuthContext's,
+  // which calls this function) the instant it resolves — independent of,
+  // and not awaited by, signUp()'s own subsequent setDoc() call. signUp()
+  // also awaits updateProfile() before it even builds the profile object,
+  // adding latency that tilts this race toward the read losing more often
+  // than not. A few short retries bridges that window. Applies to every
+  // caller (signIn() included) rather than only the post-signup path —
+  // deliberate: a genuinely-missing profile is rare, and ~1.2s of added
+  // latency on that rare path is the right tradeoff for closing this race
+  // everywhere it can occur, not just where it was first observed.
+  for (let attempt = 0; !snap.exists() && attempt < 3; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    snap = await getDoc(ref);
+  }
 
   if (!snap.exists()) {
     throw new Error("No account found for this login. Please create an account or contact an administrator.");
