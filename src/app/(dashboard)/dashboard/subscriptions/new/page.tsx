@@ -106,6 +106,7 @@ function NewSubscriptionForm() {
         autoRemind:    data.autoRemind,
         notes:         data.notes ?? "",
         renewalLog:    [],
+        invoiceIds:    [],
         cancelled:     false,
         createdAt:     now,
         createdBy:     profile.uid,

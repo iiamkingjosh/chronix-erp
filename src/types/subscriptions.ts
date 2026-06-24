@@ -29,6 +29,7 @@ export interface Subscription {
   autoRemind:    boolean;
   notes:        string;
   renewalLog:   RenewalLog[];
+  invoiceIds:   string[];   // structured link to every invoice generated for this subscription (renewals)
   cancelled:    boolean;
   createdAt:    string;
   createdBy:    string;

@@ -25,7 +25,7 @@ describe("Invariant #2 — \"this client's subscriptions\" must mean the same th
     await createSubscription({
       subId: "SUB-TEST", itemName: "Domain Renewal", clientId: "client-test", clientName: "Test Co Ltd",
       type: "domain", provider: "namecheap", startDate: "2026-01-01", expiryDate: "2027-01-01",
-      renewalCost: 25_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [],
+      renewalCost: 25_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [], invoiceIds: [],
       cancelled: false, createdAt: new Date().toISOString(), createdBy: "test-uid", updatedAt: new Date().toISOString(),
     });
 
@@ -44,7 +44,7 @@ describe("Cancellation state — top-level model only, boolean flag", () => {
     const sub = await createSubscription({
       subId: "SUB-BOOL", itemName: "License", clientId: "client-bool", clientName: "Test Co",
       type: "license", provider: "microsoft", startDate: "2026-01-01", expiryDate: "2027-01-01",
-      renewalCost: 10_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [],
+      renewalCost: 10_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [], invoiceIds: [],
       cancelled: false, createdAt: new Date().toISOString(), createdBy: "test-uid", updatedAt: new Date().toISOString(),
     });
     await cancelSubscription(sub.id);
@@ -54,34 +54,34 @@ describe("Cancellation state — top-level model only, boolean flag", () => {
   });
 });
 
-describe("DEVIATION D4 — manual renewal posts no journal entry and writes no dedupe key, unlike the cron-triggered renewal", () => {
-  it("renewSubscription only updates the subscription itself — it has no knowledge of invoices or journal entries at all", async () => {
-    await signInAs("CFO");
+// RESOLVED (Subscriptions rebuild, Step B): renewSubscription() now creates
+// the matching invoice itself, as one fail-clean unit, instead of leaving
+// invoice creation as a separate hand-rolled call in the page component.
+// The structured link (renewalLog[].invoiceId and the subscription's own
+// invoiceIds array) now exists; it's no longer undefined.
+describe("D4 — renewSubscription now creates its own invoice and records a structured link", () => {
+  it("a renewal with amount > 0 creates a real invoice and links it via invoiceId + invoiceIds", async () => {
+    const { uid } = await signInAs("CFO");
     const sub = await createSubscription({
       subId: "SUB-RENEW", itemName: "SSL Cert", clientId: "client-renew", clientName: "Test Co",
       type: "ssl", provider: "namecheap", startDate: "2025-01-01", expiryDate: "2026-01-01",
-      renewalCost: 15_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [],
+      renewalCost: 15_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [], invoiceIds: [],
       cancelled: false, createdAt: new Date().toISOString(), createdBy: "test-uid", updatedAt: new Date().toISOString(),
     });
 
-    await renewSubscription(sub.id, {
-      id: "renewal-1", renewedAt: new Date().toISOString(), renewedBy: "test-uid", renewedByName: "Test CFO",
-      previousExpiry: "2026-01-01", newExpiry: "2027-01-01", amount: 15_000,
-    }, "2027-01-01");
+    const { subscription, invoice } = await renewSubscription(sub.id, {
+      newExpiry: "2027-01-01", amount: 15_000, renewedBy: uid, renewedByName: "Test CFO",
+    });
+
+    expect(invoice).not.toBeNull();
+    expect(invoice!.total).toBeGreaterThan(0);
+    expect(subscription.expiryDate).toBe("2027-01-01");
+    expect(subscription.renewalLog).toHaveLength(1);
+    expect(subscription.renewalLog[0].invoiceId).toBe(invoice!.id);
+    expect(subscription.invoiceIds).toEqual([invoice!.id]);
 
     const persisted = await readDocAsAdmin<Subscription>("subscriptions", sub.id);
     expect(persisted?.expiryDate).toBe("2027-01-01");
-    // EXPECTED if this were the single canonical renewal path (matching what
-    // the cron job does): an invoice and a journal entry should exist for
-    // this renewal. ACTUAL: renewSubscription's own implementation touches
-    // only the subscriptions collection — no invoice, no journal entry, and
-    // no dedupe key recorded anywhere that a later cron run could check
-    // against. (The actual invoice creation for a manual renewal happens as
-    // a SEPARATE, hand-rolled call in subscriptions/[id]/page.tsx, not in
-    // this service function — confirming the duplicated-logic finding: the
-    // service layer itself has no single place that "renewing" goes through
-    // for billing purposes.)
-    expect(persisted?.renewalLog).toHaveLength(1);
-    expect((persisted?.renewalLog[0] as { invoiceId?: string }).invoiceId).toBeUndefined();
+    expect(persisted?.invoiceIds).toEqual([invoice!.id]);
   });
 });

@@ -13,14 +13,12 @@ import {
   getExpiryBand, getDaysLeft, formatDaysLeft,
   formatSubDate, formatSubDateTime,
 } from "@/types/subscriptions";
-import type { Subscription, RenewalLog, SubType } from "@/types/subscriptions";
+import type { Subscription, SubType } from "@/types/subscriptions";
 import { formatNaira } from "@/types/finance";
-import { createInvoice } from "@/lib/finance-service";
-import { getNextInvoiceNumber } from "@/lib/invoiceCounter";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
-import { cn, round } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export default function SubscriptionDetailPage() {
   const { id }      = useParams() as { id: string };
@@ -39,6 +37,7 @@ export default function SubscriptionDetailPage() {
   const [renewNotes, setRenewNotes] = useState("");
   const [renewing, setRenewing]       = useState(false);
   const [renewedInvoice, setRenewedInvoice] = useState<string | null>(null);
+  const [renewError, setRenewError]   = useState<string | null>(null);
 
   const canManage = profile ? hasPermission(profile.role, "manage:subscriptions") : false;
 
@@ -53,60 +52,29 @@ export default function SubscriptionDetailPage() {
   async function handleRenew() {
     if (!sub || !profile || !newExpiry) return;
     setRenewing(true);
+    setRenewError(null);
     try {
-      const log: RenewalLog = {
-        id:             Date.now().toString(),
-        renewedAt:      new Date().toISOString(),
-        renewedBy:      profile.uid,
-        renewedByName:  profile.displayName ?? profile.email,
-        previousExpiry: sub.expiryDate,
+      const { subscription, invoice } = await renewSubscription(sub.id, {
         newExpiry,
-        amount:         Number(renewAmount) || 0,
-        notes:          renewNotes || undefined,
-      };
-      await renewSubscription(sub.id, log, newExpiry);
-      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "subscriptions", entityId: sub.id, entityRef: sub.itemName, details: `Subscription "${sub.itemName}" renewed to ${newExpiry}`, timestamp: new Date().toISOString() });
+        amount:        Number(renewAmount) || 0,
+        notes:         renewNotes || undefined,
+        renewedBy:     profile.uid,
+        renewedByName: profile.displayName ?? profile.email,
+      });
 
-      // Auto-create a draft invoice when a renewal amount is recorded
-      const amount = Number(renewAmount) || 0;
-      if (amount > 0) {
-        try {
-          const d            = new Date();
-          const invNumber    = await getNextInvoiceNumber();
-          const subtotal     = round(amount);
-          const applyVat     = sub.vatApplicable !== false;
-          const vatAmount    = applyVat ? round(subtotal * 0.075) : 0;
-          const vatRate      = applyVat ? 0.075 : 0;
-          const total        = round(subtotal + vatAmount);
-          const inv          = await createInvoice({
-            invoiceNumber:  invNumber,
-            invoiceDate:    d.toISOString().split("T")[0],
-            dueDate:        newExpiry,
-            status:         "pending",
-            approvalStatus: "draft",
-            client:         { name: sub.clientName ?? "Unknown", address: "", phone: "" },
-            salesperson:    profile.displayName ?? profile.email,
-            items: [{ id: "1", name: `${sub.itemName} — Renewal`, unitPrice: subtotal, quantity: 1, lineTotal: subtotal }],
-            subtotal,
-            vatRate,
-            vatAmount,
-            total,
-            notes:      `Auto-generated from subscription renewal ${sub.subId ?? sub.id}`,
-            createdAt:  d.toISOString(),
-            createdBy:  profile.uid,
-          });
-          setRenewedInvoice(inv.invoiceNumber);
-        } catch (e) {
-          console.error("[renewal] invoice creation failed:", e);
-        }
-      }
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "subscriptions", entityId: sub.id, entityRef: sub.itemName, details: `Subscription "${sub.itemName}" renewed to ${newExpiry}${invoice ? ` (invoice ${invoice.invoiceNumber})` : ""}`, timestamp: new Date().toISOString() });
 
-      setSub((prev) => prev
-        ? { ...prev, expiryDate: newExpiry, cancelled: false, renewalLog: [...prev.renewalLog, log] }
-        : prev
-      );
+      if (invoice) setRenewedInvoice(invoice.invoiceNumber);
+      setSub(subscription);
       setNewExpiry(""); setRenewAmount(""); setRenewNotes("");
       setShowRenew(false);
+    } catch (err) {
+      // Fail-clean by design: if invoice creation failed, renewSubscription
+      // throws before touching expiryDate/cancelled/renewalLog at all — the
+      // subscription is genuinely unchanged, not just assumed so. Surface
+      // this to the user instead of silently swallowing it (the old code
+      // swallowed invoice failures while still committing the renewal).
+      setRenewError(err instanceof Error ? err.message : "Failed to renew subscription.");
     } finally { setRenewing(false); }
   }
 
@@ -252,6 +220,9 @@ export default function SubscriptionDetailPage() {
                   <input value={renewNotes} onChange={(e) => setRenewNotes(e.target.value)} placeholder="Invoice #, reference, notes…" className="input-field" />
                 </div>
               </div>
+              {renewError && (
+                <p className="mb-3 text-xs text-red-400 font-helvetica">{renewError}</p>
+              )}
               <div className="flex gap-3">
                 <button onClick={handleRenew} disabled={renewing || !newExpiry} className="btn-primary text-xs px-4 py-2.5">
                   {renewing ? <><Spinner /> Renewing…</> : "Confirm Renewal"}
