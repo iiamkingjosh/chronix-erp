@@ -159,7 +159,7 @@ export default function ProjectDetailPage() {
     setAddingNote(true);
     try {
       const entry: ProjectActivity = {
-        id:         Date.now().toString(),
+        id:         crypto.randomUUID(),
         type:       "note",
         content:    noteText.trim(),
         authorUid:  profile.uid,
@@ -178,7 +178,7 @@ export default function ProjectDetailPage() {
     try {
       const member = staff.find((s) => s.uid === taskAssignee);
       const task: Task = {
-        id:           Date.now().toString(),
+        id:           crypto.randomUUID(),
         title:        taskTitle.trim(),
         assignedTo:   taskAssignee,
         assignedName: member?.displayName ?? taskAssignee,

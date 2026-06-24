@@ -55,7 +55,7 @@ export default function LeadDetailPage() {
     setAddingNote(true);
     try {
       const entry: ActivityEntry = {
-        id:         Date.now().toString(),
+        id:         crypto.randomUUID(),
         type:       "note",
         content:    noteText.trim(),
         authorUid:  profile.uid,
@@ -75,7 +75,7 @@ export default function LeadDetailPage() {
     setAddingFu(true);
     try {
       const fu: FollowUp = {
-        id:            Date.now().toString(),
+        id:            crypto.randomUUID(),
         date:          fuDate,
         notes:         fuNotes,
         createdBy:     profile.uid,

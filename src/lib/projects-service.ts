@@ -35,7 +35,7 @@ export async function putProjectOnHold(
   author: { uid: string; name: string }
 ): Promise<void> {
   const entry: ProjectActivity = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     type:       "status_change",
     content:    `Status changed to ${PROJECT_STATUS_LABELS.on_hold}`,
     authorUid:  author.uid,
@@ -73,7 +73,7 @@ export async function takeProjectOffHold(
   });
 
   await addProjectActivity(projectId, {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     type:       "status_change",
     content:    `Status changed to ${PROJECT_STATUS_LABELS[newStatus!]}`,
     authorUid:  author.uid,
@@ -118,7 +118,7 @@ export async function addTask(
   });
 
   const entry: ProjectActivity = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     type:       "task_created",
     content:    `Task created: "${task.title}"`,
     authorUid:  author.uid,
@@ -129,7 +129,7 @@ export async function addTask(
 
   if (statusChangedTo) {
     await addProjectActivity(projectId, {
-      id:         (Date.now() + 1).toString(),
+      id:         crypto.randomUUID(),
       type:       "status_change",
       content:    `Status changed to ${PROJECT_STATUS_LABELS[statusChangedTo]}`,
       authorUid:  author.uid,
@@ -172,7 +172,7 @@ export async function setTaskStatus(
 
   if (completedTask) {
     const entry: ProjectActivity = {
-      id:         Date.now().toString(),
+      id:         crypto.randomUUID(),
       type:       "task_done",
       content:    `Task completed: "${completedTask.title}"`,
       authorUid:  author.uid,
@@ -184,7 +184,7 @@ export async function setTaskStatus(
 
   if (statusChangedTo) {
     await addProjectActivity(projectId, {
-      id:         (Date.now() + 1).toString(),
+      id:         crypto.randomUUID(),
       type:       "status_change",
       content:    `Status changed to ${PROJECT_STATUS_LABELS[statusChangedTo]}`,
       authorUid:  author.uid,
@@ -213,7 +213,7 @@ export async function completeMilestone(
   );
   const milestone = milestones.find((m) => m.id === milestoneId);
   const entry: ProjectActivity = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     type:       "milestone_done",
     content:    `Milestone completed: "${milestone?.title ?? ""}"`,
     authorUid:  author.uid,

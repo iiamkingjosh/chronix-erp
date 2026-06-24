@@ -103,7 +103,7 @@ export async function updateTicketStatus(
 ): Promise<void> {
   const now: string = new Date().toISOString();
   const note: TicketNote = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     authorUid:  author.uid,
     authorName: author.name,
     content:    `Status changed to ${STATUS_LABELS[status]}`,
@@ -147,7 +147,7 @@ export async function reassignTicket(
   author: { uid: string; name: string }
 ): Promise<void> {
   const note: TicketNote = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     authorUid:  author.uid,
     authorName: author.name,
     content:    `Ticket reassigned to ${assignedName}`,
@@ -221,7 +221,7 @@ export async function escalateTicket(
   author: { uid: string; name: string }
 ): Promise<void> {
   const note: TicketNote = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     authorUid:  author.uid,
     authorName: author.name,
     content:    `Ticket escalated to L${level} (${escalatedTo}): ${reason}`,

@@ -191,3 +191,15 @@ describe("DEVIATION D5 (fixed) — a non-manager assignee's own status change no
     ).resolves.toBeUndefined();
   });
 });
+
+describe("FIXED: DEVIATION D8 — updateTicketStatus()'s note id is now a real crypto.randomUUID(), not a collision-prone Date.now().toString()", () => {
+  it("the TicketNote written by a real status change has a UUID-shaped id", async () => {
+    const { uid } = await signInAs("IT Manager");
+    const ticket = await createTicket(makeTicketData());
+    await updateTicketStatus(ticket.id, "in_progress", { uid, name: "Test IT Manager" });
+
+    const persisted = await readDocAsAdmin<Ticket>("tickets", ticket.id);
+    const note = persisted!.notes[persisted!.notes.length - 1];
+    expect(note.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+});

@@ -29,7 +29,7 @@ export default function IncidentDetailPage() {
   async function handleAddUpdate() {
     if (!incident || !profile || !update.trim()) return;
     setActing(true);
-    const upd = { id: Date.now().toString(), authorName: profile.displayName ?? profile.email, message: update, timestamp: new Date().toISOString() };
+    const upd = { id: crypto.randomUUID(), authorName: profile.displayName ?? profile.email, message: update, timestamp: new Date().toISOString() };
     await addIncidentUpdate(incident.id, upd);
     setIncident((prev) => prev ? { ...prev, updates: [...prev.updates, upd] } : prev);
     setUpdate(""); setActing(false);

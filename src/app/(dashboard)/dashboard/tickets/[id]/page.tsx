@@ -101,7 +101,7 @@ export default function TicketDetailPage() {
     setAddingNote(true);
     try {
       const note: TicketNote = {
-        id:         Date.now().toString(),
+        id:         crypto.randomUUID(),
         authorUid:  profile.uid,
         authorName: profile.displayName ?? profile.email,
         content:    noteText.trim(),

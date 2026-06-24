@@ -40,7 +40,7 @@ export default function VendorDetailPage() {
     setSubmitting(true);
     try {
       const r: VendorRating = {
-        id:           Date.now().toString(),
+        id:           crypto.randomUUID(),
         rating,
         comment,
         ratedBy:      profile.uid,

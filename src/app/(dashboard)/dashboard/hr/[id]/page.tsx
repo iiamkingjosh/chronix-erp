@@ -96,7 +96,7 @@ export default function EmployeeProfilePage() {
     setSavingPerf(true);
     try {
       const note: PerformanceNote = {
-        id:          Date.now().toString(),
+        id:          crypto.randomUUID(),
         period:      perfPeriod,
         rating:      perfRating,
         notes:       perfNotes.trim(),

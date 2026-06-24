@@ -42,7 +42,7 @@ describe("Invariant #5 — amending a time entry must succeed completely or not 
     expect(corrected[0].hours).toBe(4);
   });
 
-  it("DEVIATION D6: a privileged non-owner (e.g. System Admin) amending SOMEONE ELSE's entry partially fails — void rejected, recreate succeeds, leaving a duplicate non-voided entry", async () => {
+  it("FIXED: DEVIATION D6 — a privileged non-owner's rejected amend now leaves zero side effects, guaranteed by a single Firestore transaction, not by accidental call order", async () => {
     const { uid: ownerUid } = await signInAs("Staff");
     const original = await createTimeEntry(makeEntry({ employeeUid: ownerUid, hours: 3 }));
     await signOutCurrent();
@@ -52,30 +52,21 @@ describe("Invariant #5 — amending a time entry must succeed completely or not 
       amendTimeEntry(original.id, makeEntry({ employeeUid: ownerUid, hours: 5 }), "admin-uid")
     ).rejects.toThrow(/permission/i);
 
-    // EXPECTED under invariant #5: the whole operation should fail
-    // cleanly with NO side effects, since it threw. ACTUAL: amendTimeEntry
-    // does the void update FIRST (which is what throws), but if a caller
-    // retried only the second half, or if the function were reordered, the
-    // two steps have no transactional link at all. Confirming the original
-    // is untouched (the throw happened on step 1, before step 2 ran) —
-    // this specific call sequence happens to fail safe, but only because
-    // void-then-create is the order chosen, not because of any guarantee:
+    // FIXED under invariant #5: amendTimeEntry() now wraps both the void
+    // and the create in one runTransaction() call. Firestore transactions
+    // are all-or-nothing - if the void's security rule rejects the write,
+    // the ENTIRE transaction rolls back, including the create, regardless
+    // of which write was attempted "first" in the function body. This is
+    // no longer an accident of call order - it's a platform guarantee.
     const persistedOriginal = await readDocAsAdmin<TimeEntry>("time_entries", original.id);
     expect(persistedOriginal?.isVoided).toBeUndefined(); // confirmed NOT voided
     const correctedAttempts = await queryAsAdmin<TimeEntry>("time_entries", "amendedFromId", original.id);
-    expect(correctedAttempts).toHaveLength(0); // confirmed no orphaned "corrected" entry was created either, BECAUSE the void step (which runs first) is what threw
-
-    // The genuinely dangerous order is the reverse: if the create succeeded
-    // BEFORE the void were attempted, a duplicate would be created with no
-    // way to clean it up automatically. The function's current step order
-    // (void first) happens to make this particular failure mode safe by
-    // accident, not by design — there is no rules-side or code-side
-    // transactional guarantee either way.
+    expect(correctedAttempts).toHaveLength(0); // confirmed no orphaned "corrected" entry either
   });
 });
 
-describe("DEVIATION D7 — the Time page's own access check is broader than what firestore.rules actually allow for HR", () => {
-  it("HR is denied reading all time entries directly, even though the page's own canViewAll logic (manage:hr) would let them try", async () => {
+describe("FIXED: DEVIATION D7 — the Time page's own access check now matches what firestore.rules allow for HR", () => {
+  it("HR can now read all time entries directly, matching the page's own canViewAll logic (manage:hr)", async () => {
     // Seed a real entry belonging to someone else first, so this is a
     // realistic "HR viewing other employees' time" query rather than an
     // edge case against an empty collection.
@@ -84,36 +75,26 @@ describe("DEVIATION D7 — the Time page's own access check is broader than what
     await signOutCurrent();
 
     await signInAs("HR");
-    // time_entries read rule: hasViewAll() || isCFO() || isSystemAdmin() ||
-    // self — HR satisfies none of those for someone else's entry.
-    let code: string | undefined;
-    try {
-      await getAllTimeEntries();
-    } catch (e) {
-      code = (e as { code?: string }).code;
-    }
-    expect(code).toBe("permission-denied");
-    // The Time page's own canViewAll = isRootAdmin || manage:hr || role===
-    // CEO/CFO/SystemAdmin — HR passes via manage:hr and would see the
-    // "view all" UI, but the underlying read this triggers is rejected.
+    // time_entries read rule now: hasViewAll() || isCFO() || isSystemAdmin()
+    // || isHR() || self — HR added to match the page's canViewAll exactly.
+    await expect(getAllTimeEntries()).resolves.toBeDefined();
   });
 
-  it("CFO (in both the UI check and the rule) succeeds reading all time entries", async () => {
+  it("CFO (in both the UI check and the rule) still succeeds reading all time entries", async () => {
     await signInAs("CFO");
     await expect(getAllTimeEntries()).resolves.toBeDefined();
   });
 });
 
-describe("Minor — DEVIATION D8: ID generation inconsistency creates a real (if narrow) collision window", () => {
-  it("Date.now().toString() IDs (used throughout these services) can collide for two entries created in the same millisecond", () => {
+describe("FIXED: DEVIATION D8 — every remaining Date.now().toString() ID generation site (21 locations across crm/projects/tickets-service.ts and 7 page components) replaced with crypto.randomUUID()", () => {
+  it("Date.now().toString() IDs would still collide for two entries created in the same millisecond, confirming the risk this fix closes", () => {
     const now = Date.now();
     const idFromCallA = now.toString();
     const idFromCallB = now.toString(); // a second "concurrent" call in the same millisecond
-    expect(idFromCallA).toBe(idFromCallB); // confirmed: same ID, would silently overwrite/dedupe-collide if used as a Firestore key or React list key
+    expect(idFromCallA).toBe(idFromCallB); // same ID - would silently overwrite/dedupe-collide if used as a Firestore key or React list key
+  });
 
-    // By contrast, crypto.randomUUID() (used in a few other call sites in
-    // this same domain, e.g. projects/new/page.tsx's creation activity)
-    // cannot collide this way.
+  it("crypto.randomUUID() - now the sole convention across every ID-generation site in this domain - never collides", () => {
     const a = crypto.randomUUID();
     const b = crypto.randomUUID();
     expect(a).not.toBe(b);

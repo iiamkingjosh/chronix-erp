@@ -39,7 +39,7 @@ export async function assignLead(
   author: { uid: string; name: string }
 ): Promise<void> {
   const entry: ActivityEntry = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     type:       "stage_change",
     content:    `Lead reassigned to ${assignedName}`,
     authorUid:  author.uid,
@@ -71,7 +71,7 @@ export async function updateLeadStage(
   author: { uid: string; name: string }
 ): Promise<void> {
   const entry: ActivityEntry = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     type:       "stage_change",
     content:    `Moved to ${STAGE_LABELS[stage]}`,
     authorUid:  author.uid,
@@ -101,7 +101,7 @@ export async function addFollowUp(
   author: { uid: string; name: string }
 ): Promise<void> {
   const entry: ActivityEntry = {
-    id:         Date.now().toString() + "a",
+    id:         crypto.randomUUID(),
     type:       "follow_up",
     content:    `Follow-up scheduled for ${followUp.date}${followUp.notes ? `: ${followUp.notes}` : ""}`,
     authorUid:  author.uid,
@@ -131,7 +131,7 @@ export async function completeFollowUp(
     .sort((a, b) => a.date.localeCompare(b.date))[0]?.date;
 
   const entry: ActivityEntry = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     type:       "follow_up_done",
     content:    "Follow-up marked as completed",
     authorUid:  author.uid,
@@ -174,7 +174,7 @@ export async function convertToClient(
   const client    = { ...clientData, id: clientRef.id };
 
   const entry: ActivityEntry = {
-    id:         Date.now().toString(),
+    id:         crypto.randomUUID(),
     type:       "conversion",
     content:    `Converted to client (${client.clientId})`,
     authorUid:  author.uid,
