@@ -161,6 +161,15 @@ export function calcProgress(tasks: Task[]): number {
   return Math.round(tasks.filter((t) => t.status === "done").length / tasks.length * 100);
 }
 
+/** "on_hold" is the one manual override - it pins status regardless of
+ * progress. Any other currentStatus is re-derived purely from progress. */
+export function deriveProjectStatus(progress: number, currentStatus: ProjectStatus): ProjectStatus {
+  if (currentStatus === "on_hold") return "on_hold";
+  if (progress === 0) return "not_started";
+  if (progress === 100) return "completed";
+  return "in_progress";
+}
+
 export function isDeadlineOverdue(deadline: string): boolean {
   return new Date(deadline + "T23:59:59") < new Date();
 }

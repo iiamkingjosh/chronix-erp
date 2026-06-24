@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { connectEmulators, clearAll, teardownEmulators, signInAs, signInExisting, readDocAsAdmin, signOutCurrent } from "../helpers/emulator";
-import { createProject, updateProjectStatus, addTask, setTaskStatus, addProjectActivity } from "@/lib/projects-service";
+import { createProject, putProjectOnHold, takeProjectOffHold, addTask, setTaskStatus, addProjectActivity } from "@/lib/projects-service";
 import type { Project, Task } from "@/types/projects";
 
 beforeAll(async () => {
@@ -72,8 +72,12 @@ describe("Invariant #2 — DEVIATION D1 (fixed): task creation and completion no
 
     const persisted = await readDocAsAdmin<Project>("projects", project.id);
     expect(persisted?.progress).toBe(100);
-    expect(persisted?.activity).toHaveLength(1);
-    expect(persisted?.activity[0].type).toBe("task_done");
+    // Completing the project's only task also drives status to "completed"
+    // (auto-derivation, built later in this file's last describe block) -
+    // so both a task_done AND a status_change entry are logged here.
+    expect(persisted?.activity).toHaveLength(2);
+    expect(persisted?.activity.map((a) => a.type)).toEqual(["task_done", "status_change"]);
+    expect(persisted?.status).toBe("completed");
   });
 
   it("setTaskStatus() between two non-done statuses logs nothing - only the transition TO done counts as completion", async () => {
@@ -88,14 +92,15 @@ describe("Invariant #2 — DEVIATION D1 (fixed): task creation and completion no
     expect(persisted?.activity).toHaveLength(0);
   });
 
-  it("by contrast, updateProjectStatus and completeMilestone DO correctly log their own activity types", async () => {
+  it("by contrast, putProjectOnHold and completeMilestone DO correctly log their own activity types", async () => {
     const { uid } = await signInAs("Project Manager");
     const project = await createProject(makeProjectData({ createdBy: uid }));
-    await updateProjectStatus(project.id, "in_progress", { uid, name: "Test PM" });
+    await putProjectOnHold(project.id, { uid, name: "Test PM" });
 
     const persisted = await readDocAsAdmin<Project>("projects", project.id);
     expect(persisted?.activity).toHaveLength(1);
     expect(persisted?.activity[0].type).toBe("status_change");
+    expect(persisted?.status).toBe("on_hold");
   });
 });
 
@@ -194,12 +199,87 @@ describe("Invariant #6 — the narrow self-service update rules for non-managers
     ).resolves.toBeUndefined();
   });
 
-  it("that SAME non-manager CANNOT change the project's status (touches `status`, outside every narrow allowlist)", async () => {
+  it("that SAME non-manager CANNOT put the project on hold (status-only write, no accompanying tasks/progress - outside every narrow allowlist)", async () => {
     const { uid: pmUid } = await signInAs("Project Manager");
     const project = await createProject(makeProjectData({ createdBy: pmUid }));
     await signOutCurrent();
 
     await signInAs("Staff");
-    await expect(updateProjectStatus(project.id, "completed", { uid: "x", name: "Test Staff" })).rejects.toThrow(/permission/i);
+    await expect(putProjectOnHold(project.id, { uid: "x", name: "Test Staff" })).rejects.toThrow(/permission/i);
+  });
+});
+
+describe("Project status auto-derivation - \"on hold\" is the one manual override", () => {
+  it("a task being marked done does NOT pull an on_hold project off hold", async () => {
+    const { uid } = await signInAs("Project Manager");
+    const task = makeTask({ status: "todo" });
+    const project = await createProject(makeProjectData({ createdBy: uid, tasks: [task], status: "not_started" }));
+
+    await putProjectOnHold(project.id, { uid, name: "Test PM" });
+    let persisted = await readDocAsAdmin<Project>("projects", project.id);
+    expect(persisted?.status).toBe("on_hold");
+
+    // Completing the project's only task would otherwise derive to
+    // "completed" (100% done) - confirm the on_hold pin survives underneath it.
+    await setTaskStatus(project.id, task.id, "done", { uid, name: "Test PM" });
+    persisted = await readDocAsAdmin<Project>("projects", project.id);
+    expect(persisted?.progress).toBe(100);
+    expect(persisted?.status).toBe("on_hold");
+    expect(persisted?.tasks[0].status).toBe("done");
+  });
+
+  it("taking that SAME project off hold re-derives to \"completed\", matching the real (now 100%) task percentage", async () => {
+    const { uid } = await signInAs("Project Manager");
+    const task = makeTask({ status: "todo" });
+    const project = await createProject(makeProjectData({ createdBy: uid, tasks: [task], status: "not_started" }));
+
+    await putProjectOnHold(project.id, { uid, name: "Test PM" });
+    await setTaskStatus(project.id, task.id, "done", { uid, name: "Test PM" });
+
+    const newStatus = await takeProjectOffHold(project.id, { uid, name: "Test PM" });
+    expect(newStatus).toBe("completed");
+
+    const persisted = await readDocAsAdmin<Project>("projects", project.id);
+    expect(persisted?.status).toBe("completed");
+    expect(persisted?.activity.filter((a) => a.type === "status_change")).toHaveLength(2); // on_hold, then completed
+  });
+
+  it("addTask()/setTaskStatus() auto-derive status (not_started -> in_progress -> completed) purely from %-done, when NOT on hold", async () => {
+    const { uid } = await signInAs("Project Manager");
+    const project = await createProject(makeProjectData({ createdBy: uid }));
+
+    const taskA = makeTask({ status: "todo" });
+    const taskB = makeTask({ status: "todo" });
+    await addTask(project.id, taskA, { uid, name: "Test PM" });
+    await addTask(project.id, taskB, { uid, name: "Test PM" });
+    let persisted = await readDocAsAdmin<Project>("projects", project.id);
+    expect(persisted?.status).toBe("not_started"); // 0% - calcProgress only counts "done" tasks, so
+    // moving a task to "in_progress" alone (tested separately below) doesn't move this off not_started.
+
+    await setTaskStatus(project.id, taskA.id, "done", { uid, name: "Test PM" });
+    persisted = await readDocAsAdmin<Project>("projects", project.id);
+    expect(persisted?.status).toBe("in_progress"); // 1/2 done = 50%
+
+    await setTaskStatus(project.id, taskB.id, "done", { uid, name: "Test PM" });
+    persisted = await readDocAsAdmin<Project>("projects", project.id);
+    expect(persisted?.status).toBe("completed"); // 2/2 done = 100%
+    expect(persisted?.activity.filter((a) => a.type === "status_change").map((a) => a.content)).toEqual([
+      "Status changed to In Progress",
+      "Status changed to Completed",
+    ]);
+  });
+
+  it("moving a task to in_progress (but not done) leaves project status at not_started - calcProgress only counts done tasks", async () => {
+    const { uid } = await signInAs("Project Manager");
+    const project = await createProject(makeProjectData({ createdBy: uid }));
+
+    const task = makeTask({ status: "todo" });
+    await addTask(project.id, task, { uid, name: "Test PM" });
+    await setTaskStatus(project.id, task.id, "in_progress", { uid, name: "Test PM" });
+
+    const persisted = await readDocAsAdmin<Project>("projects", project.id);
+    expect(persisted?.progress).toBe(0);
+    expect(persisted?.status).toBe("not_started");
+    expect(persisted?.activity.some((a) => a.type === "status_change")).toBe(false);
   });
 });

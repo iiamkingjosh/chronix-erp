@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  getProject, updateProjectStatus, addProjectActivity,
+  getProject, putProjectOnHold, takeProjectOffHold, addProjectActivity,
   addTask, setTaskStatus, completeMilestone, addProjectFile, removeProjectFile, deleteProject,
 } from "@/lib/projects-service";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -28,7 +28,6 @@ import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 const TASK_COLS: TaskStatus[] = ["todo", "in_progress", "done"];
-const STATUSES: ProjectStatus[] = ["not_started", "in_progress", "on_hold", "completed"];
 
 export default function ProjectDetailPage() {
   const { id }      = useParams() as { id: string };
@@ -141,11 +140,18 @@ export default function ProjectDetailPage() {
       }).finally(() => setLoading(false));
   }, [id]);
 
-  async function handleStatusChange(status: ProjectStatus) {
+  async function handleToggleHold() {
     if (!project || !profile) return;
-    await updateProjectStatus(project.id, status, { uid: profile.uid, name: profile.displayName ?? profile.email });
-    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "projects", entityId: project.id, entityRef: project.name, details: `Project "${project.name}" status changed to ${PROJECT_STATUS_LABELS[status]}`, timestamp: new Date().toISOString() });
-    setProject((prev) => prev ? { ...prev, status } : prev);
+    const author = { uid: profile.uid, name: profile.displayName ?? profile.email };
+    let newStatus: ProjectStatus;
+    if (project.status === "on_hold") {
+      newStatus = await takeProjectOffHold(project.id, author);
+    } else {
+      await putProjectOnHold(project.id, author);
+      newStatus = "on_hold";
+    }
+    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "projects", entityId: project.id, entityRef: project.name, details: `Project "${project.name}" status changed to ${PROJECT_STATUS_LABELS[newStatus]}`, timestamp: new Date().toISOString() });
+    setProject((prev) => prev ? { ...prev, status: newStatus } : prev);
   }
 
   async function handleAddNote() {
@@ -554,14 +560,13 @@ export default function ProjectDetailPage() {
 
           {canManage && (
             <div className="surface-card p-5">
-              <p className="font-orbitron text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-3">Update Status</p>
-              <div className="space-y-2">
-                {STATUSES.filter((s) => s !== project.status).map((s) => (
-                  <button key={s} onClick={() => handleStatusChange(s)} className={cn("w-full text-xs px-3 py-2 rounded-lg border font-helvetica text-left hover:opacity-80 transition-opacity", PROJECT_STATUS_STYLES[s])}>
-                    → {PROJECT_STATUS_LABELS[s]}
-                  </button>
-                ))}
-              </div>
+              <p className="font-orbitron text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-3">Status</p>
+              <p className="text-[11px] text-white/30 font-helvetica mb-3">
+                Auto-derived from task completion. "On Hold" is the one manual override.
+              </p>
+              <button onClick={handleToggleHold} className={cn("w-full text-xs px-3 py-2 rounded-lg border font-helvetica text-left hover:opacity-80 transition-opacity", PROJECT_STATUS_STYLES[project.status === "on_hold" ? "in_progress" : "on_hold"])}>
+                {project.status === "on_hold" ? "→ Take Off Hold" : "→ Put On Hold"}
+              </button>
             </div>
           )}
 

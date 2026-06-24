@@ -113,11 +113,25 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['files', 'updatedAt']);
     }
 
-    /** Allow any internal staff to update only the tasks array and computed progress. */
+    /** Allow any internal staff to update the tasks array, computed progress,
+     * and the project status auto-derived from it.
+     *
+     * KNOWN ACCEPTED GAP: this does not currently enforce that `status` only
+     * rides alongside a genuine `tasks`+`progress` write - a crafted raw
+     * write of just {status, updatedAt} would also pass. Every membership
+     * check tried to close this (hasAll, hasAny, the `in` operator, with and
+     * without a shared `let`) reproducibly threw an "evaluation error" the
+     * moment it tested for the key 'progress' specifically - isolated down
+     * to that single check failing on its own, cause not understood. Tracked
+     * as its own follow-up investigation rather than abandoned. Accepted as
+     * low severity: internal-staff-only, requires bypassing the UI with a
+     * crafted Firestore call, affects only that one project's own status
+     * display, no financial/cross-tenant exposure - and the real app code
+     * (addTask()/setTaskStatus()) always sends tasks+progress+status
+     * together correctly regardless. */
     function isTeamMemberTaskUpdate(canSelfService) {
       return canSelfService &&
-        request.resource.data.diff(resource.data)
-          .affectedKeys().hasOnly(['tasks', 'progress', 'updatedAt']);
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tasks', 'progress', 'status', 'updatedAt']);
     }
 
     /** Allow any internal staff to update only the project activity log. */

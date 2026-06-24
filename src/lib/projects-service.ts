@@ -7,7 +7,7 @@ import { ref, deleteObject } from "firebase/storage";
 import type {
   Project, Task, Milestone, ProjectActivity, ProjectStatus, TaskStatus, ProjectFile,
 } from "@/types/projects";
-import { calcProgress, PROJECT_STATUS_LABELS } from "@/types/projects";
+import { calcProgress, deriveProjectStatus, PROJECT_STATUS_LABELS } from "@/types/projects";
 
 const PROJ = "projects";
 
@@ -26,24 +26,62 @@ export async function getProject(id: string): Promise<Project | null> {
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as Project) : null;
 }
 
-export async function updateProjectStatus(
+/** Status is otherwise fully derived from task-completion percentage
+ * (see deriveProjectStatus()) - "on hold" is the one manual override.
+ * Writes status alone (no tasks/progress), so this deliberately does NOT
+ * qualify under isTeamMemberTaskUpdate() - stays manager/creator-only. */
+export async function putProjectOnHold(
   projectId: string,
-  status: ProjectStatus,
   author: { uid: string; name: string }
 ): Promise<void> {
   const entry: ProjectActivity = {
     id:         Date.now().toString(),
     type:       "status_change",
-    content:    `Status changed to ${PROJECT_STATUS_LABELS[status]}`,
+    content:    `Status changed to ${PROJECT_STATUS_LABELS.on_hold}`,
     authorUid:  author.uid,
     authorName: author.name,
     createdAt:  new Date().toISOString(),
   };
   await updateDoc(doc(db, PROJ, projectId), {
-    status,
+    status:    "on_hold",
     updatedAt: new Date().toISOString(),
     activity:  arrayUnion(entry),
   });
+}
+
+/** Re-derives status from the project's CURRENT tasks (read fresh inside a
+ * transaction) the moment the hold is lifted, rather than trusting any
+ * stale local progress value - matches the same fresh-read discipline as
+ * addTask()/setTaskStatus(). */
+export async function takeProjectOffHold(
+  projectId: string,
+  author: { uid: string; name: string }
+): Promise<ProjectStatus> {
+  const ref = doc(db, PROJ, projectId);
+  const now = new Date().toISOString();
+  let newStatus: ProjectStatus;
+
+  await runTransaction(db, async (tx) => {
+    const snap     = await tx.get(ref);
+    const tasks    = (snap.data()?.tasks as Task[] | undefined) ?? [];
+    const progress = calcProgress(tasks);
+    // "not_started" here is just a non-"on_hold" placeholder - deriveProjectStatus()
+    // only inspects currentStatus to decide whether to stay pinned at "on_hold",
+    // and we're explicitly lifting that pin, so any non-"on_hold" value bypasses it.
+    newStatus = deriveProjectStatus(progress, "not_started");
+    tx.update(ref, { status: newStatus, updatedAt: now });
+  });
+
+  await addProjectActivity(projectId, {
+    id:         Date.now().toString(),
+    type:       "status_change",
+    content:    `Status changed to ${PROJECT_STATUS_LABELS[newStatus!]}`,
+    authorUid:  author.uid,
+    authorName: author.name,
+    createdAt:  now,
+  });
+
+  return newStatus!;
 }
 
 export async function addProjectActivity(
@@ -66,10 +104,17 @@ export async function addTask(
   author: { uid: string; name: string }
 ): Promise<void> {
   const ref = doc(db, PROJ, projectId);
+  const now = new Date().toISOString();
+  let statusChangedTo: ProjectStatus | undefined;
+
   await runTransaction(db, async (tx) => {
-    const snap  = await tx.get(ref);
-    const tasks = [...((snap.data()?.tasks as Task[] | undefined) ?? []), task];
-    tx.update(ref, { tasks, progress: calcProgress(tasks), updatedAt: new Date().toISOString() });
+    const snap         = await tx.get(ref);
+    const currentStatus = snap.data()?.status as ProjectStatus;
+    const tasks         = [...((snap.data()?.tasks as Task[] | undefined) ?? []), task];
+    const progress       = calcProgress(tasks);
+    const status         = deriveProjectStatus(progress, currentStatus);
+    if (status !== currentStatus) statusChangedTo = status;
+    tx.update(ref, { tasks, progress, status, updatedAt: now });
   });
 
   const entry: ProjectActivity = {
@@ -78,9 +123,20 @@ export async function addTask(
     content:    `Task created: "${task.title}"`,
     authorUid:  author.uid,
     authorName: author.name,
-    createdAt:  new Date().toISOString(),
+    createdAt:  now,
   };
   await addProjectActivity(projectId, entry);
+
+  if (statusChangedTo) {
+    await addProjectActivity(projectId, {
+      id:         (Date.now() + 1).toString(),
+      type:       "status_change",
+      content:    `Status changed to ${PROJECT_STATUS_LABELS[statusChangedTo]}`,
+      authorUid:  author.uid,
+      authorName: author.name,
+      createdAt:  now,
+    });
+  }
 }
 
 /** Same re-read-fresh-inside-a-transaction approach as addTask(). Logs a
@@ -96,9 +152,11 @@ export async function setTaskStatus(
   const ref = doc(db, PROJ, projectId);
   const now = new Date().toISOString();
   let completedTask: Task | undefined;
+  let statusChangedTo: ProjectStatus | undefined;
 
   await runTransaction(db, async (tx) => {
-    const snap  = await tx.get(ref);
+    const snap          = await tx.get(ref);
+    const currentStatus = snap.data()?.status as ProjectStatus;
     const current: Task[] = (snap.data()?.tasks as Task[] | undefined) ?? [];
     const tasks = current.map((t) => {
       if (t.id !== taskId) return t;
@@ -106,7 +164,10 @@ export async function setTaskStatus(
       const { completedAt, ...rest } = t;
       return status === "done" ? { ...rest, status, completedAt: now } : { ...rest, status };
     });
-    tx.update(ref, { tasks, progress: calcProgress(tasks), updatedAt: now });
+    const progress     = calcProgress(tasks);
+    const projectStatus = deriveProjectStatus(progress, currentStatus);
+    if (projectStatus !== currentStatus) statusChangedTo = projectStatus;
+    tx.update(ref, { tasks, progress, status: projectStatus, updatedAt: now });
   });
 
   if (completedTask) {
@@ -119,6 +180,17 @@ export async function setTaskStatus(
       createdAt:  now,
     };
     await addProjectActivity(projectId, entry);
+  }
+
+  if (statusChangedTo) {
+    await addProjectActivity(projectId, {
+      id:         (Date.now() + 1).toString(),
+      type:       "status_change",
+      content:    `Status changed to ${PROJECT_STATUS_LABELS[statusChangedTo]}`,
+      authorUid:  author.uid,
+      authorName: author.name,
+      createdAt:  now,
+    });
   }
 }
 
