@@ -30,10 +30,13 @@ export default function ClientProfilePage() {
       setClient(c);
       if (c) {
         setNotes(c.notes ?? "");
-        // Link by company name (case-insensitive)
-        const co = c.company.toLowerCase();
-        setInvoices(invs.filter((i) => i.client.name.toLowerCase().includes(co) || co.includes(i.client.name.toLowerCase())));
-        setTickets(tkts.filter((t) => t.client.name.toLowerCase().includes(co) || co.includes(t.client.name.toLowerCase())));
+        // Exact match by company name (normalized) — confirmed via real
+        // production data that fuzzy substring matching here was solving
+        // a problem that doesn't exist (no formatting inconsistencies
+        // found across any real client name in any collection).
+        const co = c.company.toLowerCase().trim();
+        setInvoices(invs.filter((i) => i.client.name.toLowerCase().trim() === co));
+        setTickets(tkts.filter((t) => t.client.name.toLowerCase().trim() === co));
       }
     }).finally(() => setLoading(false));
   }, [id]);

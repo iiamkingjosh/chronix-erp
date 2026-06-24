@@ -133,8 +133,10 @@ export default function ProjectDetailPage() {
         setProject(proj);
         setStaff(s);
         if (proj) {
-          const co = proj.clientName.toLowerCase();
-          setInvoices(invs.filter((i) => i.client.name.toLowerCase().includes(co)));
+          // Exact match (normalized) — see crm/clients/[id]/page.tsx for
+          // why this is no longer a substring match.
+          const co = proj.clientName.toLowerCase().trim();
+          setInvoices(invs.filter((i) => i.client.name.toLowerCase().trim() === co));
         }
       }).finally(() => setLoading(false));
   }, [id]);
