@@ -11,7 +11,7 @@ export type AuditModule =
   | "invoices" | "payments" | "expenses" | "purchase_orders" | "payroll"
   | "leave" | "disciplinary" | "assets"
   | "time" | "tickets" | "projects" | "crm" | "hr" | "procurement"
-  | "subscriptions" | "knowledge" | "incidents" | "changes" | "users";
+  | "subscriptions" | "knowledge" | "incidents" | "changes" | "users" | "notifications";
 
 export interface AuditLog {
   id: string;

@@ -116,3 +116,76 @@ describe("DEVIATION D8 — two independent FCM-token-write implementations dupli
     // would not automatically apply to the other.
   });
 });
+
+describe("FIXED: /api/notifications/send now requires manage:tax / manage:brand / manage:email_marketing - previously any authenticated caller could reach it", () => {
+  async function callSendRoute(idToken: string, targetRoles: string[] = ["CFO"]) {
+    const req = new Request("http://localhost/api/notifications/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "renewal_due", title: "Test", message: "Test message",
+        targetRoles, sendEmail: false, sendPush: false,
+      }),
+    });
+    const res = await sendRoute(req as never);
+    return { status: res.status, body: await res.json() };
+  }
+
+  it("CFO (manage:tax) succeeds", async () => {
+    await signInAs("CFO");
+    const idToken = await auth.currentUser!.getIdToken();
+    const { status, body } = await callSendRoute(idToken);
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+  });
+
+  it("Brand Lead (manage:brand / manage:email_marketing) succeeds", async () => {
+    await signInAs("Brand Lead");
+    const idToken = await auth.currentUser!.getIdToken();
+    const { status, body } = await callSendRoute(idToken);
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+  });
+
+  it("CEO is rejected with 403 - view:all/view:tax only, no manage:* rights", async () => {
+    await signInAs("CEO");
+    const idToken = await auth.currentUser!.getIdToken();
+    const { status, body } = await callSendRoute(idToken);
+    expect(status).toBe(403);
+    expect(body.error).toBe("Forbidden");
+  });
+
+  it("a Client-role account is rejected with 403 - the exact gap this fix closes", async () => {
+    await signInAs("Client");
+    const idToken = await auth.currentUser!.getIdToken();
+    const { status, body } = await callSendRoute(idToken);
+    expect(status).toBe(403);
+    expect(body.error).toBe("Forbidden");
+  });
+
+  it("both the allowed CFO call and the rejected Client call are recorded in audit_logs with role, targetRoles, and permission outcome", async () => {
+    const { uid: cfoUid } = await signInAs("CFO");
+    let idToken = await auth.currentUser!.getIdToken();
+    await callSendRoute(idToken, ["CFO", "System Admin"]);
+
+    const { uid: clientUid } = await signInAs("Client");
+    idToken = await auth.currentUser!.getIdToken();
+    await callSendRoute(idToken, ["CFO"]);
+
+    const allowedEntries = await queryAsAdmin<{ actorUid: string; permissionGranted: boolean; targetRoles: string[]; action: string }>(
+      "audit_logs", "actorUid", cfoUid
+    );
+    expect(allowedEntries).toHaveLength(1);
+    expect(allowedEntries[0].permissionGranted).toBe(true);
+    expect(allowedEntries[0].action).toBe("create");
+    expect(allowedEntries[0].targetRoles).toEqual(["CFO", "System Admin"]);
+
+    const rejectedEntries = await queryAsAdmin<{ actorUid: string; permissionGranted: boolean; actorRole: string; action: string }>(
+      "audit_logs", "actorUid", clientUid
+    );
+    expect(rejectedEntries).toHaveLength(1);
+    expect(rejectedEntries[0].permissionGranted).toBe(false);
+    expect(rejectedEntries[0].action).toBe("reject");
+    expect(rejectedEntries[0].actorRole).toBe("Client");
+  });
+});
