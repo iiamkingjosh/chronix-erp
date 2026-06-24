@@ -34,6 +34,9 @@ export interface Ticket {
   escalationLevel?: 1 | 2 | 3;
   escalationReason?: string;
   onCallAssigned?: boolean;
+  slaOverrideReason?: string;
+  slaOverriddenBy?: string;
+  slaOverriddenAt?: string;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

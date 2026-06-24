@@ -9,6 +9,7 @@ import {
   addTicketNote,
   updateClientFeedback,
   reassignTicket,
+  overrideSlaDeadline,
   getStaffList,
   type StaffMember,
 } from "@/lib/tickets-service";
@@ -30,6 +31,10 @@ const NOTE_TYPE_STYLES: Record<TicketNote["type"], string> = {
   resolution:    "border-emerald-500/20 bg-emerald-500/5",
 };
 
+function toDatetimeLocalValue(iso: string): string {
+  return iso.slice(0, 16);
+}
+
 export default function TicketDetailPage() {
   const { id }      = useParams() as { id: string };
   const router      = useRouter();
@@ -43,6 +48,11 @@ export default function TicketDetailPage() {
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [staff, setStaff]           = useState<StaffMember[]>([]);
   const [newAssignee, setNewAssignee] = useState("");
+  const [showOverrideForm, setShowOverrideForm] = useState(false);
+  const [overrideDeadline, setOverrideDeadline] = useState("");
+  const [overrideReason, setOverrideReason]     = useState("");
+  const [overrideError, setOverrideError]       = useState<string | null>(null);
+  const [savingOverride, setSavingOverride]     = useState(false);
 
   const canManage = profile ? hasPermission(profile.role, "manage:tickets") : false;
 
@@ -67,6 +77,23 @@ export default function TicketDetailPage() {
     logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: status === "resolved" ? "resolve" : "update", module: "tickets", entityId: ticket.id, entityRef: ticket.ticketId, details: `Ticket ${ticket.ticketId} status changed to ${STATUS_LABELS[status]}`, timestamp: new Date().toISOString() });
     const updated = await getTicket(ticket.id);
     setTicket(updated);
+  }
+
+  async function handleOverrideDeadline() {
+    if (!ticket || !profile || !overrideDeadline) return;
+    setOverrideError(null);
+    setSavingOverride(true);
+    try {
+      await overrideSlaDeadline(ticket.id, new Date(overrideDeadline).toISOString(), overrideReason, profile.uid);
+      const updated = await getTicket(ticket.id);
+      setTicket(updated);
+      setShowOverrideForm(false);
+      setOverrideReason("");
+    } catch (err) {
+      setOverrideError(err instanceof Error ? err.message : "Could not override deadline.");
+    } finally {
+      setSavingOverride(false);
+    }
   }
 
   async function handleAddNote() {
@@ -291,6 +318,46 @@ export default function TicketDetailPage() {
             <span className={cn("mt-2 inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica", SLA_STATUS_STYLES[sla])}>
               {formatTimeLeft(ticket.slaDeadline)}
             </span>
+            {ticket.slaOverrideReason && (
+              <p className="mt-3 text-[11px] text-white/30 font-helvetica leading-relaxed">
+                Overridden by {ticket.slaOverriddenBy} on {ticket.slaOverriddenAt && formatDateTime(ticket.slaOverriddenAt)} — {ticket.slaOverrideReason}
+              </p>
+            )}
+            {canManage && (
+              showOverrideForm ? (
+                <div className="mt-4 space-y-2">
+                  <input
+                    type="datetime-local"
+                    value={overrideDeadline}
+                    onChange={(e) => setOverrideDeadline(e.target.value)}
+                    className="input-field text-xs"
+                  />
+                  <textarea
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    placeholder="Reason for overriding this deadline (required)"
+                    rows={2}
+                    className="input-field text-xs resize-none"
+                  />
+                  {overrideError && <p className="text-xs text-red-400">{overrideError}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={handleOverrideDeadline} disabled={savingOverride} className="btn-primary text-xs px-3 py-2 flex-1 disabled:opacity-50">
+                      {savingOverride ? "Saving…" : "Confirm Override"}
+                    </button>
+                    <button onClick={() => { setShowOverrideForm(false); setOverrideError(null); }} className="text-xs px-3 py-2 text-white/30 hover:text-white/60 border border-white/10 rounded-lg transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setOverrideDeadline(toDatetimeLocalValue(ticket.slaDeadline)); setShowOverrideForm(true); }}
+                  className="mt-4 w-full text-xs px-3 py-2 rounded-lg border border-white/10 text-white/40 hover:text-white hover:border-white/20 transition-colors font-helvetica"
+                >
+                  Override Deadline
+                </button>
+              )
+            )}
           </div>
 
           {/* Escalate to Project */}

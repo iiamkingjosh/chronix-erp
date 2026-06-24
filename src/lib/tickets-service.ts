@@ -12,15 +12,78 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Ticket, TicketNote, TicketStatus } from "@/types/tickets";
-import { STATUS_LABELS } from "@/types/tickets";
+import { STATUS_LABELS, defaultSlaDeadline } from "@/types/tickets";
 import { notifyAssignment } from "@/lib/notifications-service";
+import { hasPermission } from "@/types/roles";
+import { logAuditEvent } from "@/lib/audit-service";
 
 const TKT = "tickets";
 const USR = "users";
 
+/** D4 (hard enforcement): slaDeadline is always computed server-side from
+ * priority via defaultSlaDeadline() - any client-submitted value is
+ * ignored, not merely overwritten by a default the caller could still
+ * have tampered with. The only way to set a deadline that diverges from
+ * the priority's nominal target is overrideSlaDeadline() below, which is
+ * manager-gated and requires a logged reason. */
 export async function createTicket(data: Omit<Ticket, "id">): Promise<Ticket> {
-  const ref = await addDoc(collection(db, TKT), data);
-  return { ...data, id: ref.id };
+  const final = { ...data, slaDeadline: defaultSlaDeadline(data.priority, new Date(data.createdAt)) };
+  const ref = await addDoc(collection(db, TKT), final);
+  return { ...final, id: ref.id };
+}
+
+/** Manager-only override of a ticket's SLA deadline after creation -
+ * the one sanctioned way to diverge from the priority's nominal target.
+ * Function-level permission gate independent of firestore.rules (same
+ * defense-in-depth pattern as updateEmployeeSalary) - don't rely on the
+ * rule alone. Requires a reason, same required-reason convention as the
+ * Payslip salary-update feature. */
+export async function overrideSlaDeadline(
+  ticketId: string,
+  newDeadline: string,
+  reason: string,
+  actorUid: string,
+): Promise<void> {
+  if (!reason.trim()) {
+    throw new Error("A reason is required to override a ticket's SLA deadline.");
+  }
+
+  const [ticketSnap, actorSnap] = await Promise.all([
+    getDoc(doc(db, TKT, ticketId)),
+    getDoc(doc(db, USR, actorUid)),
+  ]);
+  if (!ticketSnap.exists()) {
+    throw new Error("Ticket not found.");
+  }
+
+  const actorData = actorSnap.data() as Record<string, unknown> | undefined;
+  const actorRole = (actorData?.role ?? "") as string;
+  if (!hasPermission(actorRole, "manage:tickets")) {
+    throw new Error("You do not have permission to override a ticket's SLA deadline.");
+  }
+
+  const ticketData  = ticketSnap.data() as Ticket;
+  const oldDeadline = ticketData.slaDeadline;
+  const actorName   = (actorData?.displayName ?? actorData?.email ?? actorUid) as string;
+  const now         = new Date().toISOString();
+
+  await updateDoc(doc(db, TKT, ticketId), {
+    slaDeadline:       newDeadline,
+    slaOverrideReason: reason.trim(),
+    slaOverriddenBy:   actorName,
+    slaOverriddenAt:   now,
+    updatedAt:         now,
+  });
+
+  await logAuditEvent({
+    actorUid, actorName, actorRole,
+    action:    "update",
+    module:    "tickets",
+    entityId:  ticketId,
+    entityRef: ticketData.ticketId,
+    details:   `SLA deadline overridden for ${ticketData.ticketId}: ${oldDeadline} → ${newDeadline}. Reason: ${reason.trim()}`,
+    timestamp: now,
+  });
 }
 
 export async function getTickets(): Promise<Ticket[]> {

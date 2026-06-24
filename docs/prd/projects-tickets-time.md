@@ -96,6 +96,10 @@ Two team members editing tasks on the same project within the same few seconds w
 **File**: `tickets/new/page.tsx` (the `slaDeadline` field defaults from `SLA_HOURS`-by-priority but is then a freely editable `datetime-local` input) vs. `tickets/sla/page.tsx` ("SLA Targets by Priority" table renders `SLA_HOURS` as if it's policy).
 Nothing ties a ticket's actual stored deadline back to its priority's nominal target after creation — the dashboard's policy table is decorative, not authoritative, for any ticket whose deadline was manually adjusted.
 
+**Fixed** (this session): `createTicket()` now always computes `slaDeadline` server-side from priority via `defaultSlaDeadline()`, ignoring any client-submitted value. A manager-only, required-reason, audit-logged `overrideSlaDeadline()` covers genuine exceptions.
+
+**Known accepted-risk gap**: `createTicket()`'s server-side SLA enforcement can be bypassed by a crafted direct Firestore write (same exposure class as Projects' deferred "progress"-key rules gap from earlier today) — requires authenticated internal-staff access, affects only that ticket's own SLA accuracy, no financial/cross-tenant exposure. Not rules-enforced, deliberately, per cost/benefit discussion.
+
 ### D5 — Invariant #6 violated (confirmed rules/code mismatch): a non-manager assignee's own status change is rejected
 **Files**: `firestore.rules` ticket partial-update rule (allows `hasOnly(["status","resolution","activity","updatedAt","resolvedAt"])` for a non-manager assignee) vs. `tickets-service.ts` `updateTicketStatus` (actually writes `status`, `updatedAt`, **`notes`** (arrayUnion — not `activity`), and conditionally `resolvedAt` **or `closedAt`**).
 The rule's allowlist names fields (`activity`, `resolution`) that the ticket schema doesn't have; the code's actual field (`notes`) isn't in the allowlist. The net effect: **any non-manager assignee attempting the exact self-service status change the rules were written to permit will be rejected**, because the `notes` write alone breaks the `hasOnly` check. The UI offers this action to assignees with no indication it will fail.

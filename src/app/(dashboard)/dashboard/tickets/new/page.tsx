@@ -12,7 +12,7 @@ import { createTicket, getStaffList, type StaffMember } from "@/lib/tickets-serv
 import { notifyAssignment } from "@/lib/notifications-service";
 import {
   PRIORITY_LABELS, PRIORITY_STYLES,
-  defaultSlaDeadline, generateTicketId,
+  defaultSlaDeadline, generateTicketId, formatDateTime,
 } from "@/types/tickets";
 import type { TicketPriority } from "@/types/tickets";
 import { cn } from "@/lib/utils";
@@ -24,14 +24,9 @@ const schema = z.object({
   description:   z.string().min(10, "Minimum 10 characters"),
   priority:      z.enum(["low", "medium", "high", "critical"]),
   assignedTo:    z.string().min(1, "Required"),
-  slaDeadline:   z.string().min(1, "Required"),
 });
 
 type FormData = z.infer<typeof schema>;
-
-function toDatetimeLocal(iso: string): string {
-  return iso.slice(0, 16);
-}
 
 function newTicketNoteId(): string {
   return crypto.randomUUID();
@@ -56,17 +51,11 @@ export default function NewTicketPage() {
     resolver: zodResolver(schema),
     defaultValues: {
       priority:    "medium",
-      slaDeadline: toDatetimeLocal(defaultSlaDeadline("medium")),
       assignedTo:  "",
     },
   });
 
   const watchPriority = (useWatch({ control, name: "priority" }) ?? "medium") as TicketPriority;
-
-  // Auto-update SLA when priority changes
-  useEffect(() => {
-    setValue("slaDeadline", toDatetimeLocal(defaultSlaDeadline(watchPriority)));
-  }, [watchPriority, setValue]);
 
   // Fetch staff list
   useEffect(() => {
@@ -102,7 +91,7 @@ export default function NewTicketPage() {
         status:       "open",
         assignedTo:   data.assignedTo,
         assignedName: selectedStaff?.displayName ?? data.assignedTo,
-        slaDeadline:  new Date(data.slaDeadline).toISOString(),
+        slaDeadline:  defaultSlaDeadline(data.priority), // ignored by createTicket(), which always recomputes server-side (D4)
         notes: [{
           id:         newTicketNoteId(),
           authorUid:  profile.uid,
@@ -240,11 +229,15 @@ export default function NewTicketPage() {
                 {errors.assignedTo && <p className="mt-1 text-xs text-red-400">{errors.assignedTo.message}</p>}
               </div>
 
-              {/* SLA deadline */}
+              {/* SLA deadline — read-only preview; the server always computes
+                  this from priority (D4 hard enforcement) and ignores any
+                  client value, so an editable field here would silently do
+                  nothing. A manager can change it after creation via
+                  "Override Deadline" on the ticket detail page. */}
               <div>
                 <label className="field-label">SLA Deadline</label>
-                <input {...register("slaDeadline")} type="datetime-local" className="input-field" />
-                <p className="mt-1 text-[10px] text-white/25 font-helvetica">Auto-set from priority · adjustable</p>
+                <input value={formatDateTime(new Date(defaultSlaDeadline(watchPriority)).toISOString())} disabled className="input-field opacity-60 cursor-not-allowed" />
+                <p className="mt-1 text-[10px] text-white/25 font-helvetica">Set automatically from priority · override after creation if needed</p>
               </div>
             </div>
           </div>
