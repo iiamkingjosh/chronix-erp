@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getOpenTicketsWithSLA } from "@/lib/tickets-service";
+import { getOpenTicketsWithSLA, getResolvedTicketsWithSLA } from "@/lib/tickets-service";
 import {
   PRIORITY_LABELS, PRIORITY_STYLES,
   STATUS_LABELS, STATUS_STYLES,
@@ -13,15 +13,20 @@ import type { Ticket } from "@/types/tickets";
 import { cn } from "@/lib/utils";
 
 export default function SLADashboard() {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tickets, setTickets]         = useState<Ticket[]>([]);
+  const [resolved, setResolved]       = useState<Ticket[]>([]);
+  const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
-    getOpenTicketsWithSLA().then(setTickets).finally(() => setLoading(false));
+    Promise.all([getOpenTicketsWithSLA(), getResolvedTicketsWithSLA()])
+      .then(([open, done]) => {
+        setTickets(open);
+        setResolved(done);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const active   = tickets;
-  const resolved: Ticket[] = [];
+  const active = tickets;
 
   const breached   = active.filter((t) => getSlaStatus(t.slaDeadline, t.status) === "breached");
   const critical   = active.filter((t) => getSlaStatus(t.slaDeadline, t.status) === "critical");

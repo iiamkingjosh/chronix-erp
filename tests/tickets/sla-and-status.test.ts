@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { connectEmulators, clearAll, teardownEmulators, signInAs, signOutCurrent, signInExisting, readDocAsAdmin } from "../helpers/emulator";
-import { createTicket, updateTicketStatus, getOpenTicketsWithSLA } from "@/lib/tickets-service";
+import { connectEmulators, clearAll, teardownEmulators, signInAs, signOutCurrent, signInExisting, readDocAsAdmin, queryAsAdmin, seedDoc } from "../helpers/emulator";
+import { createTicket, updateTicketStatus, getOpenTicketsWithSLA, getResolvedTicketsWithSLA, overrideSlaDeadline } from "@/lib/tickets-service";
 import type { Ticket } from "@/types/tickets";
 
 beforeAll(async () => {
@@ -32,54 +32,115 @@ function makeTicketData(overrides: Partial<Ticket> = {}): Omit<Ticket, "id"> {
   };
 }
 
-describe("Invariant #3 — DEVIATION D3: the SLA dashboard's compliance metrics are structurally incapable of being correct", () => {
-  it("replicating tickets/sla/page.tsx's exact computation shows compliance is always 100% and avgResolution is always 0, regardless of real ticket history", async () => {
-    const { uid } = await signInAs("IT Manager");
-    // Create and resolve several tickets with realistic, varied SLA outcomes.
-    const onTime = await createTicket(makeTicketData({ slaDeadline: new Date(Date.now() + 86_400_000).toISOString() }));
-    await updateTicketStatus(onTime.id, "resolved", { uid, name: "Test IT" });
+describe("FIXED: DEVIATION D3 — getResolvedTicketsWithSLA() now feeds the SLA dashboard real data instead of a hardcoded empty array", () => {
+  it("avgResolution and complianceRate compute genuine, non-zero, correct numbers from seeded resolved/closed tickets", async () => {
+    await signInAs("IT Manager");
 
-    const late = await createTicket(makeTicketData({ slaDeadline: new Date(Date.now() - 86_400_000).toISOString() }));
-    await updateTicketStatus(late.id, "resolved", { uid, name: "Test IT" });
+    // Seeded directly via Firestore (not createTicket()) - createTicket()
+    // now hard-enforces slaDeadline from priority (D4, this same session),
+    // so it would silently overwrite the deliberately-chosen deadlines
+    // this test needs for deterministic compliance math. updateTicketStatus()
+    // also always stamps resolvedAt with the real current time, which can't
+    // produce deterministic elapsed-time math either - so the resolved
+    // state itself is seeded directly too.
+    const t0 = Date.now();
+    const onTimeId = "d3-on-time-" + t0;
+    const lateId    = "d3-late-" + t0;
+    await seedDoc("tickets", onTimeId, makeTicketData({
+      status:      "resolved",
+      createdAt:   new Date(t0).toISOString(),
+      resolvedAt:  new Date(t0 + 2 * 3_600_000).toISOString(),  // resolved 2h after creation
+      slaDeadline: new Date(t0 + 24 * 3_600_000).toISOString(), // due in 24h - well within deadline
+    }));
+    await seedDoc("tickets", lateId, makeTicketData({
+      status:      "resolved",
+      createdAt:   new Date(t0).toISOString(),
+      resolvedAt:  new Date(t0 + 10 * 3_600_000).toISOString(), // resolved 10h after creation
+      slaDeadline: new Date(t0 + 5 * 3_600_000).toISOString(),  // was due at 5h - missed it
+    }));
+    // A third, still-open ticket must NOT be counted in either metric.
+    await seedDoc("tickets", "d3-open-" + t0, makeTicketData({ status: "open" }));
 
-    // tickets/sla/page.tsx's exact pattern (confirmed from source): it
-    // calls getOpenTicketsWithSLA() for "active" tickets, and hardcodes
-    // `const resolved: Ticket[] = []` — a literal empty array — rather than
-    // querying resolved tickets at all.
-    const active = await getOpenTicketsWithSLA();
-    const resolved: Ticket[] = []; // <-- this is the page's actual line, reproduced verbatim
+    const resolved = await getResolvedTicketsWithSLA();
+    expect(resolved.map((t) => t.id).sort()).toEqual([onTimeId, lateId].sort());
 
-    const avgResolution = resolved.length === 0 ? 0 : 999; // the real formula only ever reaches the `0` branch
-    const complianceRate = resolved.length === 0 ? 100 : 0; // same — only the `100` branch is ever reachable
+    // tickets/sla/page.tsx's exact formula, reproduced verbatim - now fed
+    // real data instead of a hardcoded literal.
+    const resolutionTimes = resolved
+      .filter((t) => t.resolvedAt)
+      .map((t) => (new Date(t.resolvedAt!).getTime() - new Date(t.createdAt).getTime()) / 3_600_000);
+    const avgResolution = resolutionTimes.length
+      ? resolutionTimes.reduce((s, v) => s + v, 0) / resolutionTimes.length
+      : 0;
+    const complianceRate = resolved.length === 0 ? 100 : Math.round(
+      (resolved.filter((t) => t.resolvedAt && new Date(t.resolvedAt) <= new Date(t.slaDeadline)).length / resolved.length) * 100
+    );
 
-    expect(active).toHaveLength(0); // both test tickets are now resolved, so neither shows as "active" — irrelevant to the point
-    // EXPECTED under invariant #3: compliance should reflect that one
-    // ticket above missed its deadline and one didn't (50%), and average
-    // resolution time should be a real, non-zero duration. ACTUAL: because
-    // `resolved` is a hardcoded literal, both values are dead-computed
-    // constants no matter what really happened — confirmed by reproducing
-    // the page's own code, not by inference.
-    expect(avgResolution).toBe(0);
-    expect(complianceRate).toBe(100);
+    // FIXED: genuine, computed values - (2h + 10h) / 2 = 6h average, and
+    // exactly one of the two resolved tickets (onTime) met its deadline = 50%.
+    expect(avgResolution).toBe(6);
+    expect(complianceRate).toBe(50);
+  });
+
+  it("a ticket closed without ever passing through \"resolved\" (no resolvedAt) is excluded from both metrics rather than breaking them", async () => {
+    await signInAs("IT Manager");
+    await seedDoc("tickets", "d3-closed-" + Date.now(), makeTicketData({ status: "closed" })); // no resolvedAt key at all - never passed through "resolved"
+
+    const resolved = await getResolvedTicketsWithSLA();
+    expect(resolved).toHaveLength(1);
+    const withResolvedAt = resolved.filter((t) => t.resolvedAt);
+    expect(withResolvedAt).toHaveLength(0); // excluded by the page's own existing filter, not by this query
   });
 });
 
-describe("Invariant #4 — DEVIATION D4: the SLA deadline shown as policy can be freely overridden per-ticket, with nothing tying the two together", () => {
-  it("a ticket can be created with an SLA deadline that has no relationship to its priority's nominal target", async () => {
+describe("FIXED: DEVIATION D4 — slaDeadline is now hard-enforced from priority at creation; override requires manager permission + a logged reason", () => {
+  it("a critical-priority ticket created with a client-submitted deadline a year out gets the real 4-hour deadline instead - the server ignores the client value", async () => {
     await signInAs("IT Manager");
-    // SLA_HOURS for "critical" priority is a few hours in the real app; here
-    // a "critical" ticket is given a deadline a full year out — nothing in
-    // createTicket or firestore.rules ties slaDeadline to priority at all.
     const farFutureDeadline = new Date(Date.now() + 365 * 86_400_000).toISOString();
-    const ticket = await createTicket(makeTicketData({ priority: "critical", slaDeadline: farFutureDeadline }));
+    const createdAt = new Date().toISOString();
+    const ticket = await createTicket(makeTicketData({ priority: "critical", slaDeadline: farFutureDeadline, createdAt }));
 
     const persisted = await readDocAsAdmin<Ticket>("tickets", ticket.id);
     expect(persisted?.priority).toBe("critical");
-    expect(persisted?.slaDeadline).toBe(farFutureDeadline);
-    // The "SLA Targets by Priority" table on the dashboard would still
-    // display its fixed per-priority number for "critical" as if it's the
-    // enforced policy, while this specific ticket's real deadline is a year
-    // away — confirmed nothing in the create path or rules prevents this.
+    expect(persisted?.slaDeadline).not.toBe(farFutureDeadline);
+    // SLA_HOURS.critical = 4 - confirmed the persisted deadline is exactly
+    // 4 hours after createdAt, not the year-out value the client sent.
+    const actualHours = (new Date(persisted!.slaDeadline).getTime() - new Date(createdAt).getTime()) / 3_600_000;
+    expect(actualHours).toBeCloseTo(4, 5);
+  });
+
+  it("a non-manager attempting to override a ticket's SLA deadline is rejected", async () => {
+    await signInAs("IT Manager");
+    const ticket = await createTicket(makeTicketData({ priority: "low" }));
+    await signOutCurrent();
+
+    const { uid: staffUid } = await signInAs("Staff");
+    await expect(
+      overrideSlaDeadline(ticket.id, new Date(Date.now() + 86_400_000).toISOString(), "Client asked for more time", staffUid)
+    ).rejects.toThrow(/permission/i);
+  });
+
+  it("a manager's override is rejected without a reason, and correctly applied + logged with both old and new values when a reason is given", async () => {
+    const { uid } = await signInAs("IT Manager");
+    const ticket = await createTicket(makeTicketData({ priority: "low" }));
+    const oldDeadline = (await readDocAsAdmin<Ticket>("tickets", ticket.id))!.slaDeadline;
+    const newDeadline = new Date(Date.now() + 30 * 86_400_000).toISOString();
+
+    await expect(overrideSlaDeadline(ticket.id, newDeadline, "", uid)).rejects.toThrow(/reason/i);
+
+    await overrideSlaDeadline(ticket.id, newDeadline, "Client contractually agreed to a 30-day resolution window", uid);
+
+    const persisted = await readDocAsAdmin<Ticket>("tickets", ticket.id);
+    expect(persisted?.slaDeadline).toBe(newDeadline);
+    expect(persisted?.slaOverrideReason).toBe("Client contractually agreed to a 30-day resolution window");
+    expect(persisted?.slaOverriddenBy).toBeTruthy();
+
+    const auditLogs = await queryAsAdmin<{ actorUid: string; details: string; module: string }>("audit_logs", "entityId", ticket.id);
+    expect(auditLogs).toHaveLength(1);
+    expect(auditLogs[0].module).toBe("tickets");
+    expect(auditLogs[0].details).toContain(oldDeadline);
+    expect(auditLogs[0].details).toContain(newDeadline);
+    expect(auditLogs[0].details).toContain("Client contractually agreed");
   });
 });
 

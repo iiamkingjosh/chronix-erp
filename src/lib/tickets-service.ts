@@ -137,6 +137,19 @@ export async function getOpenTicketsWithSLA(): Promise<Ticket[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Ticket));
 }
 
+/** Feeds the SLA dashboard's avgResolution/complianceRate - previously a
+ * hardcoded empty array (D3), so those metrics were dead constants
+ * (0h / 100%) regardless of real ticket history. A ticket closed without
+ * ever passing through "resolved" has no resolvedAt - the dashboard's own
+ * math already filters those out rather than crashing, so no change
+ * needed there, only this real data source. */
+export async function getResolvedTicketsWithSLA(): Promise<Ticket[]> {
+  const snap = await getDocs(
+    query(collection(db, TKT), where("status", "in", ["resolved", "closed"]))
+  );
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Ticket));
+}
+
 export async function escalateTicket(
   ticketId: string,
   level: 1 | 2 | 3,
