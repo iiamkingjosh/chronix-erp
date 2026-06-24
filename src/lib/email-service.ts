@@ -120,6 +120,19 @@ export function subscriptionAlertEmail(title: string, message: string, link: str
   );
 }
 
+export function welcomeEmail(displayName: string, role: string): string {
+  return shell(
+    "#1a1a2e",
+    "Welcome",
+    bodyRow(
+      `Welcome, ${displayName}!`,
+      `You've joined Chronix OS as ${role}. Your account is ready — sign in to get started.`,
+      "/dashboard",
+      "Go to Dashboard",
+    ),
+  );
+}
+
 /** Password reset link comes from Admin SDK's generatePasswordResetLink() —
  * already a full, absolute URL (Firebase's own hosted action handler), so
  * it's used as-is here instead of via bodyRow() (which prefixes APP_URL). */

@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { signIn, signUp, sendReset } from "@/lib/auth-service";
+import { auth } from "@/lib/firebase";
 import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { ROLE_REDIRECTS, resolveRole } from "@/types/roles";
 import ChronixLogo from "@/components/ChronixLogo";
@@ -130,6 +131,23 @@ function LoginPageInner() {
     try {
       const profile   = await signUp(data.email, data.password, data.displayName);
       const canonical = resolveRole(profile.role);
+
+      // Welcome email — awaited but never allowed to block registration or
+      // throw past this point. Routed through a server API (not a direct
+      // client call to sendEmail()) because RESEND_API_KEY is server-only
+      // and must never reach the browser bundle.
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (token) {
+          await fetch("/api/auth/send-welcome-email", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
+      } catch (e) {
+        console.error("[onRegister] welcome email request failed:", e);
+      }
+
       router.replace(ROLE_REDIRECTS[canonical] ?? "/dashboard");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
