@@ -83,8 +83,8 @@ describe("Invariant #4 — DEVIATION D4: the SLA deadline shown as policy can be
   });
 });
 
-describe("DEVIATION D5 — a non-manager assignee's own status change is rejected by rules, because updateTicketStatus writes a field the rule's allowlist doesn't include", () => {
-  it("the ticket's own assigned (non-manager) Staff member is rejected changing its status", async () => {
+describe("DEVIATION D5 (fixed) — a non-manager assignee's own status change now succeeds; the rule's allowlist was missing fields updateTicketStatus actually writes", () => {
+  it("the ticket's own assigned (non-manager) Staff member CAN change its status, including a transition that sets closedAt", async () => {
     // Create the Staff account FIRST so we know its uid/email, then switch
     // to a manager identity to create the ticket assigned to that uid
     // (createTicket itself requires no special permission — `tickets`
@@ -101,17 +101,22 @@ describe("DEVIATION D5 — a non-manager assignee's own status change is rejecte
     await signInExisting(staffEmail);
     await expect(
       updateTicketStatus(ticket.id, "resolved", { uid: staffUid, name: "Test Staff" })
-    ).rejects.toThrow(/permission/i);
+    ).resolves.toBeUndefined();
 
-    // EXPECTED under invariant #6: the rule was clearly written to let a
+    // Also confirm the "closed" transition, which writes closedAt — a second
+    // field the original allowlist was missing alongside notes.
+    await expect(
+      updateTicketStatus(ticket.id, "closed", { uid: staffUid, name: "Test Staff" })
+    ).resolves.toBeUndefined();
+
+    // FIXED under invariant #6: the rule was clearly written to let a
     // non-manager assignee self-service their own ticket's status (it
     // explicitly checks `resource.data.assignedTo == request.auth.uid`).
-    // ACTUAL: updateTicketStatus always writes `notes` (arrayUnion) as part
-    // of the same update, and `notes` is not in the rule's allowlist
-    // (["status","resolution","activity","updatedAt","resolvedAt"] — a
-    // schema the ticket model doesn't even have `resolution`/`activity`
-    // fields for). The self-service path the rule intends to allow can
-    // never actually succeed through the real service function.
+    // The allowlist (["status","resolution","activity","updatedAt",
+    // "resolvedAt"]) was missing `notes` (always written via arrayUnion)
+    // and `closedAt` (written when status is "closed") — both now added.
+    // `resolution`/`activity` remain in the allowlist unused — the ticket
+    // model has no such fields, but removing them wasn't part of this fix.
   });
 
   it("a manager (e.g. IT Manager) CAN change the same ticket's status, confirming the gap is specific to the non-manager self-service path", async () => {
