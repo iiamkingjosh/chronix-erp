@@ -65,14 +65,14 @@ function shell(accentColor: string, badge: string, content: string): string {
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
 <table width="580" cellpadding="0" cellspacing="0" style="background:#111118;border-radius:12px;border:1px solid rgba(255,255,255,0.1);overflow:hidden;">
   <tr><td style="background:${accentColor};padding:20px 32px;">
-    <p style="margin:0;color:#fff;font-size:20px;font-weight:700;letter-spacing:0.08em;font-family:monospace;">CHRONIX ERP · ${APP_VERSION_SHORT_LABEL}</p>
+    <p style="margin:0;color:#fff;font-size:20px;font-weight:700;letter-spacing:0.08em;font-family:monospace;">CHRONIX TECHNOLOGY LIMITED</p>
     <p style="margin:4px 0 0;color:rgba(255,255,255,0.7);font-size:11px;letter-spacing:0.2em;text-transform:uppercase;">${badge}</p>
   </td></tr>
   ${content}
   <tr><td style="padding:16px 32px;border-top:1px solid rgba(255,255,255,0.06);">
     <p style="margin:0;color:rgba(255,255,255,0.25);font-size:10px;line-height:1.6;">
-      Chronix Technology Limited · Lekki Phase 1, Lagos, Nigeria<br>
-      This is an automated system notification from Chronix ERP ${APP_VERSION_SHORT_LABEL}. Do not reply to this email.
+      <a href="https://chronixtechnology.com" style="color:rgba(255,255,255,0.25);text-decoration:underline;">Chronix Technology Limited</a> · Lekki Phase 1, Lagos, Nigeria<br>
+      This is an automated system notification from Chronix Technology Limited. Do not reply to this email.
     </p>
   </td></tr>
 </table>
@@ -124,12 +124,30 @@ export function welcomeEmail(displayName: string, role: string): string {
   return shell(
     "#1a1a2e",
     "Welcome",
-    bodyRow(
-      `Welcome, ${displayName}!`,
-      `You've joined Chronix OS as ${role}. Your account is ready — sign in to get started.`,
-      "/dashboard",
-      "Go to Dashboard",
-    ),
+    `<tr><td style="padding:32px;">
+      <p style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:600;">Hello ${displayName},</p>
+      <p style="margin:0 0 16px;color:rgba(255,255,255,0.55);font-size:14px;line-height:1.7;">Welcome to Chronix Technology Limited! Your account has been successfully created, and you're now ready to access the Chronix platform.</p>
+      <p style="margin:0 0 24px;color:rgba(255,255,255,0.55);font-size:14px;line-height:1.7;">As a valued member of our team, you can sign in to manage your activities, access company resources, collaborate with colleagues, and stay updated with important information.</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;margin-bottom:28px;">
+        <tr>
+          <td style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.06);">
+            <p style="margin:0;color:rgba(255,255,255,0.3);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">Account Status</p>
+            <p style="margin:2px 0 0;color:#fff;font-size:13px;">Active</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:14px 18px;">
+            <p style="margin:0;color:rgba(255,255,255,0.3);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">Role</p>
+            <p style="margin:2px 0 0;color:#fff;font-size:13px;">${role}</p>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:0 0 8px;color:#fff;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Get Started</p>
+      <a href="${APP_URL}/dashboard" style="display:inline-block;background:#e85d04;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:8px;margin-bottom:28px;">Go to Dashboard →</a>
+      <p style="margin:24px 0 16px;color:rgba(255,255,255,0.55);font-size:14px;line-height:1.7;">If you experience any issues accessing your account, please contact the Chronix Technology support team for assistance.</p>
+      <p style="margin:0 0 20px;color:rgba(255,255,255,0.55);font-size:14px;line-height:1.7;">We are excited to have you on board and look forward to achieving great things together.</p>
+      <p style="margin:0;color:rgba(255,255,255,0.55);font-size:14px;line-height:1.7;">Best regards,<br>Chronix Technology Limited</p>
+    </td></tr>`,
   );
 }
 
