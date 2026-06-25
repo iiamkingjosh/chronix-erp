@@ -13,6 +13,7 @@ import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import { ROLE_REDIRECTS, resolveRole } from "@/types/roles";
 import ChronixLogo from "@/components/ChronixLogo";
 import { cn } from "@/lib/utils";
+import { consumeInactivityLogoutFlag } from "@/lib/inactivity";
 
 const loginSchema = z.object({
   email:    z.string().email("Enter a valid email address"),
@@ -80,6 +81,10 @@ function LoginPageInner() {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [resetEmail, setResetEmail]         = useState("");
   const [resetError, setResetError]         = useState<string | null>(null);
+  const [inactivityMessage, setInactivityMessage] = useState(false);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setInactivityMessage(consumeInactivityLogoutFlag()); }, []);
 
   const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
   const regForm   = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
@@ -296,6 +301,15 @@ function LoginPageInner() {
                 : "You’ll join as Staff — HR can update role and payroll later"}
             </p>
           </div>
+
+          {inactivityMessage && (
+            <div className="flex gap-2.5 items-start bg-amber-500/8 border border-amber-500/20 rounded-xl px-4 py-3 mb-6 animate-fade-in">
+              <AlertIcon className="text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-amber-400 text-xs leading-relaxed font-helvetica">
+                You were logged out due to inactivity.
+              </p>
+            </div>
+          )}
 
           {selfSignupOn && (
             <div className="flex p-1 rounded-xl bg-white/[0.04] border border-white/10 mb-6">

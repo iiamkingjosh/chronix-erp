@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-service";
 import ChronixLogo from "@/components/ChronixLogo";
 import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
+import { consumeInactivityLogoutFlag } from "@/lib/inactivity";
 
 export default function PortalLoginPage() {
   const router = useRouter();
@@ -12,6 +13,10 @@ export default function PortalLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
+  const [inactivityMessage, setInactivityMessage] = useState(false);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setInactivityMessage(consumeInactivityLogoutFlag()); }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,6 +52,12 @@ export default function PortalLoginPage() {
           </p>
           <p className="text-white/40 text-sm font-helvetica mt-3">Sign in to access your services</p>
         </div>
+
+        {inactivityMessage && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 mb-4">
+            <p className="text-amber-400 text-sm font-helvetica">You were logged out due to inactivity.</p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 space-y-4">

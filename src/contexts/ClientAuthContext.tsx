@@ -8,6 +8,9 @@ import type { ChronixUser } from "@/types/roles";
 import type { Client } from "@/types/crm";
 import { onAuthChange, signOutUser } from "@/lib/auth-service";
 import { loadClientPortalState, type ClientPortalErrorKind } from "@/lib/client-portal-service";
+import { useInactivityLogout } from "@/hooks/useInactivityLogout";
+import { markLoggedOutForInactivity } from "@/lib/inactivity";
+import InactivityWarningModal from "@/components/InactivityWarningModal";
 
 interface ClientAuthState {
   firebaseUser:  User | null;
@@ -67,9 +70,17 @@ export function ClientAuthProvider({ children }: { children: ReactNode }) {
     setErrorKind("none");
   }, []);
 
+  const handleInactivityLogout = useCallback(() => {
+    markLoggedOutForInactivity();
+    signOut();
+  }, [signOut]);
+
+  const { showWarning, stayLoggedIn } = useInactivityLogout(!!profile, handleInactivityLogout);
+
   return (
     <ClientAuthContext.Provider value={{ firebaseUser, profile, clientRecord, loading, errorKind, reload, signOut }}>
       {children}
+      {showWarning && <InactivityWarningModal onStayLoggedIn={stayLoggedIn} />}
     </ClientAuthContext.Provider>
   );
 }

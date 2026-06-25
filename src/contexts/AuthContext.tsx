@@ -12,6 +12,9 @@ import type { User } from "firebase/auth";
 import type { ChronixUser } from "@/types/roles";
 import { onAuthChange, fetchUserProfile, signOutUser } from "@/lib/auth-service";
 import { logAuditEvent } from "@/lib/audit-service";
+import { useInactivityLogout } from "@/hooks/useInactivityLogout";
+import { markLoggedOutForInactivity } from "@/lib/inactivity";
+import InactivityWarningModal from "@/components/InactivityWarningModal";
 
 interface AuthState {
   firebaseUser:  User | null;
@@ -67,9 +70,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileError(null);
   }, [profile]);
 
+  const handleInactivityLogout = useCallback(() => {
+    markLoggedOutForInactivity();
+    signOut();
+  }, [signOut]);
+
+  const { showWarning, stayLoggedIn } = useInactivityLogout(!!profile, handleInactivityLogout);
+
   return (
     <AuthContext.Provider value={{ firebaseUser, profile, loading, profileError, signOut }}>
       {children}
+      {showWarning && <InactivityWarningModal onStayLoggedIn={stayLoggedIn} />}
     </AuthContext.Provider>
   );
 }
