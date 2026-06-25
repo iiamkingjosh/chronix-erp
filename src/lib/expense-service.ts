@@ -149,3 +149,43 @@ export async function updateExpenseStatus(
 export async function deleteExpense(id: string): Promise<void> {
   await deleteDoc(doc(db, COL, id));
 }
+
+export interface CategoryMonthActuals {
+  category:       Expense["category"];
+  month:          number; // 1-12
+  total:          number;
+  staffClaim:     number;
+  companyExpense: number;
+}
+
+/** Actual spend by category/month/expenseType for one year — feeds the
+ * budget-vs-actual report. Only counts "paid" expenses, matching the P&L
+ * convention already established in finance/reports/page.tsx ("these
+ * match what is journalized into the ledger; approved-but-unpaid are
+ * Accounts Payable, not yet cash expenses"). Fetches the full collection
+ * and filters/groups client-side, same pattern every other reporting
+ * page in this app already uses — no expense-volume concern justifies a
+ * different approach (zero real expense records exist in production
+ * today). */
+export async function getExpenseActualsForYear(year: number): Promise<CategoryMonthActuals[]> {
+  const snap = await getDocs(query(collection(db, COL), where("status", "==", "paid")));
+  const yearPrefix = String(year);
+  const grouped = new Map<string, CategoryMonthActuals>();
+
+  for (const docSnap of snap.docs) {
+    const e = docSnap.data() as Expense;
+    if (!e.date?.startsWith(yearPrefix)) continue;
+    const month = Number(e.date.slice(5, 7));
+    const key   = `${e.category}_${month}`;
+
+    if (!grouped.has(key)) {
+      grouped.set(key, { category: e.category, month, total: 0, staffClaim: 0, companyExpense: 0 });
+    }
+    const entry = grouped.get(key)!;
+    entry.total += e.amount;
+    if (e.expenseType === "staff_claim") entry.staffClaim += e.amount;
+    else entry.companyExpense += e.amount;
+  }
+
+  return Array.from(grouped.values());
+}

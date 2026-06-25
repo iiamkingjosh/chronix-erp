@@ -52,7 +52,14 @@ describe("setBudget() — one annual budget per category, doc-id scheme, audit t
     await setBudget("rent", 2027, 1_000_000, uid);
     await setBudget("rent", 2027, 1_200_000, uid);
 
-    const logs = await queryAsAdmin<AuditLog>("audit_logs", "entityId", budgetDocId(2027, "rent"));
+    // logAuditEvent() inside setBudget() is fire-and-forget (.catch(() =>
+    // {}), never awaited) - poll briefly rather than assuming both writes
+    // landed by the time the second setBudget() call resolves.
+    let logs: AuditLog[] = [];
+    for (let i = 0; i < 10 && logs.length < 2; i++) {
+      logs = await queryAsAdmin<AuditLog>("audit_logs", "entityId", budgetDocId(2027, "rent"));
+      if (logs.length < 2) await new Promise((r) => setTimeout(r, 100));
+    }
     expect(logs).toHaveLength(2);
 
     const creation = logs.find((l) => l.action === "create");
