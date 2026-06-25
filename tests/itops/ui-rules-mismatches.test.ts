@@ -53,8 +53,10 @@ describe("DEVIATION D5 (mirror image) — rules grant IT Manager write access th
     } as never);
     await signOutCurrent();
 
-    await signInAs("IT Manager");
-    await expect(updateChangeStatus(change.id, "approved", "Test IT Manager")).resolves.toBeUndefined();
+    const { uid: itMgrUid } = await signInAs("IT Manager");
+    await expect(
+      updateChangeStatus(change.id, "approved", { uid: itMgrUid, name: "Test IT Manager", role: "IT Manager" })
+    ).resolves.toBeUndefined();
   });
 
   it("IT Manager CAN create on-call schedule slots per rules, even though oncall/page.tsx's gate (isRootAdmin||manage:hr||SystemAdmin) omits IT Manager", async () => {

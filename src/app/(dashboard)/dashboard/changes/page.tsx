@@ -37,7 +37,7 @@ export default function ChangesPage() {
   async function handleStatus(id: string, status: ChangeStatus, extra?: { postImplementationNotes?: string }) {
     if (!profile) return;
     setActing(id);
-    await updateChangeStatus(id, status, profile.displayName ?? profile.email, extra);
+    await updateChangeStatus(id, status, { uid: profile.uid, name: profile.displayName ?? profile.email, role: profile.role }, extra);
     setChanges((prev) => prev.map((c) => c.id === id ? { ...c, status } : c));
     setActing(null);
     setPostId(null);

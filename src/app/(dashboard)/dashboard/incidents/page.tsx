@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getIncidents, updateIncidentStatus } from "@/lib/incident-service";
 import { INCIDENT_SEVERITY_STYLES, INCIDENT_SEVERITY_LABELS, INCIDENT_STATUS_STYLES } from "@/types/incident";
 import type { Incident, IncidentStatus } from "@/types/incident";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 function fmtDate(d?: string) {
@@ -20,6 +21,7 @@ function duration(start: string, end?: string) {
 }
 
 export default function IncidentsPage() {
+  const { profile }               = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState("all");
@@ -31,8 +33,9 @@ export default function IncidentsPage() {
   const active   = incidents.filter((i) => i.status !== "closed" && i.status !== "resolved").length;
 
   async function handleStatus(id: string, status: IncidentStatus) {
+    if (!profile) return;
     setActing(id);
-    await updateIncidentStatus(id, status);
+    await updateIncidentStatus(id, status, { uid: profile.uid, name: profile.displayName ?? profile.email, role: profile.role });
     setIncidents((prev) => prev.map((i) => i.id === id ? { ...i, status } : i));
     setActing(null);
   }

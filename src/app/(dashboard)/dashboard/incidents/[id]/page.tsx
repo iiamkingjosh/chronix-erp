@@ -6,7 +6,6 @@ import { getIncident, updateIncidentStatus, addIncidentUpdate, closeIncidentWith
 import { INCIDENT_SEVERITY_STYLES, INCIDENT_SEVERITY_LABELS, INCIDENT_STATUS_STYLES } from "@/types/incident";
 import type { Incident, IncidentStatus } from "@/types/incident";
 import { useAuth } from "@/contexts/AuthContext";
-import { logAuditEvent } from "@/lib/audit-service";
 import { cn } from "@/lib/utils";
 
 function fmtTime(ts: string) {
@@ -38,8 +37,7 @@ export default function IncidentDetailPage() {
   async function handleStatus(status: IncidentStatus) {
     if (!incident || !profile) return;
     setActing(true);
-    await updateIncidentStatus(incident.id, status);
-    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "incidents", entityId: incident.id, entityRef: incident.incidentRef, details: `Incident ${incident.incidentRef} status changed to ${status}`, timestamp: new Date().toISOString() });
+    await updateIncidentStatus(incident.id, status, { uid: profile.uid, name: profile.displayName ?? profile.email, role: profile.role });
     setIncident((prev) => prev ? { ...prev, status } : prev);
     setActing(false);
   }
@@ -47,10 +45,16 @@ export default function IncidentDetailPage() {
   async function handleCloseRCA() {
     if (!incident || !profile || !rcaForm.rootCause.trim()) return;
     setActing(true);
-    await closeIncidentWithRCA(incident.id, rcaForm.rootCause, rcaForm.actionsTaken, rcaForm.preventionPlan);
-    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "resolve", module: "incidents", entityId: incident.id, entityRef: incident.incidentRef, details: `Incident ${incident.incidentRef} closed with RCA`, timestamp: new Date().toISOString() });
-    setIncident((prev) => prev ? { ...prev, status: "closed", ...rcaForm } : prev);
-    setShowRCA(false); setActing(false);
+    try {
+      await closeIncidentWithRCA(
+        incident.id, rcaForm.rootCause, rcaForm.actionsTaken, rcaForm.preventionPlan,
+        { uid: profile.uid, name: profile.displayName ?? profile.email, role: profile.role }
+      );
+      setIncident((prev) => prev ? { ...prev, status: "closed", ...rcaForm } : prev);
+      setShowRCA(false);
+    } finally {
+      setActing(false);
+    }
   }
 
   if (loading) return <div className="flex items-center justify-center py-24"><div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;
