@@ -37,8 +37,8 @@ function makeEmployeeData(uid: string, overrides: Partial<Employee> = {}): Emplo
   };
 }
 
-describe("NEW FINDING — createEmployee silently breaks for HR because counters/employeeNumber has no firestore.rules entry at all", () => {
-  it("HR can write the HR fields onto users/{uid}, but the employee-number assignment transaction is rejected by the Root-Admin-only catch-all rule", async () => {
+describe("FIXED: createEmployee now succeeds end-to-end for HR — counters/employeeNumber finally has a real firestore.rules entry", () => {
+  it("HR creates an employee and a real, sequential employee number is genuinely assigned and persisted — not just 'the rule no longer rejects'", async () => {
     await signInAs("HR");
     const targetUid = "employee-" + Date.now();
     // Realistic precondition: HR's "Add Employee" flow only links an
@@ -50,29 +50,38 @@ describe("NEW FINDING — createEmployee silently breaks for HR because counters
     // only allows self-uid bootstrap).
     await seedDoc("users", targetUid, { uid: targetUid, role: "Staff", email: "x@test.local", createdAt: new Date().toISOString() });
 
-    // firestore.rules has no `/counters/{id}` match block anywhere. Every
-    // write that doesn't match an earlier rule falls through to the final
-    // catch-all: `match /{document=**} { allow read, write: if isAuth() &&
-    // isRootAdmin(); }`. assignEmployeeNumber()'s transaction writes BOTH
-    // counters/employeeNumber AND users/{uid} atomically — if either write
-    // is rejected, Firestore rejects the whole transaction.
-    //
-    // EXPECTED under invariant #5 (HR can manage employee records): this
-    // should succeed end-to-end for HR, since creating an employee record
-    // (including assigning their number) is HR's primary job.
-    // ACTUAL: it throws, because HR is not Root Admin.
-    await expect(createEmployee(makeEmployeeData(targetUid))).rejects.toThrow(/permission/i);
+    const empNumber = await createEmployee(makeEmployeeData(targetUid));
+    expect(empNumber).toMatch(/^CTL\d{3}$/);
 
-    // Confirming the partial-failure shape: the earlier setDoc (HR fields
-    // merged onto the user doc) happens BEFORE the transaction in
-    // createEmployee's own code, as a separate, unguarded write — so it is
-    // NOT atomic with the number assignment. Check what state that leaves.
+    // Full end-to-end verification, not just "no error thrown": the HR
+    // fields AND the employee number are both genuinely persisted on the
+    // real document, confirming the transaction's two writes
+    // (counters/employeeNumber + users/{uid}) both actually landed.
     const persisted = await readDocAsAdmin<Record<string, unknown>>("users", targetUid);
-    expect(persisted?.bankName).toBe("Test Bank"); // the HR fields DID get written...
-    expect(persisted?.employeeNumber).toBeUndefined(); // ...but no employee number was ever assigned, and createEmployee threw
+    expect(persisted?.bankName).toBe("Test Bank");
+    expect(persisted?.employeeNumber).toBe(empNumber);
+
+    const counterDoc = await readDocAsAdmin<{ lastAssigned: number }>("counters", "employeeNumber");
+    expect(counterDoc?.lastAssigned).toBeGreaterThanOrEqual(3); // CTL001/002 reserved, so the real counter starts at 3
   });
 
-  it("the identical flow succeeds end-to-end for Root Admin (confirming the gap is role-specific, not universal)", async () => {
+  it("two HR-created employees in sequence get two distinct, incrementing numbers — confirms the counter transaction itself works, not just a single lucky write", async () => {
+    await signInAs("HR");
+    const uid1 = "employee-seq-1-" + Date.now();
+    const uid2 = "employee-seq-2-" + Date.now();
+    await seedDoc("users", uid1, { uid: uid1, role: "Staff", email: "x1@test.local", createdAt: new Date().toISOString() });
+    await seedDoc("users", uid2, { uid: uid2, role: "Staff", email: "x2@test.local", createdAt: new Date().toISOString() });
+
+    const num1 = await createEmployee(makeEmployeeData(uid1));
+    const num2 = await createEmployee(makeEmployeeData(uid2));
+
+    expect(num1).not.toBe(num2);
+    const n1 = Number(num1.replace("CTL", ""));
+    const n2 = Number(num2.replace("CTL", ""));
+    expect(n2).toBe(n1 + 1);
+  });
+
+  it("the identical flow still succeeds end-to-end for Root Admin (confirming the fix didn't narrow access, only widened it to HR)", async () => {
     await signInAs("Root Admin");
     const targetUid = "employee-root-" + Date.now();
 
@@ -81,6 +90,14 @@ describe("NEW FINDING — createEmployee silently breaks for HR because counters
 
     const persisted = await readDocAsAdmin<Record<string, unknown>>("users", targetUid);
     expect(persisted?.employeeNumber).toBe(empNumber);
+  });
+
+  it("a role with no HR access at all (Staff) is still genuinely rejected — the fix isn't a blanket unlock", async () => {
+    await signInAs("Staff");
+    const targetUid = "employee-staff-blocked-" + Date.now();
+    await seedDoc("users", targetUid, { uid: targetUid, role: "Staff", email: "x@test.local", createdAt: new Date().toISOString() });
+
+    await expect(createEmployee(makeEmployeeData(targetUid))).rejects.toThrow(/permission/i);
   });
 });
 

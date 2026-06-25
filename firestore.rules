@@ -687,6 +687,18 @@ service cloud.firestore {
       allow read:   if isAuth() && (canManageFinance() || isSalesRep());
       allow write:  if isAuth() && (canManageFinance() || isSalesRep());
     }
+    /* ── Employee Number Counter ─────────────────────── */
+    // assignEmployeeNumber() (hr-service.ts) runs a transaction against
+    // counters/employeeNumber, requiring both read + write on the same
+    // doc — same shape as the metadata counters above, but scoped to
+    // whoever can actually reach createEmployee() (the "Add Employee"
+    // page is gated to hasPermission(role, "manage:hr") app-side), not
+    // copied from metadata's Finance-role scope, which has no relation
+    // to HR/employee creation.
+    match /counters/{counterId} {
+      allow read:   if isAuth() && canManageHR();
+      allow write:  if isAuth() && canManageHR();
+    }
     /* ── Push Tokens ─────────────────────────────────── */
     match /push_tokens/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
