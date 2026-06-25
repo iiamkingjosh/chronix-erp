@@ -55,8 +55,8 @@ describe("Invariant #4 — a completed payroll run posts exactly one journal ent
   });
 });
 
-describe("NEW FINDING — HR (the role whose actual job this is) cannot create a payroll run at all", () => {
-  it("createPayrollRun is rejected by rules for HR: payroll_runs create/update requires canManageHR()||isSystemAdmin() — wait, canManageHR() includes HR, so creation succeeds — but the SAME role cannot post the resulting journal entry", async () => {
+describe("FIXED: HR can now post the payroll journal entry produced by its own payroll runs", () => {
+  it("HR creates a payroll run AND markAllPaid genuinely posts one journal entry — no more silent _journalError", async () => {
     const { uid } = await signInAs("HR");
     const run = await createPayrollRun({
       month: 6, year: 2026, status: "draft",
@@ -64,38 +64,86 @@ describe("NEW FINDING — HR (the role whose actual job this is) cannot create a
       totalGross: 0, totalDeductions: 0, totalNet: 0,
       generatedAt: new Date().toISOString(), generatedBy: uid, generatedByName: "Test HR",
     });
-    expect(run.id).toBeDefined(); // creating the run itself succeeds — HR is covered by canManageHR()
+    expect(run.id).toBeDefined();
 
-    // markAllPaid does NOT throw (it catches the journal failure internally),
-    // so this resolves even though the journal half silently failed.
     await markAllPaid(run.id, run.entries, uid);
 
-    let persisted = await readDocAsAdmin<Record<string, unknown>>("payroll_runs", run.id);
-    expect(persisted?.status).toBe("completed"); // the run-completion update succeeded (canManageHR covers it)
-
-    // EXPECTED under invariant #4 (a completed run posts exactly one
-    // journal entry): there should be a journal entry here. ACTUAL: HR is
-    // not in canManageFinance() (which is isRootAdmin||isCEO||isCFO||
-    // isSystemAdmin||isFinanceOfficer — HR is in none of those), and not
-    // isSalesRep() either, so the journal_entries create is rejected by
-    // rules. markAllPaid's own try/catch swallows this into _journalError,
-    // so HR sees "Payroll completed" with no indication the books were
-    // never updated.
     const entries = await queryAsAdmin("journal_entries", "referenceId", run.id);
-    expect(entries).toHaveLength(0);
-    expect(persisted?._journalPosted).toBeUndefined();
+    expect(entries).toHaveLength(1); // the journal entry now genuinely exists
 
-    // NOTE ON TEST RELIABILITY (not a relaxed assertion — a real property of
-    // the code under test): markAllPaid's catch block writes _journalError
-    // via `updateDoc(...).catch(() => {})` with NO `await` — so the function
-    // itself can return before that write commits. Polling briefly here
-    // because the underlying app code provides no signal of when it's safe
-    // to check; the expected final value below is unchanged.
-    for (let i = 0; i < 20 && persisted?._journalError === undefined; i++) {
+    // _journalPosted/_journalError are written via a separate, unawaited
+    // updateDoc().catch(() => {}) inside markAllPaid — poll briefly rather
+    // than assume the flag has landed the instant markAllPaid() resolves.
+    let persisted = await readDocAsAdmin<Record<string, unknown>>("payroll_runs", run.id);
+    for (let i = 0; i < 20 && persisted?._journalPosted !== true; i++) {
       await new Promise((r) => setTimeout(r, 50));
       persisted = await readDocAsAdmin<Record<string, unknown>>("payroll_runs", run.id);
     }
-    expect(persisted?._journalError).toBeDefined(); // the failure IS recorded on the doc, just not surfaced as a blocking error to the caller, and not even guaranteed to be there yet when the caller's own await resolves
+    expect(persisted?.status).toBe("completed");
+    expect(persisted?._journalPosted).toBe(true);
+    expect(persisted?._journalError ?? null).toBeNull(); // no failure recorded — this is the real fix, not a UI-level mask of it
+  });
+
+  it("the exception is genuinely scoped to referenceType == 'payroll' — HR is still rejected creating a non-payroll journal entry directly", async () => {
+    await signInAs("HR");
+    const { addDoc, collection: col } = await import("firebase/firestore");
+
+    await expect(
+      addDoc(col(db, "journal_entries"), {
+        entryDate: "2026-06-01",
+        description: "Attempted manual entry by HR",
+        referenceType: "manual",
+        referenceId: "test-manual",
+        lineItems: [
+          { accountCode: "1010", accountName: "Cash", debit: 1000, credit: 0 },
+          { accountCode: "4010", accountName: "Revenue", debit: 0, credit: 1000 },
+        ],
+        status: "posted",
+        createdBy: "hr-uid",
+        totalDebit: 1000,
+        totalCredit: 1000,
+        entryNumber: "JE-TEST-1",
+        createdAt: new Date().toISOString(),
+      })
+    ).rejects.toThrow(/permission/i);
+
+    await expect(
+      addDoc(col(db, "journal_entries"), {
+        entryDate: "2026-06-01",
+        description: "Attempted invoice entry by HR",
+        referenceType: "invoice",
+        referenceId: "test-invoice",
+        lineItems: [
+          { accountCode: "1100", accountName: "Accounts Receivable", debit: 1000, credit: 0 },
+          { accountCode: "4010", accountName: "Revenue", debit: 0, credit: 1000 },
+        ],
+        status: "posted",
+        createdBy: "hr-uid",
+        totalDebit: 1000,
+        totalCredit: 1000,
+        entryNumber: "JE-TEST-2",
+        createdAt: new Date().toISOString(),
+      })
+    ).rejects.toThrow(/permission/i);
+  });
+
+  it("the metadata-counter exception is also scoped to journalCounter_* only — HR still cannot touch the invoice/expense counters", async () => {
+    await signInAs("HR");
+    const { setDoc: setDocFn, doc: docFn } = await import("firebase/firestore");
+
+    await expect(
+      setDocFn(docFn(db, "metadata", "invoiceCounter_260601"), { lastNumber: 1 }, { merge: true })
+    ).rejects.toThrow(/permission/i);
+
+    await expect(
+      setDocFn(docFn(db, "metadata", "expenseCounter_260601"), { lastNumber: 1 }, { merge: true })
+    ).rejects.toThrow(/permission/i);
+
+    // The journal counter specifically IS allowed — this is the one
+    // metadata doc payroll's journal posting actually needs.
+    await expect(
+      setDocFn(docFn(db, "metadata", "journalCounter_260601"), { lastNumber: 1 }, { merge: true })
+    ).resolves.toBeUndefined();
   });
 });
 

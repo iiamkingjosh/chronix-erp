@@ -653,7 +653,15 @@ service cloud.firestore {
     /* ── Journal Entries ─────────────────────────────── */
     match /journal_entries/{entryId} {
       allow read:   if isAuth() && hasViewFinance();
-      allow create: if isAuth() && (canManageFinance() || isSalesRep());
+      /** HR can run payroll (payroll_runs: canManageHR() || isSystemAdmin())
+          but isn't in canManageFinance() — this is a narrow exception for
+          the journal entry payroll itself produces, not general finance
+          access. Scoped to referenceType == "payroll" only; HR still
+          cannot create an invoice/payment/manual journal entry directly. */
+      allow create: if isAuth() && (
+        canManageFinance() || isSalesRep() ||
+        (isHR() && request.resource.data.referenceType == "payroll")
+      );
       /** Only the specific posted->void transition voidJournalEntry() performs —
           not a blanket unlock. The reversing entry it also posts goes through
           `create` above, which already permits this same role set. */
@@ -676,9 +684,13 @@ service cloud.firestore {
     /* ── Metadata Counters (invoice, journal, expense numbers) ── */
     // runTransaction requires both read + write on the counter doc.
     // Finance team and sales reps generate numbers client-side.
+    // HR's exception is scoped to journalCounter_* docs only (createJournalEntry's
+    // getNextJournalNumber(), needed to post payroll's journal entry) — HR still
+    // cannot touch invoice/expense counters, same narrow-exception principle as
+    // the journal_entries create rule below.
     match /metadata/{docId} {
-      allow read:   if isAuth() && (canManageFinance() || isSalesRep());
-      allow write:  if isAuth() && (canManageFinance() || isSalesRep());
+      allow read:   if isAuth() && (canManageFinance() || isSalesRep() || (isHR() && docId.matches('journalCounter_.*')));
+      allow write:  if isAuth() && (canManageFinance() || isSalesRep() || (isHR() && docId.matches('journalCounter_.*')));
     }
     /* ── Employee Number Counter ─────────────────────── */
     // assignEmployeeNumber() (hr-service.ts) runs a transaction against
