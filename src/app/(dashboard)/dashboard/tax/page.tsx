@@ -6,6 +6,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getWHTRecords, getPAYERecords } from "@/lib/tax-service";
 import { getExpenses } from "@/lib/expense-service";
+import { getInvoiceRevenue } from "@/lib/finance-service";
 import { formatNaira } from "@/types/finance";
 import { currentPeriod, ytdStart } from "@/types/tax";
 import { cn } from "@/lib/utils";
@@ -98,7 +99,11 @@ export default function TaxDashboardPage() {
 
       const ytdRevenue = invoices
         .filter((i) => i.status === "paid" && String(i.invoiceDate ?? "") >= ytd)
-        .reduce((s, i) => s + (Number(i.total) || 0), 0);
+        .reduce((s, i) => s + getInvoiceRevenue({
+          subtotal:  i.subtotal != null ? Number(i.subtotal) : undefined,
+          total:     Number(i.total) || 0,
+          vatAmount: i.vatAmount != null ? Number(i.vatAmount) : undefined,
+        }), 0);
 
       const claimsTotalYTD = expenseClaims
         .filter((e) => (e.status === "approved" || e.status === "paid") && String(e.date ?? "").startsWith(ytdYear))

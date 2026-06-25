@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getInvoices, getPayments } from "@/lib/finance-service";
+import { getInvoices, getPayments, getInvoiceRevenue } from "@/lib/finance-service";
 import { getExpenses } from "@/lib/expense-service";
 import { getPOs } from "@/lib/procurement-service";
 import { runFullBackfill, type FullBackfillResult } from "@/lib/accounting/backfill";
@@ -87,7 +87,7 @@ export default function FinancialReportsPage() {
 
   const plData = MONTHS.map((month, mi) => {
     const period = `${year}-${String(mi + 1).padStart(2, "0")}`;
-    const revenue  = invoices.filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(period)).reduce((s, i) => s + (i.subtotal ?? i.total), 0);
+    const revenue  = invoices.filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(period)).reduce((s, i) => s + getInvoiceRevenue(i), 0);
     // Only count PAID expenses — these match what is journalized into the ledger.
     // Approved-but-unpaid are Accounts Payable (see AP Aging tab), not yet cash expenses.
     const expTotal = expenses
@@ -127,7 +127,7 @@ export default function FinancialReportsPage() {
   const revenueByClient = invoices
     .filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(year))
     .reduce<Record<string, number>>((acc, i) => {
-      acc[i.client.name] = (acc[i.client.name] ?? 0) + (i.subtotal ?? i.total);
+      acc[i.client.name] = (acc[i.client.name] ?? 0) + getInvoiceRevenue(i);
       return acc;
     }, {});
   const revenueClientRows = Object.entries(revenueByClient).sort((a, b) => b[1] - a[1]);

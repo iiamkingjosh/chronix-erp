@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getInvoices } from "@/lib/finance-service";
+import { getInvoices, getInvoiceRevenue } from "@/lib/finance-service";
 import { getExpenses } from "@/lib/expense-service";
 import { getPOs } from "@/lib/procurement-service";
 import { formatNaira, formatDate } from "@/types/finance";
@@ -70,7 +70,7 @@ export default function FinanceDashboard() {
   const pending = invoices.filter((i) => i.status === "pending");
   const overdue = invoices.filter((i) => i.status === "overdue");
 
-  const totalRevenue = paid.reduce((s, i) => s + (i.subtotal ?? i.total), 0);
+  const totalRevenue = paid.reduce((s, i) => s + getInvoiceRevenue(i), 0);
   const totalPending = pending.reduce((s, i) => s + i.total, 0);
   const totalOverdue = overdue.reduce((s, i) => s + i.total, 0);
   const netBalance   = totalRevenue - totalExpenses;

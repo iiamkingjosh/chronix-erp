@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { connectEmulators, clearAll, teardownEmulators, signInAs } from "../helpers/emulator";
+import { connectEmulators, clearAll, teardownEmulators, signInAs, queryAsAdmin } from "../helpers/emulator";
 import { createJournalEntry } from "@/lib/accounting/journal-entries";
 import * as autoJournal from "@/lib/accounting/auto-journal";
+import { createWHTJournalEntry } from "@/lib/accounting/auto-journal";
+import { generateWHTId } from "@/types/tax";
+import type { WHTRecord } from "@/types/tax";
+import type { JournalEntry } from "@/types/finance";
 
 beforeAll(async () => {
   await connectEmulators();
@@ -48,21 +52,41 @@ describe("Invariant #1 — double-entry balance is enforced (baseline: this one 
   });
 });
 
-describe("DEVIATION D8 — there is no canonical, shared journal-posting helper for Withholding Tax", () => {
-  it("auto-journal.ts exports a dedicated create*JournalEntry function for every other transaction type except WHT", () => {
-    // Every other transaction type that touches the ledger has its own
-    // canonical helper here: invoices, payments, expenses, payroll, POs.
+describe("FIXED: DEVIATION D8 — createWHTJournalEntry() is now a canonical, shared helper, matching every other transaction type", () => {
+  it("auto-journal.ts now exports createWHTJournalEntry alongside every other transaction type's helper", () => {
     expect(typeof autoJournal.createInvoiceJournalEntry).toBe("function");
     expect(typeof autoJournal.createPaymentJournalEntry).toBe("function");
     expect(typeof autoJournal.createExpenseJournalEntry).toBe("function");
     expect(typeof autoJournal.createPayrollJournalEntry).toBe("function");
     expect(typeof autoJournal.createPOJournalEntry).toBe("function");
+    expect(typeof autoJournal.createWHTJournalEntry).toBe("function");
+  });
 
-    // EXPECTED under invariant #2 (one event -> one journal entry, posted
-    // through one shared mechanism): WHT should have an equivalent
-    // `createWHTJournalEntry` here too. ACTUAL: no such export exists —
-    // both `finance/invoices/[id]/page.tsx` and `tax/wht/page.tsx` instead
-    // hand-build the identical 3-line journal entry inline, independently.
-    expect((autoJournal as Record<string, unknown>).createWHTJournalEntry).toBeUndefined();
+  it("produces an identical, balanced journal entry whether called the way finance/invoices/[id]/page.tsx does (with an invoiceNumber) or the way tax/wht/page.tsx does (without one)", async () => {
+    const { uid } = await signInAs("CFO");
+    const record: WHTRecord = {
+      id: "wht-test-1", whtId: generateWHTId(), vendorName: "Acme Vendor",
+      invoiceAmount: 100_000, whtRate: 5, whtAmount: 5_000,
+      paymentDate: "2026-06-15", certStatus: "pending",
+      createdAt: new Date().toISOString(), createdBy: uid,
+    };
+
+    const fromInvoicePage = await createWHTJournalEntry({ ...record, id: "wht-test-1" }, uid, { invoiceNumber: "CT260615-001" });
+    const fromWhtPage      = await createWHTJournalEntry({ ...record, id: "wht-test-2" }, uid);
+
+    // Same 3-line shape, same amounts, same balance — only the description differs.
+    expect(fromInvoicePage.lineItems).toHaveLength(3);
+    expect(fromWhtPage.lineItems).toHaveLength(3);
+    expect(fromInvoicePage.totalDebit).toBe(fromWhtPage.totalDebit);
+    expect(fromInvoicePage.totalCredit).toBe(fromWhtPage.totalCredit);
+    expect(fromInvoicePage.lineItems.map((l) => ({ accountCode: l.accountCode, debit: l.debit, credit: l.credit })))
+      .toEqual(fromWhtPage.lineItems.map((l) => ({ accountCode: l.accountCode, debit: l.debit, credit: l.credit })));
+
+    expect(fromInvoicePage.description).toContain("CT260615-001");
+    expect(fromWhtPage.description).not.toContain("CT260615-001");
+
+    const entries = await queryAsAdmin<JournalEntry>("journal_entries", "referenceId", "wht-test-1");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].status).toBe("posted");
   });
 });

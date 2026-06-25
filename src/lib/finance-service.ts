@@ -68,6 +68,54 @@ export async function updateInvoiceStatus(id: string, status: InvoiceStatus): Pr
   await updateDoc(doc(db, INV, id), { status });
 }
 
+/** Cannot reopen an invoice that has any real payment recorded against it —
+ * unwinding partial/full payments would require reversing payment journal
+ * entries too, not just the original invoice entry, and could understate
+ * cash already received. Reopen is for correcting an invoice that was
+ * marked paid before any real payment existed (e.g. via handleMarkPaid's
+ * manual status flip); the safe correction for anything else is to void
+ * this invoice and issue a corrected one. */
+export async function reopenInvoice(id: string, actorUid: string): Promise<void> {
+  const invoice = await getInvoice(id);
+  if (!invoice) throw new Error("Invoice not found");
+  if ((invoice.amountPaid ?? 0) > 0) {
+    throw new Error(
+      "Cannot reopen an invoice with recorded payments — void this invoice and issue a corrected one instead."
+    );
+  }
+
+  const entries = await getJournalEntriesByReference(id);
+  const voidErrors: string[] = [];
+  for (const entry of entries) {
+    if (entry.status === "posted") {
+      try {
+        await voidJournalEntry(entry.id, "Invoice reopened for correction", actorUid);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[accounting] Failed to void invoice journal on reopen:", msg);
+        voidErrors.push(`${entry.entryNumber}: ${msg}`);
+      }
+    }
+  }
+
+  await updateDoc(doc(db, INV, id), {
+    status: "pending",
+    _journalVoidError: voidErrors.length ? voidErrors.join("; ") : null,
+  });
+}
+
+/** Canonical, VAT-exclusive revenue for one invoice. `subtotal` is the
+ * source of truth when present; falls back to `total - vatAmount` for
+ * documents missing it, then to raw `total` only as a last resort (older
+ * records that predate both fields) — never a rate-division estimate,
+ * which silently misattributes revenue if the invoice's actual VAT rate
+ * ever differed from the assumed standard rate. */
+export function getInvoiceRevenue(invoice: { subtotal?: number; total: number; vatAmount?: number }): number {
+  if (invoice.subtotal != null) return invoice.subtotal;
+  if (invoice.vatAmount != null) return invoice.total - invoice.vatAmount;
+  return invoice.total;
+}
+
 /** Removes invoice document. Call only for unpaid invoices after UI/auth checks. */
 export async function deleteInvoice(id: string): Promise<void> {
   await deleteDoc(doc(db, INV, id));

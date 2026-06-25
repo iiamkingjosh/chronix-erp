@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { formatNaira } from "@/types/finance";
+import { getInvoiceRevenue } from "@/lib/finance-service";
 import { ytdStart } from "@/types/tax";
 import { cn } from "@/lib/utils";
 
@@ -49,13 +50,14 @@ export default function CorporateTaxPage() {
       const pos      = poSnap.docs.map((d) => d.data()) as Record<string, unknown>[];
       const exps     = expSnap.docs.map((d) => d.data()) as Record<string, unknown>[];
 
-      // Revenue: use subtotal (pre-VAT); only fall back to total/1.075 if subtotal is absent
+      // Revenue: canonical VAT-exclusive calculation, same helper every other page uses
       const ytdRevenue = invoices
         .filter((i) => i.status === "paid" && String(i.invoiceDate ?? "") >= ytd)
-        .reduce((s, i) => {
-          const sub = i.subtotal != null ? Number(i.subtotal) : Number(i.total as number) / 1.075;
-          return s + (sub || 0);
-        }, 0);
+        .reduce((s, i) => s + getInvoiceRevenue({
+          subtotal:  i.subtotal != null ? Number(i.subtotal) : undefined,
+          total:     Number(i.total) || 0,
+          vatAmount: i.vatAmount != null ? Number(i.vatAmount) : undefined,
+        }), 0);
 
       // PO expenses: approved, delivered, or paid
       const poExpenses = pos

@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getInvoice, updateInvoiceStatus, deleteInvoice, updateInvoiceApproval, getPayments } from "@/lib/finance-service";
+import { getInvoice, updateInvoiceStatus, reopenInvoice, deleteInvoice, updateInvoiceApproval, getPayments } from "@/lib/finance-service";
 import { db, auth } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
-import { createJournalEntry } from "@/lib/accounting/journal-entries";
+import { createWHTJournalEntry } from "@/lib/accounting/auto-journal";
 import { formatNaira, formatDate, COMPANY, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS, today } from "@/types/finance";
 import type { Invoice, Payment } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,6 +37,7 @@ export default function InvoiceViewPage() {
   // Reopen invoice
   const [reopenConfirm, setReopenConfirm] = useState(false);
   const [reopening, setReopening]         = useState(false);
+  const [reopenError, setReopenError]     = useState<string | null>(null);
 
   // WHT
   const [whtRecords, setWhtRecords]       = useState<WHTRecord[]>([]);
@@ -113,11 +114,14 @@ export default function InvoiceViewPage() {
   async function handleReopen() {
     if (!invoice || !profile) return;
     setReopening(true);
+    setReopenError(null);
     try {
-      await updateInvoiceStatus(invoice.id, "pending");
+      await reopenInvoice(invoice.id, profile.uid);
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "invoices", entityId: invoice.id, entityRef: invoice.invoiceNumber, details: "Invoice reopened for payment correction", timestamp: new Date().toISOString() });
       setInvoice((prev) => prev ? { ...prev, status: "pending" } : prev);
       setReopenConfirm(false);
+    } catch (err) {
+      setReopenError(err instanceof Error ? err.message : "Failed to reopen invoice");
     } finally { setReopening(false); }
   }
 
@@ -163,19 +167,7 @@ export default function InvoiceViewPage() {
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: record.id, entityRef: record.whtId, details: `WHT of ₦${record.whtAmount.toLocaleString()} logged for invoice ${invoice.invoiceNumber}`, timestamp: new Date().toISOString() });
 
       try {
-        await createJournalEntry({
-          entryDate:     record.paymentDate,
-          description:   `WHT deducted — ${record.vendorName} (${invoice.invoiceNumber})`,
-          reference:     record.whtId,
-          referenceType: "manual",
-          referenceId:   record.id,
-          lineItems: [
-            { accountCode: "2010", accountName: "Accounts Payable",        debit: round(record.invoiceAmount),                          credit: 0,                                         description: `Vendor payment — ${record.vendorName}` },
-            { accountCode: "2200", accountName: "WHT Payable",             debit: 0,                                                    credit: round(record.whtAmount),                   description: `WHT ${record.whtRate}% withheld` },
-            { accountCode: "1010", accountName: "Cash in Bank — Fidelity", debit: 0,                                                    credit: round(record.invoiceAmount - record.whtAmount), description: `Net payment to ${record.vendorName}` },
-          ],
-          status: "posted", createdBy: profile.uid, postedBy: profile.uid, postedAt: new Date().toISOString(),
-        });
+        await createWHTJournalEntry(record, profile.uid, { invoiceNumber: invoice.invoiceNumber });
         updateDoc(doc(db, "withholding_tax", record.id), { _journalPosted: true }).catch(() => {});
       } catch (e) {
         console.error("[WHT] journal entry failed:", e);
@@ -332,12 +324,15 @@ export default function InvoiceViewPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="surface-card w-full max-w-md p-6 mx-4">
             <h3 className="font-orbitron text-sm font-bold text-white mb-2">Reopen Invoice?</h3>
-            <p className="text-sm text-white/60 font-helvetica leading-relaxed mb-6">
+            <p className="text-sm text-white/60 font-helvetica leading-relaxed mb-4">
               This will reset the invoice to <span className="text-amber-400 font-semibold">Pending</span> and allow a corrected payment to be recorded. Are you sure?
             </p>
+            {reopenError && (
+              <p className="text-xs text-red-400 font-helvetica mb-4">{reopenError}</p>
+            )}
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => setReopenConfirm(false)}
+                onClick={() => { setReopenConfirm(false); setReopenError(null); }}
                 className="text-xs text-white/40 hover:text-white font-helvetica px-3 py-2"
               >
                 Cancel

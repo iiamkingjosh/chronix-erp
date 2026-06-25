@@ -3,6 +3,7 @@ import type { Invoice, JournalEntry, JournalLineItem, Payment } from "@/types/fi
 import type { Expense as ExpenseClaim } from "@/types/expense";
 import type { PayrollRun } from "@/types/hr";
 import type { PurchaseOrder, VendorCategory } from "@/types/procurement";
+import type { WHTRecord } from "@/types/tax";
 import { round } from "@/lib/utils";
 
 /* ── Expense account lookup ───────────────────────────────────────────────── */
@@ -279,6 +280,41 @@ export async function createPayrollJournalEntry(
     reference:     `PAY-${run.year}-${mm}`,
     referenceType: "payroll",
     referenceId:   run.id,
+    lineItems,
+    status:    "posted",
+    createdBy: userId,
+    postedBy:  userId,
+    postedAt:  new Date().toISOString(),
+  });
+}
+
+/* ── WHT deducted ─────────────────────────────────────────────────────────── */
+/*
+ *  Debit  2010  Accounts Payable    (full invoice amount)
+ *  Credit 2200  WHT Payable         (whtAmount — withheld for FIRS)
+ *  Credit 1010  Cash in Bank        (net amount actually paid to vendor)
+ */
+export async function createWHTJournalEntry(
+  record: WHTRecord,
+  userId: string,
+  opts?: { invoiceNumber?: string }
+): Promise<JournalEntry> {
+  const description = opts?.invoiceNumber
+    ? `WHT deducted — ${record.vendorName} (${opts.invoiceNumber})`
+    : `WHT deducted — ${record.vendorName}`;
+
+  const lineItems: JournalLineItem[] = [
+    { accountCode: "2010", accountName: "Accounts Payable",        debit: round(record.invoiceAmount),                          credit: 0,                                              description: `Vendor payment — ${record.vendorName}` },
+    { accountCode: "2200", accountName: "WHT Payable",             debit: 0,                                                    credit: round(record.whtAmount),                       description: `WHT ${record.whtRate}% withheld` },
+    { accountCode: "1010", accountName: "Cash in Bank — Fidelity", debit: 0,                                                    credit: round(record.invoiceAmount - record.whtAmount), description: `Net payment to ${record.vendorName}` },
+  ];
+
+  return createJournalEntry({
+    entryDate:     record.paymentDate,
+    description,
+    reference:     record.whtId,
+    referenceType: "manual",
+    referenceId:   record.id,
     lineItems,
     status:    "posted",
     createdBy: userId,

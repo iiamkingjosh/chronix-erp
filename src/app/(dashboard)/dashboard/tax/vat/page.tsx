@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getVATRecords, createVATRecord } from "@/lib/tax-service";
+import { getVATReturnForPeriod } from "@/lib/accounting/vat-return";
 import { currentPeriod, formatTaxDate } from "@/types/tax";
 import type { VATRecord } from "@/types/tax";
 import { formatNaira } from "@/types/finance";
@@ -14,6 +15,11 @@ import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
 const VAT_RATE = 0.075;
+/** Live estimate and a filed return are computed by genuinely different
+ * methods (raw invoice/PO scan vs. journal-entry aggregation) — this is
+ * a rounding tolerance, not a "close enough" threshold, so any real
+ * divergence between the two is still flagged. */
+const VAT_RECONCILE_TOLERANCE = 1;
 
 interface VATSummary {
   collected: number;
@@ -44,6 +50,7 @@ export default function VATPage() {
   const [logForm, setLogForm]         = useState({ type: "collected" as VATRecord["type"], amount: "", sourceType: "invoice" as VATRecord["sourceType"], sourceRef: "", partyName: "", date: new Date().toISOString().split("T")[0] });
   const [logging, setLogging]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  const [filedNet, setFiledNet]       = useState<number | null>(null);
   const canManage = profile ? hasPermission(profile.role, "manage:tax") : false;
   const periodOptions = buildPeriodOptions();
 
@@ -51,10 +58,11 @@ export default function VATPage() {
     setLoading(true);
     setError(null);
     try {
-      const [invSnap, poSnap, storedRecs] = await Promise.all([
+      const [invSnap, poSnap, storedRecs, filedReturn] = await Promise.all([
         getDocs(collection(db, "invoices")).catch(() => ({ docs: [] })),
         getDocs(collection(db, "purchase_orders")).catch(() => ({ docs: [] })),
         getVATRecords(p).catch(() => []),
+        getVATReturnForPeriod(p).catch(() => null),
       ]);
 
       const invoices = invSnap.docs.map((d) => d.data()) as Record<string, unknown>[];
@@ -70,10 +78,14 @@ export default function VATPage() {
 
       setSummary({ collected, paid, net: collected - paid });
       setRecords(storedRecs);
+      setFiledNet(filedReturn ? filedReturn.netVAT : null);
     } catch {
       setError("Failed to load VAT data. Check your connection and try again.");
     } finally { setLoading(false); }
   }
+
+  const filedDivergence = filedNet != null ? Math.abs(filedNet - summary.net) : 0;
+  const showFiledMismatch = filedNet != null && filedDivergence > VAT_RECONCILE_TOLERANCE;
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(period); }, [period]);
@@ -156,6 +168,18 @@ export default function VATPage() {
           </div>
         ))}
       </div>
+
+      {/* Live estimate vs. filed return mismatch */}
+      {showFiledMismatch && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-500/8 border border-red-500/20 rounded-xl">
+          <span className="text-red-400">⚠</span>
+          <p className="text-red-300/80 text-sm font-helvetica">
+            This live estimate (<strong className="text-red-300">{formatNaira(summary.net)}</strong>) differs from
+            the VAT return already filed for {period} (<strong className="text-red-300">{formatNaira(filedNet ?? 0)}</strong>).
+            The filed return is the authoritative figure — review before relying on the live estimate.
+          </p>
+        </div>
+      )}
 
       {/* VAT payable notice */}
       {summary.net > 0 && (

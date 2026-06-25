@@ -9,7 +9,7 @@ import {
   queryAsAdmin,
 } from "../helpers/emulator";
 import { makeInvoice, makePayment } from "../helpers/fixtures";
-import { createInvoice, createPayment, updateInvoiceStatus, deleteInvoice, updateInvoiceApproval } from "@/lib/finance-service";
+import { createInvoice, createPayment, updateInvoiceStatus, reopenInvoice, deleteInvoice, updateInvoiceApproval } from "@/lib/finance-service";
 import { getJournalEntriesByReference, voidJournalEntry } from "@/lib/accounting/journal-entries";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -93,28 +93,63 @@ describe("FIXED (D11 — renumbered; originally mislabeled D9, which was already
   });
 });
 
-describe("Edge case — reopening a paid invoice does not reverse its journal entry", () => {
-  it("reopening (status -> pending) leaves the original posted journal entry untouched, so the ledger and invoice disagree", async () => {
+describe("FIXED: reopening a paid invoice — now blocked when real payments exist, and correctly voids the journal entry when it's safe to reopen", () => {
+  it("an invoice marked paid manually (handleMarkPaid — no real payment, amountPaid stays 0) CAN be reopened, and its journal entry is voided", async () => {
     await signInAs("CFO");
     const invoice = await createInvoice(makeInvoice({ subtotal: 60_000, vatAmount: 4_500, total: 64_500 }));
-    await updateInvoiceStatus(invoice.id, "paid");
+    await updateInvoiceStatus(invoice.id, "paid"); // manual flip — no createPayment(), so amountPaid is still unset
 
     const entriesBefore = await getJournalEntriesByReference(invoice.id);
     expect(entriesBefore[0].status).toBe("posted");
 
-    // Reopen it.
-    await updateInvoiceStatus(invoice.id, "pending");
+    await reopenInvoice(invoice.id, "test-cfo-uid");
 
-    const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
+    const persisted = await readDocAsAdmin<Invoice & { _journalVoidError?: string | null }>("invoices", invoice.id);
     expect(persisted?.status).toBe("pending");
+    expect(persisted?._journalVoidError ?? null).toBeNull();
 
     const entriesAfter = await getJournalEntriesByReference(invoice.id);
-    expect(entriesAfter).toHaveLength(1);
-    // EXPECTED under a correct accounting invariant: reopening a paid invoice
-    // should either void the original entry or otherwise flag the ledger as
-    // needing correction. ACTUAL: the original entry is left exactly as
-    // "posted" with no link to the reopen event at all.
-    expect(entriesAfter[0].status).toBe("posted");
+    const original = entriesAfter.find((e) => e.id === entriesBefore[0].id);
+    expect(original?.status).toBe("void"); // the original invoice-creation entry is now voided
+
+    const reversalCandidates = await getJournalEntriesByReference(entriesBefore[0].id);
+    const reversal = reversalCandidates.find((e) => e.status === "posted");
+    expect(reversal).toBeDefined(); // and a reversing entry was posted
+  });
+
+  it("an invoice with a REAL payment recorded (amountPaid > 0) is genuinely rejected, not silently reopened", async () => {
+    await signInAs("CFO");
+    const invoice = await createInvoice(makeInvoice({ subtotal: 60_000, vatAmount: 4_500, total: 64_500 }));
+    await createPayment(makePayment(invoice as Invoice)); // a real payment — invoice.status becomes "paid" with amountPaid > 0
+
+    const entriesBefore = await getJournalEntriesByReference(invoice.id);
+
+    await expect(reopenInvoice(invoice.id, "test-cfo-uid")).rejects.toThrow(
+      /Cannot reopen an invoice with recorded payments/
+    );
+
+    const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
+    expect(persisted?.status).toBe("paid"); // unchanged — rejection happened before any write
+
+    const entriesAfter = await getJournalEntriesByReference(invoice.id);
+    // Nothing was voided — every entry (invoice creation + payment) is still posted.
+    for (const entry of entriesAfter) expect(entry.status).toBe("posted");
+    expect(entriesAfter).toHaveLength(entriesBefore.length);
+  });
+
+  it("calling reopenInvoice twice on the same invoice does not throw on the second call's already-void entry (idempotency guard)", async () => {
+    await signInAs("CFO");
+    const invoice = await createInvoice(makeInvoice({ subtotal: 30_000, vatAmount: 2_250, total: 32_250 }));
+    await updateInvoiceStatus(invoice.id, "paid");
+
+    await reopenInvoice(invoice.id, "test-cfo-uid"); // voids the original entry
+
+    // A second reopen call (e.g. a double-click, or status manually flipped
+    // back to "paid" and reopened again) must not throw trying to re-void
+    // an already-void entry — voidJournalEntry() itself is not idempotent,
+    // so the caller (reopenInvoice) must skip non-"posted" entries itself.
+    await updateInvoiceStatus(invoice.id, "paid");
+    await expect(reopenInvoice(invoice.id, "test-cfo-uid")).resolves.toBeUndefined();
   });
 });
 
