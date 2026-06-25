@@ -41,8 +41,19 @@ function getTrend(empUid: string, reviews: PerformanceReview[]): "up" | "down" |
 export default function PerformancePage() {
   const { profile }   = useAuth();
   const router        = useRouter();
-  const canManage     = profile
+  // Page access matches the rule's broader read gate (canManageHR() ||
+  // isCEO() || isExecutiveAssistant()) — EA has a deliberate read-only
+  // mirror of CEO's view here, confirmed by the rule itself.
+  const canView       = profile
     ? hasPermission(profile.role, "manage:hr") || hasPermission(profile.role, "view:all")
+    : false;
+  // Creating/editing a review is a manage:*-shaped action, not a viewing
+  // one — matches the write rule exactly (canManageHR() || isCEO()).
+  // Executive Assistant's "view:all" satisfies canView but must NOT
+  // satisfy this — no approve:*/manage:* rights over any department is
+  // the role's whole design intent (see ROLE_PERMISSIONS comment).
+  const canCreateReview = profile
+    ? hasPermission(profile.role, "manage:hr") || profile.role === "CEO"
     : false;
 
   const [employees,   setEmployees]   = useState<Employee[]>([]);
@@ -112,7 +123,7 @@ export default function PerformancePage() {
       </div>
     );
   }
-  if (!canManage) {
+  if (!canView) {
     return (
       <div className="py-16 text-center">
         <p className="text-white/40 font-helvetica">Access restricted to HR managers.</p>
@@ -193,12 +204,14 @@ export default function PerformancePage() {
           <option value="attention"   className="bg-primary-dark">Below 60%</option>
         </select>
         <div className="flex-1" />
-        <button
-          onClick={() => { setModalEmpUid(undefined); setShowModal(true); }}
-          className="btn-primary"
-        >
-          + Create Review
-        </button>
+        {canCreateReview && (
+          <button
+            onClick={() => { setModalEmpUid(undefined); setShowModal(true); }}
+            className="btn-primary"
+          >
+            + Create Review
+          </button>
+        )}
       </div>
 
       {/* Staff table */}
@@ -292,7 +305,7 @@ export default function PerformancePage() {
                         >
                           View
                         </button>
-                      ) : (
+                      ) : canCreateReview ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -303,6 +316,8 @@ export default function PerformancePage() {
                         >
                           Review
                         </button>
+                      ) : (
+                        <span className="text-xs text-white/20">No review yet</span>
                       )}
                     </td>
                   </tr>

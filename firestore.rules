@@ -427,13 +427,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    /* ── Employees ────────────────────────────────────────── */
-    match /employees/{employeeId} {
-      allow read: if request.auth.uid == employeeId || hasViewHrSensitive() || canManageHR();
-      allow create, update: if canManageHR();
-      allow delete: if false;
-    }
-
     /* ── Payroll Runs ─────────────────────────────────────── */
     match /payroll_runs/{runId} {
       allow read: if canManageHR() || isSystemAdmin();

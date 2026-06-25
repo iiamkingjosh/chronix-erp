@@ -66,7 +66,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:assets",       "view:knowledge",
     "view:incidents",    "view:changes",
     "view:audit",        "view:oncall",
-    "approve:invoices",  "approve:expenses",  "manage:disciplinary",
+    "approve:invoices",  "approve:expenses",
   ],
 
   /* ── CFO ─────────────────────────────────────────────── */
@@ -124,7 +124,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:tickets",       "view:hr",
     "view:analytics",     "view:notifications",
     "view:tax",           "view:paye",
-    "manage:leave",       "manage:disciplinary",
+    "manage:leave",
   ],
 
   /* ── Staff ───────────────────────────────────────────── */

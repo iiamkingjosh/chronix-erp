@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
-import { ROLES } from "@/types/roles";
+import { ROLES, resolveRole, type Role } from "@/types/roles";
 import { formatEmployeeNumber } from "@/lib/hr-service";
 
 /**
@@ -29,9 +29,10 @@ export async function POST(req: NextRequest) {
     const adminAuth = getAdminAuth();
     const db        = getAdminDb();
 
-    const decoded   = await adminAuth.verifyIdToken(idToken);
-    const callerDoc = await db.collection("users").doc(decoded.uid).get();
-    if (!callerDoc.exists || callerDoc.data()?.role !== ROLES.ROOT_ADMIN) {
+    const decoded    = await adminAuth.verifyIdToken(idToken);
+    const callerDoc  = await db.collection("users").doc(decoded.uid).get();
+    const callerRole = resolveRole(String(callerDoc.data()?.role ?? ""));
+    if (!callerDoc.exists || callerRole !== ROLES.ROOT_ADMIN) {
       return NextResponse.json({ error: "Root Admin only." }, { status: 403 });
     }
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     type UserRow = {
       uid: string;
-      role: string;
+      role: Role;
       createdAt: string;
       hasHrRecord: boolean;
       employeeNumber?: string;
@@ -53,7 +54,10 @@ export async function POST(req: NextRequest) {
         ? data.accountNumber.replace(/\D/g, "") : "";
       return {
         uid:            d.id,
-        role:           typeof data.role === "string" ? data.role : "",
+        // Normalized once at the source — legacy aliases (e.g. "Root")
+        // must resolve to their canonical role before any comparison
+        // below, not be compared against ROLES constants raw.
+        role:           resolveRole(typeof data.role === "string" ? data.role : ""),
         createdAt:      typeof data.createdAt === "string" ? data.createdAt : "9999",
         hasHrRecord:    bankName && accountDigits.length >= 10,
         employeeNumber: typeof data.employeeNumber === "string" ? data.employeeNumber : undefined,

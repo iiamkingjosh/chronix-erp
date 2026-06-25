@@ -225,8 +225,8 @@ describe("D3 — payroll_runs rule and payslip API access now agree (CFO/CEO con
   });
 });
 
-describe("DEVIATION D2 — a hardcoded raw-role check does not honor legacy role aliases that resolveRole()/hasPermission() would", () => {
-  it("migrate-employee-numbers rejects a caller stored with the legacy 'Root' alias, even though resolveRole('Root') === Root Admin everywhere else in the app", async () => {
+describe("FIXED: DEVIATION D2 — migrate-employee-numbers now honors legacy role aliases via resolveRole(), same as the rest of the app", () => {
+  it("a caller stored with the legacy 'Root' alias now succeeds, exactly like the canonical 'Root Admin' string", async () => {
     const { uid } = await signInAs("Root Admin");
     // Overwrite the seeded canonical role with the legacy alias string that
     // ROLE_ALIASES maps back to Root Admin (roles.ts: "Root" -> ROOT_ADMIN).
@@ -239,17 +239,11 @@ describe("DEVIATION D2 — a hardcoded raw-role check does not honor legacy role
     });
     const res = await migrateRoute(req as never);
 
-    // EXPECTED under invariant #3 (role checks go through one mechanism
-    // that honors aliases): a "Root" caller should be treated identically
-    // to "Root Admin" everywhere, since resolveRole()/hasPermission() do
-    // exactly that. ACTUAL: this route does a raw `role !== ROLES.ROOT_ADMIN`
-    // comparison with no resolveRole() call, so the literal string "Root"
-    // fails it.
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  it("the same caller succeeds once their stored role is the exact canonical string \"Root Admin\"", async () => {
-    await signInAs("Root Admin"); // seedUserRole already stores the canonical string here
+  it("the canonical 'Root Admin' string still succeeds (the fix didn't narrow the previously-working case)", async () => {
+    await signInAs("Root Admin");
     const idToken = await auth.currentUser!.getIdToken();
     const req = new Request("http://localhost/api/admin/migrate-employee-numbers", {
       method: "POST",
@@ -257,5 +251,44 @@ describe("DEVIATION D2 — a hardcoded raw-role check does not honor legacy role
     });
     const res = await migrateRoute(req as never);
     expect(res.status).toBe(200);
+  });
+
+  it("a non-privileged role (Staff) is still correctly rejected — the fix isn't a blanket unlock", async () => {
+    await signInAs("Staff");
+    const idToken = await auth.currentUser!.getIdToken();
+    const req = new Request("http://localhost/api/admin/migrate-employee-numbers", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    const res = await migrateRoute(req as never);
+    expect(res.status).toBe(403);
+  });
+
+  it("a CANDIDATE employee stored with the legacy 'Manager' alias (-> CEO) is correctly partitioned into the CEO reserved slot, not 'others' — confirms the fix at the row-capture source (line 56), not just the caller check", async () => {
+    const { uid: callerUid } = await signInAs("Root Admin");
+    const candidateUid = "legacy-manager-candidate-" + Date.now();
+    await seedUserRole(candidateUid, "Manager" as never, {
+      bankName: "Test Bank",
+      accountNumber: "0123456789",
+      createdAt: new Date("2020-01-01").toISOString(),
+    });
+
+    const idToken = await auth.currentUser!.getIdToken();
+    const req = new Request("http://localhost/api/admin/migrate-employee-numbers", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    const res = await migrateRoute(req as never);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { assignments: { uid: string; employeeNumber: string }[] };
+
+    const assigned = body.assignments.find((a) => a.uid === candidateUid);
+    // Without resolveRole() at the row-capture source, "Manager" would
+    // never match `r.role === ROLES.CEO` and would fall into "others"
+    // instead of correctly claiming the reserved CTL002 slot.
+    expect(assigned?.employeeNumber).toBe("CTL002");
+
+    // Sanity: the caller itself shouldn't collide with the reserved slots.
+    expect(assigned?.uid).not.toBe(callerUid);
   });
 });
