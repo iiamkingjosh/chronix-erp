@@ -38,7 +38,8 @@ export default function ArticlePage() {
   const canManage = !!profile && (
     isRootAdmin(profile.role) ||
     profile.role === "System Admin" ||
-    profile.role === "CEO"
+    profile.role === "CEO" ||
+    profile.role === "IT Manager"
   );
 
   useEffect(() => {

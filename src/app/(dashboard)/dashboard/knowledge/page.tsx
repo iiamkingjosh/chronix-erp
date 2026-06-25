@@ -26,7 +26,8 @@ export default function KnowledgePage() {
   const canManage = !!profile && (
     isRootAdmin(profile.role) ||
     profile.role === "System Admin" ||
-    profile.role === "CEO"
+    profile.role === "CEO" ||
+    profile.role === "IT Manager"
   );
 
   useEffect(() => { getArticles().then(setArticles).finally(() => setLoading(false)); }, []);

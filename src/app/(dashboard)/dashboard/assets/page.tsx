@@ -37,8 +37,7 @@ export default function AssetsPage() {
     ? isRootAdmin(profile.role) ||
       hasPermission(profile.role, "manage:hr") ||
       profile.role === "System Admin" ||
-      profile.role === "CEO" ||
-      profile.role === "CFO"
+      profile.role === "CEO"
     : false;
 
   useEffect(() => { getAssets().then(setAssets).finally(() => setLoading(false)); }, []);

@@ -35,7 +35,8 @@ export default function OnCallPage() {
   const [saving, setSaving]     = useState(false);
 
   const canManage = profile
-    ? isRootAdmin(profile.role) || hasPermission(profile.role, "manage:hr") || profile.role === "System Admin"
+    ? isRootAdmin(profile.role) || hasPermission(profile.role, "manage:hr") || profile.role === "System Admin" ||
+      profile.role === "CEO" || profile.role === "IT Manager"
     : false;
 
   useEffect(() => {

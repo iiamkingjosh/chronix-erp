@@ -15,8 +15,8 @@ afterAll(async () => {
   await teardownEmulators();
 });
 
-describe("DEVIATION D5 — UI gate shows CFO a button that firestore.rules will reject", () => {
-  it("CFO is rejected updating an asset's status, even though the assets list page's UI gate includes CFO", async () => {
+describe("FIXED: DEVIATION D5 (1/5) — assets/page.tsx no longer shows CFO a button firestore.rules would reject", () => {
+  it("CFO is still rejected updating an asset's status - the rule was already correct, only the UI gate changed (removed CFO, not widened the rule)", async () => {
     await signInAs("System Admin");
     const asset = await createAsset({
       name: "Test Laptop", category: "laptop", status: "available",
@@ -25,13 +25,13 @@ describe("DEVIATION D5 — UI gate shows CFO a button that firestore.rules will 
     await signOutCurrent();
 
     await signInAs("CFO");
-    // assets create/update rule: isSystemAdmin()||isCEO()||canManageHR()||isITManager() — CFO is in none of those.
+    // assets create/update rule, unchanged: isSystemAdmin()||isCEO()||canManageHR()||isITManager() — CFO is in none of those.
     await expect(updateAssetStatus(asset.id, "decommissioned")).rejects.toThrow(/permission/i);
   });
 });
 
-describe("DEVIATION D5 (mirror image) — rules grant IT Manager write access that three separate UI pages never expose a button for", () => {
-  it("IT Manager CAN write to knowledge_base per rules, even though knowledge/page.tsx's gate omits IT Manager", async () => {
+describe("FIXED: DEVIATION D5 (2/5, 3/5, 4/5, 5/5) — knowledge_base/change_log/oncall_schedule UI gates now match what the rules have always allowed", () => {
+  it("IT Manager's write to knowledge_base succeeds against the real rule (now also reachable via the UI, previously rule-only)", async () => {
     await signInAs("IT Manager");
     await expect(
       createArticle({
@@ -43,7 +43,7 @@ describe("DEVIATION D5 (mirror image) — rules grant IT Manager write access th
     ).resolves.toBeDefined();
   });
 
-  it("IT Manager CAN update change_log status per rules, even though changes/page.tsx's approval gate omits IT Manager", async () => {
+  it("IT Manager's change_log approval succeeds against the real rule (now also reachable via the UI)", async () => {
     await signInAs("System Admin");
     const change = await createChange({
       changeRef: `CHG-MISMATCH-${Date.now()}`, title: "Test", description: "test",
@@ -59,12 +59,23 @@ describe("DEVIATION D5 (mirror image) — rules grant IT Manager write access th
     ).resolves.toBeUndefined();
   });
 
-  it("IT Manager CAN create on-call schedule slots per rules, even though oncall/page.tsx's gate (isRootAdmin||manage:hr||SystemAdmin) omits IT Manager", async () => {
+  it("IT Manager's on-call schedule creation succeeds against the real rule (now also reachable via the UI)", async () => {
     await signInAs("IT Manager");
     await expect(
       createOnCallSlot({
         weekStart: "2026-07-06", weekEnd: "2026-07-12",
         engineerUid: "test-uid", engineerName: "Test Engineer",
+        createdBy: "test-uid", createdAt: new Date().toISOString(),
+      } as never)
+    ).resolves.toBeDefined();
+  });
+
+  it("CEO's on-call schedule creation succeeds against the real rule - the incidental 5th gap found alongside IT Manager's", async () => {
+    await signInAs("CEO");
+    await expect(
+      createOnCallSlot({
+        weekStart: "2026-07-13", weekEnd: "2026-07-19",
+        engineerUid: "test-uid-2", engineerName: "Test Engineer 2",
         createdBy: "test-uid", createdAt: new Date().toISOString(),
       } as never)
     ).resolves.toBeDefined();

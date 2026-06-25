@@ -27,7 +27,8 @@ export default function ChangesPage() {
     isRootAdmin(profile.role) ||
     profile.role === "System Admin" ||
     profile.role === "CEO" ||
-    profile.role === "CFO"
+    profile.role === "CFO" ||
+    profile.role === "IT Manager"
   );
 
   useEffect(() => { getChanges().then(setChanges).finally(() => setLoading(false)); }, []);
