@@ -7,7 +7,7 @@ import { ASSET_CATEGORY_LABELS, ASSET_STATUS_STYLES, ASSET_CONDITION_STYLES } fr
 import type { Asset, AssetStatus } from "@/types/asset";
 import { formatNaira } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasPermission, isRootAdmin } from "@/types/roles";
+import { hasPermission } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | AssetStatus;
@@ -33,11 +33,14 @@ export default function AssetsPage() {
   const [search, setSearch]   = useState("");
   const [acting, setActing]   = useState<string | null>(null);
 
+  // Matches firestore.rules' assets create/update rule exactly:
+  // isSystemAdmin() || isCEO() || canManageHR() || isITManager().
+  // manage:assets covers Root Admin (wildcard), System Admin, HR, and
+  // IT Manager; CEO is checked separately since CEO's role is deliberately
+  // kept out of manage:* permissions everywhere else (see roles.ts) - this
+  // is a rule-driven exception for assets specifically, not a permission.
   const canManage = profile
-    ? isRootAdmin(profile.role) ||
-      hasPermission(profile.role, "manage:hr") ||
-      profile.role === "System Admin" ||
-      profile.role === "CEO"
+    ? hasPermission(profile.role, "manage:assets") || profile.role === "CEO"
     : false;
 
   useEffect(() => { getAssets().then(setAssets).finally(() => setLoading(false)); }, []);

@@ -123,7 +123,7 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:tickets",       "view:hr",
     "view:analytics",     "view:notifications",
     "view:tax",           "view:paye",
-    "manage:leave",
+    "manage:leave",       "manage:assets",
   ],
 
   /* ── Staff ───────────────────────────────────────────── */
