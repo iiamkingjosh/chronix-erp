@@ -164,17 +164,6 @@ const PAGES: PageEntry[] = [
     section: "Notifications",
     desc: "Unified alert feed — overdue invoices, expiring subs, SLA breaches. Filter + mark read.",
   },
-
-  /* ── Client Portal ── */
-  {
-    id: "portal",
-    name: "Client Portal",
-    route: "/portal",
-    role: "Client",
-    roleColor: "bg-accent/20 text-accent border-accent/40",
-    section: "Portal",
-    desc: "Separate client-facing portal — services, invoices, tickets and subscription renewals.",
-  },
 ];
 
 /* ── Scale config ────────────────────────────────────────────

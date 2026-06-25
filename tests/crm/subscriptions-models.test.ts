@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { connectEmulators, clearAll, teardownEmulators, signInAs, readDocAsAdmin } from "../helpers/emulator";
 import { createSubscription, cancelSubscription, renewSubscription } from "@/lib/subscriptions-service";
-import { getPortalSubscriptions } from "@/lib/client-portal-service";
 import type { Subscription } from "@/types/subscriptions";
 
 beforeAll(async () => {
@@ -12,26 +11,6 @@ beforeEach(async () => {
 });
 afterAll(async () => {
   await teardownEmulators();
-});
-
-describe("Invariant #2 — \"this client's subscriptions\" must mean the same thing everywhere", () => {
-  // RESOLVED (subscriptions rebuild, Step A): the CRM-embedded ClientSubscription
-  // model (which used to disagree with the portal's top-level-only view — the
-  // original D2 finding) has been retired entirely. Confirmed zero production
-  // data existed for it. The top-level `subscriptions` collection is now the
-  // single source of truth, so there is nothing left to reconcile.
-  it("a top-level subscription IS visible in the portal view (confirming the portal's own collection works correctly in isolation)", async () => {
-    await signInAs("CFO");
-    await createSubscription({
-      subId: "SUB-TEST", itemName: "Domain Renewal", clientId: "client-test", clientName: "Test Co Ltd",
-      type: "domain", provider: "namecheap", startDate: "2026-01-01", expiryDate: "2027-01-01",
-      renewalCost: 25_000, vatApplicable: true, autoRemind: true, notes: "", renewalLog: [], invoiceIds: [],
-      cancelled: false, createdAt: new Date().toISOString(), createdBy: "test-uid", updatedAt: new Date().toISOString(),
-    });
-
-    const portalView = await getPortalSubscriptions("Test Co Ltd");
-    expect(portalView).toHaveLength(1);
-  });
 });
 
 // RESOLVED (subscriptions rebuild, Step A): this described the embedded

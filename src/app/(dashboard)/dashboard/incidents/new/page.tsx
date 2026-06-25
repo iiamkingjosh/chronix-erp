@@ -23,7 +23,7 @@ export default function NewIncidentPage() {
 
   useEffect(() => {
     getStaffList()
-      .then((all) => setStaff(all.filter((s) => s.role !== "Client")))
+      .then(setStaff)
       .catch(() => {});
   }, []);
 

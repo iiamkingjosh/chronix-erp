@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const callerSnap = await db.collection("users").doc(decoded.uid).get();
     const callerRole = callerSnap.data()?.role as string | undefined;
 
-    if (!callerRole || callerRole === "Client") {
+    if (!callerRole) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

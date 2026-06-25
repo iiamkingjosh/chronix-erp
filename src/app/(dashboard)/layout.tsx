@@ -15,7 +15,7 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <ProtectedRoute excludeClient>
+    <ProtectedRoute>
       <div className="flex min-h-screen bg-primary-gradient">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

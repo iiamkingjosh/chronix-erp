@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import ChronixLogo from "@/components/ChronixLogo";
 import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
 import type { Role } from "@/types/roles";
-import { hasPermission, resolveRole, ROLES } from "@/types/roles";
+import { hasPermission, resolveRole } from "@/types/roles";
 
 interface Props {
   children:               React.ReactNode;
@@ -14,8 +14,6 @@ interface Props {
   /** Access if the user has any of these permissions (e.g. manage vs view). */
   requiredAnyPermission?: string[];
   allowedRoles?:          Role[];
-  /** Portal-only users must not use the internal ERP shell (sidebar layout). */
-  excludeClient?:         boolean;
 }
 
 /* ── Branded loading screen ─────────────────────────────────
@@ -89,7 +87,6 @@ export default function ProtectedRoute({
   requiredPermission,
   requiredAnyPermission,
   allowedRoles,
-  excludeClient,
 }: Props) {
   const { firebaseUser, profile, loading, profileError } = useAuth();
   const router = useRouter();
@@ -106,14 +103,12 @@ export default function ProtectedRoute({
 
   /* ── Determine access synchronously from current state ── */
   const isAuthenticated    = !loading && !!firebaseUser && !!profile;
-  const isExcludedClient   =
-    !!excludeClient && canonicalRole === ROLES.CLIENT;
   const hasRoleAccess      =
     !allowedRoles?.length ||
     (canonicalRole !== null && allowedRoles.includes(canonicalRole));
   const hasPermAccess      = profileHasRequiredPermission();
   const isFullyAuthorized  =
-    isAuthenticated && !isExcludedClient && hasRoleAccess && hasPermAccess;
+    isAuthenticated && hasRoleAccess && hasPermAccess;
 
   /* ── Redirect side-effects (only run after auth resolved) ── */
   useEffect(() => {
@@ -124,10 +119,6 @@ export default function ProtectedRoute({
     }
     if (!profile && !profileError) return;   // profile still loading
     if (profileError) return;                // ProfileErrorScreen handles this
-    if (excludeClient && canonicalRole === ROLES.CLIENT) {
-      router.replace("/portal");
-      return;
-    }
     if (!hasRoleAccess || !hasPermAccess) {
       router.replace("/unauthorized");
     }
@@ -136,8 +127,6 @@ export default function ProtectedRoute({
     firebaseUser,
     profile,
     profileError,
-    excludeClient,
-    canonicalRole,
     hasRoleAccess,
     hasPermAccess,
     router,

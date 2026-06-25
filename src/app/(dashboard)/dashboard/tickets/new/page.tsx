@@ -61,10 +61,7 @@ export default function NewTicketPage() {
   useEffect(() => {
     if (!canCreate) return;
     getStaffList()
-      .then((all) => {
-        const internal = all.filter((s) => s.role !== "Client");
-        setStaff(internal);
-      })
+      .then(setStaff)
       .catch(() => {
         setServerError("Unable to load staff list. You can still assign this ticket to yourself.");
       });

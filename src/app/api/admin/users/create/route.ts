@@ -49,10 +49,6 @@ export async function POST(request: Request) {
     const { password, displayName, department } = parsed.data;
     const targetRole = resolveRole(parsed.data.role);
 
-    if (targetRole === ROLES.CLIENT) {
-      return NextResponse.json({ error: "Use the portal flow for Client accounts." }, { status: 400 });
-    }
-
     if (isStaffPeerProvisioner && targetRole !== ROLES.STAFF) {
       return NextResponse.json(
         {

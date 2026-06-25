@@ -25,7 +25,7 @@ function rootLikeRoleStr(r: string): boolean {
  * editorMayManageRootRoles below — both gate root-like-role grants on
  * manage:staff/isRootAdmin, mirroring firestore.rules' canManageStaff(). */
 function rolesAssignableByCaller(rawRole: string): Role[] {
-  const internal = Object.values(ROLES).filter((r) => r !== ROLES.CLIENT);
+  const internal = Object.values(ROLES);
   if (hasPermission(rawRole, "manage:staff") || isRootAdmin(rawRole)) return internal;
   return internal.filter((r) => r !== ROLES.ROOT_ADMIN);
 }
@@ -175,10 +175,10 @@ export default function StaffPage() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          {["CEO", "System Admin", "Staff", "Client"].map((role) => {
+          {["CEO", "System Admin", "Staff"].map((role) => {
             const count = users.filter((u) =>
               role === "Staff"
-                ? u.role !== "CEO" && u.role !== "System Admin" && u.role !== "Client"
+                ? u.role !== "CEO" && u.role !== "System Admin"
                 : u.role === role
             ).length;
             return (

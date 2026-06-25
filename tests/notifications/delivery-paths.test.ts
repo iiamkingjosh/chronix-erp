@@ -225,20 +225,20 @@ describe("FIXED: /api/notifications/send now requires manage:tax / manage:brand 
     expect(body.error).toBe("Forbidden");
   });
 
-  it("a Client-role account is rejected with 403 - the exact gap this fix closes", async () => {
-    await signInAs("Client");
+  it("Staff (no manage:tax/brand/email_marketing) is rejected with 403", async () => {
+    await signInAs("Staff");
     const idToken = await auth.currentUser!.getIdToken();
     const { status, body } = await callSendRoute(idToken);
     expect(status).toBe(403);
     expect(body.error).toBe("Forbidden");
   });
 
-  it("both the allowed CFO call and the rejected Client call are recorded in audit_logs with role, targetRoles, and permission outcome", async () => {
+  it("both the allowed CFO call and the rejected Staff call are recorded in audit_logs with role, targetRoles, and permission outcome", async () => {
     const { uid: cfoUid } = await signInAs("CFO");
     let idToken = await auth.currentUser!.getIdToken();
     await callSendRoute(idToken, ["CFO", "System Admin"]);
 
-    const { uid: clientUid } = await signInAs("Client");
+    const { uid: staffUid } = await signInAs("Staff");
     idToken = await auth.currentUser!.getIdToken();
     await callSendRoute(idToken, ["CFO"]);
 
@@ -251,31 +251,17 @@ describe("FIXED: /api/notifications/send now requires manage:tax / manage:brand 
     expect(allowedEntries[0].targetRoles).toEqual(["CFO", "System Admin"]);
 
     const rejectedEntries = await queryAsAdmin<{ actorUid: string; permissionGranted: boolean; actorRole: string; action: string }>(
-      "audit_logs", "actorUid", clientUid
+      "audit_logs", "actorUid", staffUid
     );
     expect(rejectedEntries).toHaveLength(1);
     expect(rejectedEntries[0].permissionGranted).toBe(false);
     expect(rejectedEntries[0].action).toBe("reject");
-    expect(rejectedEntries[0].actorRole).toBe("Client");
+    expect(rejectedEntries[0].actorRole).toBe("Staff");
   });
 });
 
-describe("New /api/notifications/push route — push-only delivery for the routine assignment/reminder path, isAuth() && !isClientRole() gate", () => {
-  it("a Client-role account is rejected with 403 calling the push route directly", async () => {
-    await signInAs("Client");
-    const idToken = await auth.currentUser!.getIdToken();
-    const req = new Request("http://localhost/api/notifications/push", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "Test", message: "Test", targetRoles: ["CFO"] }),
-    });
-    const res = await pushRoute(req as never);
-    const body = await res.json();
-    expect(res.status).toBe(403);
-    expect(body.error).toBe("Forbidden");
-  });
-
-  it("an internal staff member (non-Client) succeeds calling the push route directly", async () => {
+describe("New /api/notifications/push route — push-only delivery for the routine assignment/reminder path", () => {
+  it("an internal staff member succeeds calling the push route directly", async () => {
     await signInAs("Staff");
     const idToken = await auth.currentUser!.getIdToken();
     const req = new Request("http://localhost/api/notifications/push", {

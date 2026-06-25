@@ -7,7 +7,7 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { APP_VERSION_SHORT_LABEL } from "@/lib/app-version";
-import { ROLE_COLORS, ROLES, hasPermission, resolveRole } from "@/types/roles";
+import { ROLE_COLORS, hasPermission, resolveRole } from "@/types/roles";
 import ChronixLogo from "./ChronixLogo";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +68,6 @@ const NAV_GATE: Record<string, string[] | null> = {
 };
 
 function navHrefVisible(rawRole: string, href: string): boolean {
-  if (resolveRole(rawRole) === ROLES.CLIENT) return false;
   const gate = NAV_GATE[href];
   if (gate === null) return true;
   if (!gate?.length) return false;

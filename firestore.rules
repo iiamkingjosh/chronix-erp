@@ -37,9 +37,6 @@ service cloud.firestore {
     function isStaffLike() {
       return role() == 'Staff' || role() == 'Support' || role() == 'Employee' || role() == 'User';
     }
-    function isClientRole() {
-      return role() == 'Client';
-    }
     function isSalesRep() {
       return role() == 'Sales Rep';
     }
@@ -54,9 +51,6 @@ service cloud.firestore {
     }
     function isExecutiveAssistant() {
       return role() == 'Executive Assistant';
-    }
-    function isInternalStaff() {
-      return !isClientRole();
     }
 
     /** App: CEO + System Admin + Executive Assistant have view:all (read-most dashboards).
@@ -111,8 +105,8 @@ service cloud.firestore {
     }
 
     /** Allow internal staff to update only the files array (for file attachments).
-     * Takes the already-computed isInternalStaff()&&hasViewProjects() check as a
-     * parameter rather than re-deriving it - see isProjectsSelfServiceUpdate(). */
+     * Takes the already-computed hasViewProjects() check as a parameter
+     * rather than re-deriving it - see isProjectsSelfServiceUpdate(). */
     function isFilesOnlyUpdate(canSelfService) {
       return canSelfService &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['files', 'updatedAt']);
@@ -146,9 +140,8 @@ service cloud.firestore {
           .affectedKeys().hasOnly(['activity', 'updatedAt']);
     }
 
-    /** isInternalStaff()&&hasViewProjects() pulls in ~20 role()-backed lookups
-     * (hasViewProjects() alone ORs together 8 role checks, several of which
-     * themselves OR multiple role() calls). The three functions above used to
+    /** hasViewProjects() alone ORs together 8 role checks, several of which
+     * themselves OR multiple role() calls. The three functions above used to
      * each independently recompute this same chain, tripling its cost for any
      * write that falls through to the self-service path - confirmed via the
      * emulator to exceed Firestore's 1000-expression-evaluation ceiling once
@@ -156,7 +149,7 @@ service cloud.firestore {
      * computes it once via `let` and reuses it - same permission semantics,
      * roughly a third of the expression cost for this portion. */
     function isProjectsSelfServiceUpdate() {
-      let canSelfService = isInternalStaff() && hasViewProjects();
+      let canSelfService = hasViewProjects();
       return isFilesOnlyUpdate(canSelfService) ||
         isTeamMemberTaskUpdate(canSelfService) ||
         isTeamMemberActivityUpdate(canSelfService);
@@ -234,17 +227,6 @@ service cloud.firestore {
       return isRootAdmin() || isCFO() || isSystemAdmin();
     }
 
-    function userPortalBillingMatches(resourceBillingKey) {
-      let me = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return (tokenEmail() != null && resourceBillingKey == tokenEmail()) ||
-        (me.get('portalBillingCompany', '') != '' &&
-          me.get('portalBillingCompany', '') == resourceBillingKey) ||
-        (me.get('portalBillingName', '') != '' &&
-          me.get('portalBillingName', '') == resourceBillingKey) ||
-        (me.get('portalBillingEmail', '') != '' &&
-          me.get('portalBillingEmail', '') == resourceBillingKey);
-    }
-
     /** Root-breakglass role strings — only System Admin / Root Admin may assign or revoke */
     function rootLikeRole(r) {
       return r == 'Root Admin' || r == 'Chronix Root' || r == 'Root';
@@ -263,19 +245,6 @@ service cloud.firestore {
         || k.hasOnly(['displayName', 'photoURL']) || k.hasOnly(['displayName', 'lastLoginAt'])
         || k.hasOnly(['photoURL', 'lastLoginAt'])
         || k.hasOnly(['displayName', 'photoURL', 'lastLoginAt']);
-    }
-
-    /** D5 self-heal: a Client account may write only its own portal
-     * billing-match fields onto its own doc - nothing in the app has ever
-     * set these (confirmed - no code path populates them), so
-     * loadClientPortalState() backfills them the moment it finds a
-     * matching Client record by email. Narrowly scoped (these 3 fields
-     * only, own doc only, Client role only) - not a general self-update
-     * widening. */
-    function isPortalBillingSelfHeal() {
-      return isClientRole() &&
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['portalBillingCompany', 'portalBillingName', 'portalBillingEmail', 'updatedAt']);
     }
 
     function privilegedUserManagers() {
@@ -313,7 +282,7 @@ service cloud.firestore {
       );
       allow create: if isAuth() && request.auth.uid == userId && userBootstrapCreateValid();
       allow update: if isAuth() && (
-        (request.auth.uid == userId && (userSelfCosmeticKeysOnly() || isPortalBillingSelfHeal())) ||
+        (request.auth.uid == userId && userSelfCosmeticKeysOnly()) ||
         (privilegedUserManagers() && (!involvesRootRoleChange() || canManageStaff()))
       );
       allow delete: if false;
@@ -321,12 +290,7 @@ service cloud.firestore {
 
     /* ── Invoices ─────────────────────────────────────────── */
     match /invoices/{invoiceId} {
-      allow read: if hasViewFinance() || (
-        isClientRole() &&
-        resource.data.client != null &&
-        resource.data.client.name != null &&
-        userPortalBillingMatches(resource.data.client.name)
-      );
+      allow read: if hasViewFinance();
       allow create: if canManageFinance() || isSalesRep();
       /** Whoever created the invoice may always report the outcome of the
           journal-posting side-effect from that same creation call — e.g. a
@@ -354,19 +318,8 @@ service cloud.firestore {
 
     /* ── Tickets ──────────────────────────────────────────── */
     match /tickets/{ticketId} {
-      allow read: if hasViewTickets() || (
-        isClientRole() &&
-        resource.data.client != null &&
-        resource.data.client.name != null &&
-        userPortalBillingMatches(resource.data.client.name)
-      );
-      allow create: if canManageTickets() || (
-        isClientRole() &&
-        request.resource.data.status == 'open' &&
-        request.resource.data.client != null &&
-        request.resource.data.client.name != null &&
-        userPortalBillingMatches(request.resource.data.client.name)
-      );
+      allow read: if hasViewTickets();
+      allow create: if canManageTickets();
       allow update: if canManageTickets() ||
         (isAuth() && resource.data.assignedTo == request.auth.uid &&
          request.resource.data.diff(resource.data).affectedKeys()
@@ -387,12 +340,7 @@ service cloud.firestore {
 
     /* ── CRM — Clients ────────────────────────────────────── */
     match /clients/{clientId} {
-      allow read: if canReadClientsDirectory() || (
-        isClientRole() &&
-        resource.data.email != null &&
-        tokenEmail() != null &&
-        resource.data.email == tokenEmail()
-      );
+      allow read: if canReadClientsDirectory();
       allow create, update: if canManageCRM();
       allow delete: if false;
     }
@@ -446,23 +394,16 @@ service cloud.firestore {
 
     /* ── Subscriptions ────────────────────────────────────── */
     match /subscriptions/{subId} {
-      allow read: if hasViewSubscriptions() || (
-        isClientRole() &&
-        resource.data.clientName != null &&
-        userPortalBillingMatches(resource.data.clientName)
-      );
+      allow read: if hasViewSubscriptions();
       allow create, update: if canManageSubscriptions();
       allow delete: if false;
     }
 
     /* ── Notifications ────────────────────────────────────── */
     match /notifications/{notifId} {
-      allow read: if isAuth() && (
-        !isClientRole() ||
-        (resource.data.targetUids != null && resource.data.targetUids.hasAny([request.auth.uid]))
-      );
-      allow create: if isAuth() && !isClientRole();
-      allow update: if isAuth() && !isClientRole() &&
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]);
       allow delete: if false;
     }
@@ -507,7 +448,7 @@ service cloud.firestore {
         hasViewAll() || isCFO() || isSystemAdmin() ||
         resource.data.submittedByUid == request.auth.uid
       );
-      allow create: if isAuth() && !isClientRole();
+      allow create: if isAuth();
       allow update: if isAuth() && (isRootAdmin() || isCFO() || isSystemAdmin() || isCEO());
       allow delete: if false;
     }
@@ -529,7 +470,7 @@ service cloud.firestore {
         canManageHR() || isCEO() || isExecutiveAssistant() ||
         resource.data.employeeUid == request.auth.uid
       );
-      allow create: if isAuth() && !isClientRole();
+      allow create: if isAuth();
       allow update: if isAuth() && (
         canManageHR() || isCEO() ||
         (resource.data.employeeUid == request.auth.uid &&
@@ -551,7 +492,7 @@ service cloud.firestore {
 
     /* ── Assets ──────────────────────────────────────────── */
     match /assets/{assetId} {
-      allow read: if isAuth() && !isClientRole();
+      allow read: if isAuth();
       allow create, update: if isAuth() && (isSystemAdmin() || isCEO() || canManageHR() || isITManager());
       allow delete: if false;
     }
@@ -567,7 +508,7 @@ service cloud.firestore {
         hasViewAll() || isCFO() || isSystemAdmin() || isHR() ||
         resource.data.employeeUid == request.auth.uid
       );
-      allow create: if isAuth() && !isClientRole();
+      allow create: if isAuth();
       allow update: if isAuth() &&
         resource.data.employeeUid == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isVoided']);
@@ -577,29 +518,29 @@ service cloud.firestore {
     /* ── Audit Logs ──────────────────────────────────────── */
     match /audit_logs/{logId} {
       allow read:   if isAuth() && (isRootAdmin() || isCEO() || isSystemAdmin() || isExecutiveAssistant());
-      allow create: if isAuth() && !isClientRole();
+      allow create: if isAuth();
       allow update, delete: if false;
     }
 
     /* ── Knowledge Base ──────────────────────────────────── */
     match /knowledge_base/{articleId} {
-      allow read: if isAuth() && !isClientRole();
+      allow read: if isAuth();
       allow create, update: if isAuth() && (isRootAdmin() || isSystemAdmin() || isCEO() || isITManager());
       allow delete: if false;
     }
 
     /* ── Change Log ──────────────────────────────────────── */
     match /change_log/{changeId} {
-      allow read: if isAuth() && !isClientRole();
-      allow create: if isAuth() && !isClientRole();
+      allow read: if isAuth();
+      allow create: if isAuth();
       allow update: if isAuth() && (isRootAdmin() || isSystemAdmin() || isCEO() || isCFO() || isITManager());
       allow delete: if false;
     }
 
     /* ── Incidents ───────────────────────────────────────── */
     match /incidents/{incidentId} {
-      allow read: if isAuth() && !isClientRole();
-      allow create: if isAuth() && !isClientRole();
+      allow read: if isAuth();
+      allow create: if isAuth();
       allow update: if isAuth() && (
         isRootAdmin() || isSystemAdmin() || isCEO() || isCFO() || isITManager() ||
         resource.data.createdBy == request.auth.uid
@@ -609,28 +550,28 @@ service cloud.firestore {
 
     /* ── On-Call Schedule ────────────────────────────────── */
     match /oncall_schedule/{slotId} {
-      allow read: if isAuth() && !isClientRole();
+      allow read: if isAuth();
       allow create, delete: if isAuth() && (isRootAdmin() || isSystemAdmin() || canManageHR() || isCEO() || isITManager());
       allow update: if false;
     }
 
     /* ── Brand Assets ────────────────────────────────────── */
     match /brand_assets/{assetId} {
-      allow read: if isAuth() && !isClientRole();
+      allow read: if isAuth();
       allow create, update: if isAuth() && (isRootAdmin() || isBrandLead() || isSystemAdmin() || isCEO());
       allow delete: if isAuth() && (isRootAdmin() || isBrandLead() || isSystemAdmin() || isCEO());
     }
 
     /* ── Content Posts ───────────────────────────────────── */
     match /content_posts/{postId} {
-      allow read: if isAuth() && !isClientRole();
+      allow read: if isAuth();
       allow create, update: if isAuth() && (isRootAdmin() || isBrandLead() || isSocialLead() || isSystemAdmin() || isCEO());
       allow delete: if false;
     }
 
     /* ── Campaigns ───────────────────────────────────────── */
     match /campaigns/{campaignId} {
-      allow read: if isAuth() && !isClientRole();
+      allow read: if isAuth();
       allow create, update: if isAuth() && (isRootAdmin() || isBrandLead() || isSystemAdmin() || isCEO());
       allow delete: if false;
     }

@@ -7,7 +7,6 @@ export const ROLES = {
   SOCIAL_MEDIA_LEAD: "Social Media Lead",
   HR:                "HR",
   STAFF:             "Staff",
-  CLIENT:            "Client",
   SALES_REP:         "Sales Rep",
   PROJECT_MANAGER:   "Project Manager",
   FINANCE_OFFICER:   "Finance Officer",
@@ -137,11 +136,6 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "view:settings", /* preferences, push, invite Staff peers — not manage:settings */
   ],
 
-  /* ── Client — portal only ────────────────────────────── */
-  [ROLES.CLIENT]: [
-    "view:portal",
-  ],
-
   /* ── Sales Rep — CRM + invoice creation ──────────────── */
   [ROLES.SALES_REP]: [
     "view:own",
@@ -244,7 +238,6 @@ export const ROLE_REDIRECTS: Record<Role, string> = {
   [ROLES.SOCIAL_MEDIA_LEAD]: "/dashboard/crm",
   [ROLES.HR]:                "/dashboard/hr",
   [ROLES.STAFF]:             "/dashboard",
-  [ROLES.CLIENT]:            "/portal",
   [ROLES.SALES_REP]:         "/dashboard",
   [ROLES.PROJECT_MANAGER]:   "/dashboard",
   [ROLES.FINANCE_OFFICER]:   "/dashboard/finance",
@@ -261,7 +254,6 @@ export const ROLE_COLORS: Record<Role, string> = {
   [ROLES.SOCIAL_MEDIA_LEAD]: "bg-pink-900/30 text-pink-300 border-pink-700",
   [ROLES.HR]:                "bg-teal-900/30 text-teal-300 border-teal-700",
   [ROLES.STAFF]:             "bg-slate-700/30 text-slate-300 border-slate-600",
-  [ROLES.CLIENT]:            "bg-secondary/20 text-secondary border-secondary/40",
   [ROLES.SALES_REP]:         "bg-cyan-900/30 text-cyan-300 border-cyan-700",
   [ROLES.PROJECT_MANAGER]:   "bg-indigo-900/30 text-indigo-300 border-indigo-700",
   [ROLES.FINANCE_OFFICER]:   "bg-lime-900/30 text-lime-300 border-lime-700",
