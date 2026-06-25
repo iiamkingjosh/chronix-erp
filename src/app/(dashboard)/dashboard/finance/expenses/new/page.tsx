@@ -5,17 +5,18 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { createExpense } from "@/lib/expense-service";
-import { EXPENSE_CATEGORY_LABELS } from "@/types/expense";
-import type { ExpenseCategory } from "@/types/expense";
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_TYPE_LABELS } from "@/types/expense";
+import type { ExpenseCategory, ExpenseType } from "@/types/expense";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES = Object.entries(EXPENSE_CATEGORY_LABELS) as [ExpenseCategory, string][];
+const EXPENSE_TYPES = Object.entries(EXPENSE_TYPE_LABELS) as [ExpenseType, string][];
 
 export default function NewExpensePage() {
   const { profile } = useAuth();
   const router = useRouter();
   const [form, setForm] = useState({
-    title: "", category: "other" as ExpenseCategory, amount: "",
+    title: "", category: "other" as ExpenseCategory, expenseType: "staff_claim" as ExpenseType, amount: "",
     date: new Date().toISOString().split("T")[0], description: "",
     linkedProject: "", linkedClient: "",
   });
@@ -33,6 +34,7 @@ export default function NewExpensePage() {
       const exp = await createExpense({
         title:         form.title,
         category:      form.category,
+        expenseType:   form.expenseType,
         amount:        Number(form.amount),
         date:          form.date,
         description:   form.description,
@@ -42,7 +44,7 @@ export default function NewExpensePage() {
         submittedAt:   new Date().toISOString(),
         ...(form.linkedProject ? { linkedProject: form.linkedProject } : {}),
         ...(form.linkedClient  ? { linkedClient:  form.linkedClient  } : {}),
-      });
+      }, profile.role);
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "expenses", entityId: exp.id, entityRef: form.title, details: `Expense claim submitted: ${form.title} — ₦${form.amount}`, timestamp: new Date().toISOString() });
       router.push("/dashboard/finance/expenses");
     } catch (err) {
@@ -67,6 +69,31 @@ export default function NewExpensePage() {
           <label className="field-label">Expense Title</label>
           <input value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Client meeting transport" className="input-field" required />
         </div>
+        <div>
+          <label className="field-label">Expense Type</label>
+          <div className="flex gap-2">
+            {EXPENSE_TYPES.map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => set("expenseType", v)}
+                className={cn(
+                  "flex-1 px-3 py-2.5 text-xs rounded-xl border font-helvetica transition-colors",
+                  form.expenseType === v
+                    ? "bg-secondary/15 text-secondary border-secondary/30"
+                    : "text-white/40 border-white/10 hover:text-white hover:border-white/20"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-white/25 font-helvetica mt-1.5">
+            {form.expenseType === "staff_claim"
+              ? "You'll be reimbursed for this once approved."
+              : "A direct company cost — no reimbursement to an individual."}
+          </p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="field-label">Category</label>
@@ -83,6 +110,11 @@ export default function NewExpensePage() {
           <label className="field-label">Date of Expense</label>
           <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} className="input-field" required />
         </div>
+        {profile?.role === "CFO" && (
+          <p className="text-[10px] text-emerald-400/70 font-helvetica -mt-2">
+            ℹ As CFO, this expense is auto-approved on submission — no separate approval step is needed.
+          </p>
+        )}
         <div>
           <label className="field-label">Description</label>
           <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3} placeholder="Provide context for this expense…" className="input-field resize-none" />

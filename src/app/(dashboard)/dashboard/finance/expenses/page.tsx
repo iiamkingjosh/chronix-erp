@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getExpenses, getMyExpenses, updateExpenseStatus, deleteExpense } from "@/lib/expense-service";
 import { formatNaira } from "@/types/finance";
-import { EXPENSE_CATEGORY_LABELS, EXPENSE_STATUS_STYLES } from "@/types/expense";
-import type { Expense, ExpenseStatus } from "@/types/expense";
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_STATUS_STYLES, EXPENSE_TYPE_LABELS, EXPENSE_TYPE_STYLES } from "@/types/expense";
+import type { Expense, ExpenseStatus, ExpenseType } from "@/types/expense";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission, isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | ExpenseStatus;
+type TypeFilter = "all" | ExpenseType;
 
 function fmt(d: string) {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -21,6 +22,7 @@ export default function ExpensesPage() {
   const [expenses, setExpenses]   = useState<Expense[]>([]);
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState<Filter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [rejectId, setRejectId]   = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [acting, setActing]       = useState<string | null>(null);
@@ -42,7 +44,9 @@ export default function ExpensesPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.uid, canManage]);
 
-  const filtered = filter === "all" ? expenses : expenses.filter((e) => e.status === filter);
+  const filtered = expenses
+    .filter((e) => filter === "all" || e.status === filter)
+    .filter((e) => typeFilter === "all" || e.expenseType === typeFilter);
   const totalPending  = expenses.filter((e) => e.status === "pending").reduce((s, e) => s + e.amount, 0);
   const totalApproved = expenses.filter((e) => e.status === "approved").reduce((s, e) => s + e.amount, 0);
 
@@ -125,8 +129,8 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 flex-wrap mb-5">
+      {/* Status filter */}
+      <div className="flex gap-2 flex-wrap mb-3">
         {(["all", "pending", "approved", "rejected", "paid"] as Filter[]).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
             className={cn("px-3 py-1.5 text-xs rounded-lg font-helvetica border transition-colors capitalize",
@@ -135,6 +139,21 @@ export default function ExpensesPage() {
             {f === "all" ? "All" : f}
             <span className="ml-1.5 text-[10px] opacity-60">
               {f === "all" ? expenses.length : expenses.filter((e) => e.status === f).length}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Type filter */}
+      <div className="flex gap-2 flex-wrap mb-5">
+        {(["all", "staff_claim", "company_expense"] as TypeFilter[]).map((t) => (
+          <button key={t} onClick={() => setTypeFilter(t)}
+            className={cn("px-3 py-1.5 text-xs rounded-lg font-helvetica border transition-colors",
+              typeFilter === t ? "bg-secondary/15 text-secondary border-secondary/30" : "text-white/40 border-white/10 hover:text-white hover:border-white/20"
+            )}>
+            {t === "all" ? "All Types" : EXPENSE_TYPE_LABELS[t]}
+            <span className="ml-1.5 text-[10px] opacity-60">
+              {t === "all" ? expenses.length : expenses.filter((e) => e.expenseType === t).length}
             </span>
           </button>
         ))}
@@ -156,6 +175,7 @@ export default function ExpensesPage() {
                 <thead>
                   <tr className="border-b border-white/10">
                     <th className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Title</th>
+                    <th className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Type</th>
                     <th className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Category</th>
                     <th className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Submitted By</th>
                     <th className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Date</th>
@@ -180,6 +200,11 @@ export default function ExpensesPage() {
                           )}
                         </div>
                         {exp.description && <p className="text-xs text-white/30 font-helvetica truncate max-w-xs">{exp.description}</p>}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica whitespace-nowrap", EXPENSE_TYPE_STYLES[exp.expenseType])}>
+                          {EXPENSE_TYPE_LABELS[exp.expenseType]}
+                        </span>
                       </td>
                       <td className="px-5 py-3.5 text-xs text-white/50 font-helvetica">{EXPENSE_CATEGORY_LABELS[exp.category]}</td>
                       <td className="px-5 py-3.5 text-xs text-white/50 font-helvetica">{exp.submittedBy}</td>

@@ -47,6 +47,7 @@ export function makeExpense(overrides: Partial<Expense> = {}): Omit<Expense, "id
   return {
     title: overrides.title ?? "Test expense",
     category: overrides.category ?? "software",
+    expenseType: overrides.expenseType ?? "staff_claim",
     amount: overrides.amount ?? 25_000,
     date: overrides.date ?? new Date().toISOString().split("T")[0],
     description: overrides.description ?? "Test expense description",

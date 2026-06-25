@@ -4,6 +4,8 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Expense, ExpenseStatus } from "@/types/expense";
+import type { Role } from "@/types/roles";
+import { ROLES } from "@/types/roles";
 import { createExpenseJournalEntry } from "@/lib/accounting/auto-journal";
 import { logAuditEvent } from "@/lib/audit-service";
 import { createNotification, notifyAssignment } from "@/lib/notifications-service";
@@ -11,22 +13,40 @@ import { validateAmount } from "@/lib/utils";
 
 const COL = "expenses";
 
-export async function createExpense(data: Omit<Expense, "id">): Promise<Expense> {
+/** A CFO submitting their own expense doesn't need a second CFO to
+ * approve it — there's no one else in the approval chain above them for
+ * this purpose. Everyone else's submissions (staff_claim or
+ * company_expense, any category) still require CFO approval as before.
+ * `submitterRole` is the signed-in submitter's own role, passed by the
+ * caller (it's never stored on the expense doc — submittedByUid/By already
+ * identify who submitted it; role here is just the auto-approval check). */
+export async function createExpense(data: Omit<Expense, "id">, submitterRole?: Role): Promise<Expense> {
   validateAmount(data.amount);
-  const ref = await addDoc(collection(db, COL), data);
-  const expense = { ...data, id: ref.id };
 
-  createNotification({
-    type:        "expense_submitted",
-    title:       "Expense Awaiting Approval",
-    message:     `"${data.title}" — ₦${data.amount.toLocaleString()} submitted by ${data.submittedBy} requires your approval.`,
-    link:        `/dashboard/finance/expenses`,
-    read:        false,
-    targetRoles: ["Root Admin", "CEO", "CFO"],
-    targetUids:  [],
-    createdAt:   new Date().toISOString(),
-    dedupeKey:   `expense-approval-${ref.id}`,
-  }).catch(() => {});
+  const isCfoSelfSubmission = submitterRole === ROLES.CFO;
+  const now = new Date().toISOString();
+  const payload: Omit<Expense, "id"> = isCfoSelfSubmission
+    ? { ...data, status: "approved", approvedBy: data.submittedBy, approvedAt: now }
+    : data;
+
+  const ref = await addDoc(collection(db, COL), payload);
+  const expense = { ...payload, id: ref.id };
+
+  // Nothing is actually "awaiting approval" for a self-approved CFO
+  // submission — skip the notification rather than send a misleading one.
+  if (!isCfoSelfSubmission) {
+    createNotification({
+      type:        "expense_submitted",
+      title:       "Expense Awaiting Approval",
+      message:     `"${data.title}" — ₦${data.amount.toLocaleString()} submitted by ${data.submittedBy} requires your approval.`,
+      link:        `/dashboard/finance/expenses`,
+      read:        false,
+      targetRoles: ["Root Admin", "CEO", "CFO"],
+      targetUids:  [],
+      createdAt:   new Date().toISOString(),
+      dedupeKey:   `expense-approval-${ref.id}`,
+    }).catch(() => {});
+  }
 
   return expense;
 }
