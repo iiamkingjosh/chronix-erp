@@ -222,6 +222,14 @@ export function canDeleteUnpaidInvoice(rawRole: string): boolean {
   return r === ROLES.ROOT_ADMIN || r === ROLES.CFO || r === ROLES.SYSTEM_ADMIN;
 }
 
+/** Narrower than the general "manage:finance" set — CEO and Finance
+ * Officer can view/approve finance data but do not SET budgets.
+ * (Firestore rules should match.) */
+export function canSetBudget(rawRole: string): boolean {
+  const r = resolveRole(rawRole);
+  return r === ROLES.ROOT_ADMIN || r === ROLES.CFO || r === ROLES.SYSTEM_ADMIN;
+}
+
 export function isRootAdmin(rawRole: string): boolean {
   return resolveRole(rawRole) === ROLES.ROOT_ADMIN;
 }

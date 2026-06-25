@@ -98,6 +98,11 @@ service cloud.firestore {
     function canManageFinance() {
       return isRootAdmin() || isCEO() || isCFO() || isSystemAdmin() || isFinanceOfficer();
     }
+    /** Narrower than canManageFinance() — CEO and Finance Officer can view
+     * and approve finance data but do not SET budgets. */
+    function canSetBudget() {
+      return isRootAdmin() || isCFO() || isSystemAdmin();
+    }
     function canManageTickets() {
       return isRootAdmin() || isCFO() || isSystemAdmin() || isProjectManager() || isITManager();
     }
@@ -511,6 +516,17 @@ service cloud.firestore {
       );
       allow create: if isAuth() && !isClientRole();
       allow update: if isAuth() && (isRootAdmin() || isCFO() || isSystemAdmin() || isCEO());
+      allow delete: if false;
+    }
+
+    /* ── Expense Budgets — one annual figure per category ─── */
+    // Write gated to canSetBudget() (narrower than canManageFinance() —
+    // excludes CEO and Finance Officer). Read matches hasViewFinance(),
+    // the same broad gate vat_returns uses, so reporting works for
+    // everyone who can already see finance reports today.
+    match /expense_budgets/{budgetId} {
+      allow read:   if isAuth() && hasViewFinance();
+      allow create, update: if isAuth() && canSetBudget();
       allow delete: if false;
     }
 
