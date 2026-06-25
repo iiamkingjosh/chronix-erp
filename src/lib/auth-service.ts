@@ -11,6 +11,7 @@ import { auth, db } from "./firebase";
 import type { ChronixUser, Role } from "@/types/roles";
 import { resolveRole, ROLES } from "@/types/roles";
 import { logAuditEvent } from "./audit-service";
+import { getCurrentPushToken, unregisterToken } from "./fcm-client";
 
 /* ── Cookie helpers ───────────────────────────────────────── */
 
@@ -128,7 +129,24 @@ export async function signIn(email: string, password: string): Promise<ChronixUs
 
 /* ── signOutUser ──────────────────────────────────────────── */
 
+/** Drops this device's push token before the session ends, so a logged-out
+ * device stops receiving push for this account - best-effort, same
+ * non-blocking-but-logged pattern as every other notification-adjacent
+ * fix today: a failed unregister must never prevent sign-out itself. */
 export async function signOutUser(): Promise<void> {
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      const token = await getCurrentPushToken();
+      if (token) {
+        const idToken = await user.getIdToken();
+        await unregisterToken(token, idToken);
+      }
+    }
+  } catch (err) {
+    console.error("[signOutUser] push token unregister failed:", err);
+  }
+
   clearSessionCookie();
   await signOut(auth);
 }

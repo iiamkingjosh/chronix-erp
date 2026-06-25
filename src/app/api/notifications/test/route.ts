@@ -34,7 +34,12 @@ export async function POST(req: NextRequest) {
       .where("dedupeKey", "==", dedupeKey).limit(1).get();
     if (existing.empty) {
       await db.collection("notifications").add({
-        type:        "renewal_due",
+        // This route tests generic delivery infrastructure (any role, no
+        // real deadline) - not a genuine tax reminder, so there's no
+        // single "correct" category. vat_filing_due picked as a
+        // representative placeholder since it shares taxReminderEmail(),
+        // the same template real tax reminders use.
+        type:        "vat_filing_due",
         title,
         message,
         link,

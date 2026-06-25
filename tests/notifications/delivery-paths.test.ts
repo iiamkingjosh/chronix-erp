@@ -2,13 +2,30 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } 
 import "../helpers/admin-emulator";
 import { connectEmulators, clearAll, teardownEmulators, signInAs, signOutCurrent, readDocAsAdmin, queryAsAdmin, seedDoc } from "../helpers/emulator";
 import { notifyAssignment, notifyStaffRegistered, checkTaxFilingReminders } from "@/lib/notifications-service";
-import { saveFCMToken } from "@/lib/push-token-service";
-import { signUp, signIn } from "@/lib/auth-service";
+import { signUp, signIn, signOutUser } from "@/lib/auth-service";
+import { getCurrentPushToken, unregisterToken } from "@/lib/fcm-client";
 import { auth } from "@/lib/firebase";
 import { POST as registerTokenRoute } from "@/app/api/notifications/register-token/route";
+import { POST as unregisterTokenRoute } from "@/app/api/notifications/unregister-token/route";
 import { POST as sendRoute } from "@/app/api/notifications/send/route";
 import { POST as pushRoute } from "@/app/api/notifications/push/route";
+import { GET as cronTaxRoute } from "@/app/api/cron/tax/route";
 import type { AppNotification } from "@/types/notifications";
+
+// getCurrentPushToken() needs real browser APIs (service worker, FCM
+// messaging) unavailable in this Node test environment, and
+// unregisterToken() normally does a real fetch() to a relative URL, which
+// can't resolve outside a real Next.js request context (same constraint
+// hit earlier today with createNotification()'s push call). Mocked so the
+// route + Firestore logic underneath is still genuinely exercised, not
+// the browser-only token-retrieval/transport layer.
+vi.mock("@/lib/fcm-client", () => ({
+  getPushPermission:   vi.fn(() => "granted"),
+  getCurrentPushToken:  vi.fn(),
+  unregisterToken:      vi.fn(),
+  registerToken:        vi.fn(),
+  enablePushNotifications: vi.fn(),
+}));
 
 beforeAll(async () => {
   await connectEmulators();
@@ -101,38 +118,62 @@ describe("FIXED: DEVIATION D6 — the response now reflects actual delivery stat
   });
 });
 
-describe("DEVIATION D7 — notification \"type\" is hardcoded to a value unrelated to the actual event, ignoring the declared 19-value taxonomy", () => {
-  it("checkTaxFilingReminders always uses type: \"renewal_due\" regardless of which specific tax deadline fired", async () => {
+describe("FIXED: DEVIATION D7 — each tax deadline now produces its own distinct notification type, not a shared generic one", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("checkTaxFilingReminders() produces the correct, distinct type for each of its four deadlines - VAT, PAYE, annual CIT, annual PAYE return", async () => {
     await signInAs("CFO");
-    // Force the "21st of the month" VAT-filing branch by checking what type
-    // gets written — we can't change the system clock here, so instead
-    // confirm the literal type string used in the source for ALL FOUR
-    // distinct tax-deadline notifications this function can produce is the
-    // same single value, by reading the function's own four call sites
-    // (already confirmed via source read: vat-filing, paye-remittance,
-    // annual-cit, annual-paye-return all use type:"renewal_due"). This test
-    // exercises the function end-to-end on whatever day it actually runs,
-    // and asserts that IF it wrote anything, the type is the generic one:
+
+    vi.useFakeTimers({ toFake: ["Date"] }); // only Date - faking setTimeout/setInterval too stalls the real Firestore SDK's internal timers
+    vi.setSystemTime(new Date("2026-03-21T09:00:00Z")); // VAT filing day
     await checkTaxFilingReminders();
-    const all = await queryAsAdmin<AppNotification>("notifications", "type", "renewal_due");
-    // On most days this writes nothing (none of the date conditions match),
-    // which is fine — the structural point (verified by source reading) is
-    // that none of these four distinct deadlines has its own type value.
-    expect(all.every((n) => n.type === "renewal_due")).toBe(true);
+    vi.setSystemTime(new Date("2026-03-10T09:00:00Z")); // PAYE remittance day
+    await checkTaxFilingReminders();
+    vi.setSystemTime(new Date("2026-01-05T09:00:00Z")); // annual CIT window
+    await checkTaxFilingReminders();
+    vi.setSystemTime(new Date("2026-01-28T09:00:00Z")); // annual PAYE return window
+    await checkTaxFilingReminders();
+    vi.useRealTimers();
+
+    const vat   = await queryAsAdmin<AppNotification>("notifications", "type", "vat_filing_due");
+    const paye  = await queryAsAdmin<AppNotification>("notifications", "type", "paye_remittance_due");
+    const cit   = await queryAsAdmin<AppNotification>("notifications", "type", "annual_cit_due");
+    const ann   = await queryAsAdmin<AppNotification>("notifications", "type", "annual_paye_return_due");
+    expect(vat).toHaveLength(1);
+    expect(paye).toHaveLength(1);
+    expect(cit).toHaveLength(1);
+    expect(ann).toHaveLength(1);
+
+    // Confirms the OLD shared value is now genuinely unused by any of these.
+    const stale = await queryAsAdmin<AppNotification>("notifications", "type", "renewal_due");
+    expect(stale).toHaveLength(0);
+  });
+
+  it("api/cron/tax's WHT reminder - which checkTaxFilingReminders() doesn't cover at all - gets its own distinct type too", async () => {
+    process.env.CRON_SECRET = "test-cron-secret";
+    vi.useFakeTimers({ toFake: ["Date"] }); // only Date - see note above
+    vi.setSystemTime(new Date("2026-04-21T09:00:00Z")); // VAT + WHT both due the 21st
+
+    const req = new Request("http://localhost/api/cron/tax", {
+      headers: { Authorization: "Bearer test-cron-secret" },
+    });
+    const res = await cronTaxRoute(req as never);
+    vi.useRealTimers();
+
+    expect(res.status).toBe(200);
+    const wht = await queryAsAdmin<AppNotification>("notifications", "type", "wht_remittance_due");
+    const vat = await queryAsAdmin<AppNotification>("notifications", "type", "vat_filing_due");
+    expect(wht).toHaveLength(1);
+    expect(vat).toHaveLength(1); // confirms both same-day reminders got their own distinct types, not one shared value
   });
 });
 
-describe("DEVIATION D8 — two independent FCM-token-write implementations duplicate the same read-modify-write logic", () => {
-  it("the client-side service function and the Admin-SDK API route both append to the same push_tokens doc, but via separately-maintained code", async () => {
+describe("FIXED: DEVIATION D8 — push-token-service.ts (the unused, never-wired client-side duplicate) deleted entirely", () => {
+  it("registering a token still works correctly via the one remaining path (the Admin-SDK route)", async () => {
     const { uid } = await signInAs("Staff");
 
-    // Client-side path (push-token-service.ts) — confirmed to have no
-    // caller anywhere in the audited UI (an orphan), but still functional:
-    await saveFCMToken(uid, "token-from-client-path");
-    let persisted = await readDocAsAdmin<{ tokens: string[] }>("push_tokens", uid);
-    expect(persisted?.tokens).toContain("token-from-client-path");
-
-    // Admin-SDK path (the one actually wired to the app's registration UI):
     const idToken = await auth.currentUser!.getIdToken();
     const req = new Request("http://localhost/api/notifications/register-token", {
       method: "POST",
@@ -141,13 +182,8 @@ describe("DEVIATION D8 — two independent FCM-token-write implementations dupli
     });
     await registerTokenRoute(req as never);
 
-    persisted = await readDocAsAdmin<{ tokens: string[] }>("push_tokens", uid);
-    expect(persisted?.tokens).toEqual(["token-from-client-path", "token-from-api-path"]);
-    // Both paths successfully reach the identical document with the
-    // identical shape — confirming they are two independent
-    // implementations of one concept, not a shared helper called from two
-    // places. A bug fixed in one (e.g. token deduplication, max-token caps)
-    // would not automatically apply to the other.
+    const persisted = await readDocAsAdmin<{ tokens: string[] }>("push_tokens", uid);
+    expect(persisted?.tokens).toEqual(["token-from-api-path"]);
   });
 });
 
@@ -336,5 +372,85 @@ describe("New: notifyStaffRegistered() alerts HR/Root Admin/System Admin on genu
 
     const notifs = await queryAsAdmin<AppNotification>("notifications", "type", "staff_registered");
     expect(notifs.find((n) => n.message.includes(email))).toBeUndefined();
+  });
+});
+
+describe("New: signOutUser() now unregisters this device's push token - the logout gap found alongside D8", () => {
+  // signOutUser() calls clearSessionCookie() via `document.cookie`, same
+  // Node-environment gap as signUp() above - minimal stub, not an app change.
+  beforeEach(() => {
+    vi.stubGlobal("document", { cookie: "" });
+  });
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("a real sign-out call genuinely removes the push token - the document is verified gone afterward, not just that the function didn't error", async () => {
+    const { uid } = await signInAs("Staff");
+
+    // Simulate this device having registered a token earlier (the real
+    // registration path, unmocked).
+    const idToken = await auth.currentUser!.getIdToken();
+    await registerTokenRoute(new Request("http://localhost/api/notifications/register-token", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "device-token-1" }),
+    }) as never);
+
+    let persisted = await readDocAsAdmin<{ tokens: string[] }>("push_tokens", uid);
+    expect(persisted?.tokens).toContain("device-token-1");
+
+    vi.mocked(getCurrentPushToken).mockResolvedValue("device-token-1");
+    vi.mocked(unregisterToken).mockImplementation(async (token, idTok) => {
+      await unregisterTokenRoute(new Request("http://localhost/api/notifications/unregister-token", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idTok}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      }) as never);
+    });
+
+    await signOutUser();
+
+    persisted = await readDocAsAdmin<{ tokens: string[] }>("push_tokens", uid);
+    expect(persisted?.tokens).not.toContain("device-token-1");
+    expect(persisted?.tokens).toEqual([]);
+  });
+
+  it("a second device's token, registered separately, survives the first device's sign-out untouched", async () => {
+    const { uid } = await signInAs("Staff");
+    const idToken = await auth.currentUser!.getIdToken();
+
+    for (const token of ["device-token-A", "device-token-B"]) {
+      await registerTokenRoute(new Request("http://localhost/api/notifications/register-token", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      }) as never);
+    }
+
+    vi.mocked(getCurrentPushToken).mockResolvedValue("device-token-A");
+    vi.mocked(unregisterToken).mockImplementation(async (token, idTok) => {
+      await unregisterTokenRoute(new Request("http://localhost/api/notifications/unregister-token", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idTok}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      }) as never);
+    });
+
+    await signOutUser();
+
+    const persisted = await readDocAsAdmin<{ tokens: string[] }>("push_tokens", uid);
+    expect(persisted?.tokens).not.toContain("device-token-A");
+    expect(persisted?.tokens).toContain("device-token-B"); // the other device's session is untouched
+  });
+
+  it("sign-out still completes successfully even if the unregister call itself fails", async () => {
+    await signInAs("Staff");
+    vi.mocked(getCurrentPushToken).mockResolvedValue("some-token");
+    vi.mocked(unregisterToken).mockRejectedValue(new Error("simulated network failure"));
+
+    await expect(signOutUser()).resolves.toBeUndefined();
+    expect(auth.currentUser).toBeNull(); // sign-out itself genuinely completed
   });
 });

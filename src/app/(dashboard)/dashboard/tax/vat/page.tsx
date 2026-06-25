@@ -104,7 +104,7 @@ export default function VATPage() {
           method:  "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
           body:    JSON.stringify({
-            type:        "renewal_due",
+            type:        "vat_filing_due",
             title:       `VAT Entry Logged — ${rec.type === "collected" ? "Collected" : "Paid"}`,
             message:     `Manual VAT entry of ${formatNaira(rec.amount)} (${rec.type}) recorded for ${rec.partyName} in period ${period}.`,
             link:        "/dashboard/tax/vat",

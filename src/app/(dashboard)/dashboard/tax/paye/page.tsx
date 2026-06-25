@@ -148,7 +148,7 @@ export default function PAYEPage() {
             method:  "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
             body:    JSON.stringify({
-              type:        "renewal_due",
+              type:        "paye_remittance_due",
               title:       "PAYE Calculation Completed",
               message:     `PAYE computed for ${newRecs.length} employee${newRecs.length !== 1 ? "s" : ""} — period ${period}. Total obligation: ${formatNaira(total)}.`,
               link:        "/dashboard/tax/paye",

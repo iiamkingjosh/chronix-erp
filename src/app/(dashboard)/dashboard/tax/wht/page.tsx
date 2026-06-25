@@ -227,7 +227,7 @@ export default function WHTPage() {
           method:  "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
           body:    JSON.stringify({
-            type:        "renewal_due",
+            type:        "wht_remittance_due",
             title:       "WHT Record Logged",
             message:     `WHT of ${formatNaira(rec.whtAmount)} deducted from ${rec.vendorName} has been recorded.`,
             link:        "/dashboard/tax/wht",

@@ -18,7 +18,12 @@ export type NotificationType =
   | "expense_approved"
   | "expense_rejected"
   | "invoice_approval_needed"
-  | "staff_registered";
+  | "staff_registered"
+  | "vat_filing_due"
+  | "wht_remittance_due"
+  | "paye_remittance_due"
+  | "annual_cit_due"
+  | "annual_paye_return_due";
 
 export interface AppNotification {
   id:           string;
@@ -54,6 +59,11 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   expense_rejected:        "Expense Rejected",
   invoice_approval_needed: "Invoice Pending",
   staff_registered:        "New Staff Account",
+  vat_filing_due:          "VAT Filing Due",
+  wht_remittance_due:      "WHT Remittance Due",
+  paye_remittance_due:     "PAYE Remittance Due",
+  annual_cit_due:          "Annual CIT Due",
+  annual_paye_return_due:  "Annual PAYE Return Due",
 };
 
 export const NOTIFICATION_TYPE_STYLES: Record<NotificationType, string> = {
@@ -77,6 +87,11 @@ export const NOTIFICATION_TYPE_STYLES: Record<NotificationType, string> = {
   expense_rejected:        "bg-red-500/15 text-red-400 border-red-500/30",
   invoice_approval_needed: "bg-amber-500/15 text-amber-400 border-amber-500/30",
   staff_registered:        "bg-secondary/15 text-secondary border-secondary/30",
+  vat_filing_due:          "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  wht_remittance_due:      "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  paye_remittance_due:     "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  annual_cit_due:          "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  annual_paye_return_due:  "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
 
 export const NOTIFICATION_TYPE_ICONS: Record<NotificationType, string> = {
@@ -100,4 +115,9 @@ export const NOTIFICATION_TYPE_ICONS: Record<NotificationType, string> = {
   expense_rejected:        "❌",
   invoice_approval_needed: "🧾",
   staff_registered:        "🆕",
+  vat_filing_due:          "📅",
+  wht_remittance_due:      "📅",
+  paye_remittance_due:     "📅",
+  annual_cit_due:          "📅",
+  annual_paye_return_due:  "📅",
 };

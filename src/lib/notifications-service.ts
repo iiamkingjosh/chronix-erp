@@ -225,7 +225,7 @@ export async function checkTaxFilingReminders(): Promise<void> {
   /* VAT filing — 21st of every month */
   if (day === 21) {
     await createNotification({
-      type:        "renewal_due",
+      type:        "vat_filing_due",
       title:       "VAT Filing Due Today",
       message:     `VAT filing for ${period} is due today (21st). Ensure FIRS submission is complete. Check VAT page for payable amount.`,
       link:        "/dashboard/tax/vat",
@@ -239,7 +239,7 @@ export async function checkTaxFilingReminders(): Promise<void> {
   /* PAYE remittance — 10th of every month */
   if (day === 10) {
     await createNotification({
-      type:        "renewal_due",
+      type:        "paye_remittance_due",
       title:       "PAYE Remittance Due Today",
       message:     `PAYE remittance for ${period} is due today (10th). Ensure remittance to LIRS/SIRS is complete.`,
       link:        "/dashboard/tax/paye",
@@ -253,7 +253,7 @@ export async function checkTaxFilingReminders(): Promise<void> {
   /* Annual CIT reminder — first week of January */
   if (now.getMonth() === 0 && day <= 7) {
     await createNotification({
-      type:        "renewal_due",
+      type:        "annual_cit_due",
       title:       "Annual Tax Review — New Financial Year",
       message:     `It is ${year}. Corporate tax returns for FY ${year - 1} should be reviewed. Consult your tax practitioner.`,
       link:        "/dashboard/tax/corporate",
@@ -267,7 +267,7 @@ export async function checkTaxFilingReminders(): Promise<void> {
   /* Annual PAYE return — January 31 reminder */
   if (now.getMonth() === 0 && day >= 25 && day <= 31) {
     await createNotification({
-      type:        "renewal_due",
+      type:        "annual_paye_return_due",
       title:       "Annual PAYE Return Due — 31 January",
       message:     `Annual PAYE employer return for ${year - 1} is due by 31 January ${year}. File with your State Internal Revenue Service.`,
       link:        "/dashboard/tax/paye",

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { sendPushToTokens } from "@/lib/push-service";
 import { sendEmail, taxReminderEmail } from "@/lib/email-service";
+import type { NotificationType } from "@/types/notifications";
 
 function isCronRequest(req: NextRequest): boolean {
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -9,7 +10,7 @@ function isCronRequest(req: NextRequest): boolean {
 }
 
 interface Reminder {
-  type:        string;
+  type:        NotificationType;
   title:       string;
   message:     string;
   link:        string;
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
     /* VAT — reminder on 18th, deadline on 21st */
     if (day === 18) {
       reminders.push({
-        type:        "renewal_due",
+        type:        "vat_filing_due",
         title:       "VAT Filing Due in 3 Days",
         message:     `VAT filing for ${period} is due on the 21st. Review your VAT summary and prepare your FIRS submission.`,
         link:        "/dashboard/tax/vat",
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
     }
     if (day === 21) {
       reminders.push({
-        type:        "renewal_due",
+        type:        "vat_filing_due",
         title:       "VAT Filing Due Today",
         message:     `VAT filing for ${period} is due today (21st). Ensure your submission to FIRS is complete.`,
         link:        "/dashboard/tax/vat",
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
       });
       /* WHT also due 21st */
       reminders.push({
-        type:        "renewal_due",
+        type:        "wht_remittance_due",
         title:       "WHT Remittance Due Today",
         message:     `Withholding tax deducted for ${period} must be remitted to FIRS today (21st).`,
         link:        "/dashboard/tax/wht",
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest) {
     /* PAYE — reminder on 8th, deadline on 10th */
     if (day === 8) {
       reminders.push({
-        type:        "renewal_due",
+        type:        "paye_remittance_due",
         title:       "PAYE Remittance Due in 2 Days",
         message:     `PAYE remittance for ${period} is due on the 10th. Ensure payroll is finalised and PAYE is computed.`,
         link:        "/dashboard/tax/paye",
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
     }
     if (day === 10) {
       reminders.push({
-        type:        "renewal_due",
+        type:        "paye_remittance_due",
         title:       "PAYE Remittance Due Today",
         message:     `PAYE remittance for ${period} is due today (10th). Remit to LIRS/SIRS before end of business.`,
         link:        "/dashboard/tax/paye",
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
     /* Annual CIT — fire on January 2nd */
     if (now.getMonth() === 0 && day === 2) {
       reminders.push({
-        type:        "renewal_due",
+        type:        "annual_cit_due",
         title:       "Annual CIT Review — New Financial Year",
         message:     `CIT returns for FY ${year - 1} must be filed within 6 months of your financial year end. Engage your tax practitioner now.`,
         link:        "/dashboard/tax/corporate",
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
     /* Annual PAYE return — fire on January 25th */
     if (now.getMonth() === 0 && day === 25) {
       reminders.push({
-        type:        "renewal_due",
+        type:        "annual_paye_return_due",
         title:       "Annual PAYE Return Due — 31 January",
         message:     `Annual PAYE employer return for ${year - 1} is due by 31 January ${year}. File with your State Internal Revenue Service.`,
         link:        "/dashboard/tax/paye",
