@@ -6,6 +6,7 @@ import { getIncident, updateIncidentStatus, addIncidentUpdate, closeIncidentWith
 import { INCIDENT_SEVERITY_STYLES, INCIDENT_SEVERITY_LABELS, INCIDENT_STATUS_STYLES } from "@/types/incident";
 import type { Incident, IncidentStatus } from "@/types/incident";
 import { useAuth } from "@/contexts/AuthContext";
+import { isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 function fmtTime(ts: string) {
@@ -22,6 +23,19 @@ export default function IncidentDetailPage() {
   const [rcaForm, setRcaForm]     = useState({ rootCause: "", actionsTaken: "", preventionPlan: "" });
   const [showRCA, setShowRCA]     = useState(false);
   const [acting, setActing]       = useState(false);
+
+  // Matches firestore.rules' incidents update rule exactly:
+  // isRootAdmin() || isSystemAdmin() || isCEO() || isCFO() || isITManager().
+  // Hardcoded role checks, not hasPermission() - CEO/CFO have no
+  // manage:incidents permission string, same reason changes/page.tsx
+  // uses this exact pattern.
+  const canManage = !!profile && (
+    isRootAdmin(profile.role) ||
+    profile.role === "System Admin" ||
+    profile.role === "CEO" ||
+    profile.role === "CFO" ||
+    profile.role === "IT Manager"
+  );
 
   useEffect(() => { getIncident(id).then(setIncident).finally(() => setLoading(false)); }, [id]);
 
@@ -87,10 +101,10 @@ export default function IncidentDetailPage() {
         <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica", INCIDENT_SEVERITY_STYLES[incident.severity])}>{incident.severity}</span>
         <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica capitalize", INCIDENT_STATUS_STYLES[incident.status])}>{incident.status}</span>
         <div className="ml-auto flex gap-2">
-          {incident.status === "open"          && <button onClick={() => handleStatus("investigating")} className="text-xs text-amber-400 border border-amber-500/20 hover:bg-amber-500/10 px-3 py-1.5 rounded-lg font-helvetica">Investigating</button>}
-          {incident.status === "investigating" && <button onClick={() => handleStatus("mitigated")}     className="text-xs text-blue-400 border border-blue-500/20 hover:bg-blue-500/10 px-3 py-1.5 rounded-lg font-helvetica">Mitigated</button>}
-          {(incident.status === "mitigated" || incident.status === "investigating") && <button onClick={() => handleStatus("resolved")} className="text-xs text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/10 px-3 py-1.5 rounded-lg font-helvetica">Resolved</button>}
-          {incident.status === "resolved"      && <button onClick={() => setShowRCA(true)}              className="text-xs text-white/60 border border-white/20 hover:bg-white/5 px-3 py-1.5 rounded-lg font-helvetica">Close with RCA</button>}
+          {canManage && incident.status === "open"          && <button onClick={() => handleStatus("investigating")} className="text-xs text-amber-400 border border-amber-500/20 hover:bg-amber-500/10 px-3 py-1.5 rounded-lg font-helvetica">Investigating</button>}
+          {canManage && incident.status === "investigating" && <button onClick={() => handleStatus("mitigated")}     className="text-xs text-blue-400 border border-blue-500/20 hover:bg-blue-500/10 px-3 py-1.5 rounded-lg font-helvetica">Mitigated</button>}
+          {canManage && (incident.status === "mitigated" || incident.status === "investigating") && <button onClick={() => handleStatus("resolved")} className="text-xs text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/10 px-3 py-1.5 rounded-lg font-helvetica">Resolved</button>}
+          {canManage && incident.status === "resolved"      && <button onClick={() => setShowRCA(true)}              className="text-xs text-white/60 border border-white/20 hover:bg-white/5 px-3 py-1.5 rounded-lg font-helvetica">Close with RCA</button>}
         </div>
       </div>
 
@@ -125,7 +139,7 @@ export default function IncidentDetailPage() {
                 </div>
               ))}
             </div>
-            {incident.status !== "closed" && (
+            {canManage && incident.status !== "closed" && (
               <div className="px-5 py-4 border-t border-white/10 flex gap-3">
                 <input value={update} onChange={(e) => setUpdate(e.target.value)} placeholder="Post an update…" className="input-field flex-1 text-sm" onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddUpdate(); }}} />
                 <button onClick={handleAddUpdate} disabled={!update.trim() || acting} className="btn-primary text-xs px-4">Post</button>

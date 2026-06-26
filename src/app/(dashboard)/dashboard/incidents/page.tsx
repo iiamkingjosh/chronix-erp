@@ -6,6 +6,7 @@ import { getIncidents, updateIncidentStatus } from "@/lib/incident-service";
 import { INCIDENT_SEVERITY_STYLES, INCIDENT_SEVERITY_LABELS, INCIDENT_STATUS_STYLES } from "@/types/incident";
 import type { Incident, IncidentStatus } from "@/types/incident";
 import { useAuth } from "@/contexts/AuthContext";
+import { isRootAdmin } from "@/types/roles";
 import { cn } from "@/lib/utils";
 
 function fmtDate(d?: string) {
@@ -26,6 +27,19 @@ export default function IncidentsPage() {
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState("all");
   const [acting, setActing]       = useState<string | null>(null);
+
+  // Matches firestore.rules' incidents update rule exactly:
+  // isRootAdmin() || isSystemAdmin() || isCEO() || isCFO() || isITManager().
+  // Hardcoded role checks, not hasPermission() - CEO/CFO have no
+  // manage:incidents permission string, same reason changes/page.tsx
+  // uses this exact pattern.
+  const canManage = !!profile && (
+    isRootAdmin(profile.role) ||
+    profile.role === "System Admin" ||
+    profile.role === "CEO" ||
+    profile.role === "CFO" ||
+    profile.role === "IT Manager"
+  );
 
   useEffect(() => { getIncidents().then(setIncidents).finally(() => setLoading(false)); }, []);
 
@@ -109,19 +123,19 @@ export default function IncidentsPage() {
                   <Link href={`/dashboard/incidents/${inc.id}`} className="text-xs text-white/40 hover:text-white border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-lg font-helvetica transition-colors">
                     View
                   </Link>
-                  {inc.status === "open" && (
+                  {canManage && inc.status === "open" && (
                     <button onClick={() => handleStatus(inc.id, "investigating")} disabled={acting === inc.id}
                       className="text-xs text-amber-400 border border-amber-500/20 hover:bg-amber-500/10 px-3 py-1.5 rounded-lg font-helvetica transition-colors">
                       Investigating
                     </button>
                   )}
-                  {inc.status === "investigating" && (
+                  {canManage && inc.status === "investigating" && (
                     <button onClick={() => handleStatus(inc.id, "mitigated")} disabled={acting === inc.id}
                       className="text-xs text-blue-400 border border-blue-500/20 hover:bg-blue-500/10 px-3 py-1.5 rounded-lg font-helvetica transition-colors">
                       Mitigated
                     </button>
                   )}
-                  {(inc.status === "mitigated" || inc.status === "investigating") && (
+                  {canManage && (inc.status === "mitigated" || inc.status === "investigating") && (
                     <button onClick={() => handleStatus(inc.id, "resolved")} disabled={acting === inc.id}
                       className="text-xs text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/10 px-3 py-1.5 rounded-lg font-helvetica transition-colors">
                       Resolved
