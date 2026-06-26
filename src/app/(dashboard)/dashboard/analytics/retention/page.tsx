@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getRetentionAnalytics, EMPTY_RETENTION, type RetentionData } from "@/lib/analytics-service";
+import { getRetentionAnalytics, EMPTY_RETENTION, LOW_SAMPLE_THRESHOLD, type RetentionData } from "@/lib/analytics-service";
 import { formatNaira } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +44,11 @@ export default function ClientRetentionPage() {
   if (loading) return <Spinner />;
 
   const d = data;
+  const clientsDenied  = d.deniedSources.includes("clients");
+  const leadsDenied    = d.deniedSources.includes("leads");
+  const invoicesDenied = d.deniedSources.includes("invoices");
+  const retentionRateDenied = clientsDenied || leadsDenied; // its denominator mixes both sources
+  const lowRetentionSample  = d.retentionSampleSize < LOW_SAMPLE_THRESHOLD;
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -57,20 +62,29 @@ export default function ClientRetentionPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Active Clients",   value: String(d.activeClients),       accent: "text-emerald-400" },
-          { label: "Retained Clients", value: String(d.retainedLeads),       accent: "text-purple-400" },
-          { label: "Retention Rate",   value: `${d.retentionRate}%`,         accent: d.retentionRate >= 70 ? "text-emerald-400" : d.retentionRate >= 40 ? "text-amber-400" : "text-white/50" },
-          { label: "Avg Client Value", value: formatNaira(d.avgClientValue), accent: "text-secondary" },
+          { label: "Active Clients",   value: String(d.activeClients),       accent: "text-emerald-400", denied: clientsDenied, low: false },
+          { label: "Retained Clients", value: String(d.retainedLeads),       accent: "text-purple-400", denied: leadsDenied, low: false },
+          { label: "Retention Rate",   value: lowRetentionSample ? `${d.retentionRate}% (${d.retainedLeads} of ${d.retentionSampleSize})` : `${d.retentionRate}%`,
+            accent: lowRetentionSample ? "text-white/50" : (d.retentionRate >= 70 ? "text-emerald-400" : d.retentionRate >= 40 ? "text-amber-400" : "text-white/50"),
+            denied: retentionRateDenied, low: lowRetentionSample },
+          { label: "Avg Client Value", value: formatNaira(d.avgClientValue), accent: "text-secondary", denied: clientsDenied || invoicesDenied, low: false },
         ].map((item) => (
           <div key={item.label} className="surface-card p-5 min-h-[90px]">
             <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">{item.label}</p>
-            <p className={cn("font-orbitron text-2xl font-bold tabular-nums", item.accent)}>{item.value}</p>
+            {item.denied ? (
+              <p className="text-white/30 text-xs font-helvetica leading-snug mt-2">🔒 You don&apos;t have access to this data.</p>
+            ) : (
+              <>
+                <p className={cn("font-orbitron text-2xl font-bold tabular-nums", item.accent)}>{item.value}</p>
+                {item.low && <p className="text-[10px] text-white/30 font-helvetica mt-1">Low sample size — not statistically meaningful yet.</p>}
+              </>
+            )}
           </div>
         ))}
       </div>
 
       {/* Empty state when no clients at all */}
-      {d.activeClients === 0 && d.retainedLeads === 0 && (
+      {!clientsDenied && !leadsDenied && d.activeClients === 0 && d.retainedLeads === 0 && (
         <div className="surface-card px-6 py-12 text-center">
           <p className="text-white/20 text-sm font-helvetica mb-3">No clients yet — retention data will appear once you have clients.</p>
           <Link href="/dashboard/crm/leads/new" className="text-accent text-sm font-helvetica hover:underline">Add first lead →</Link>
@@ -80,6 +94,9 @@ export default function ClientRetentionPage() {
       {/* Retention overview */}
       <div className="surface-card p-6">
         <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-4">Retention Overview</h2>
+        {retentionRateDenied ? (
+          <p className="text-white/30 text-sm font-helvetica text-center py-8">🔒 You don&apos;t have access to client/lead data.</p>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {/* Donut */}
           <div className="flex flex-col items-center justify-center">
@@ -122,15 +139,23 @@ export default function ClientRetentionPage() {
           <div className="flex flex-col justify-center gap-3">
             <div className="surface-card p-4 bg-white/[0.03]">
               <p className="text-xs text-white/40 font-helvetica">Avg Lifetime Value</p>
-              <p className="font-orbitron text-lg font-bold text-secondary">{formatNaira(d.avgClientValue)}</p>
+              {clientsDenied || invoicesDenied ? (
+                <p className="text-white/30 text-xs font-helvetica mt-1">🔒 No access</p>
+              ) : (
+                <p className="font-orbitron text-lg font-bold text-secondary">{formatNaira(d.avgClientValue)}</p>
+              )}
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* New clients by month */}
       <div className="surface-card p-6">
         <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-5">New Clients per Month</h2>
+        {clientsDenied ? (
+          <p className="text-white/30 text-sm font-helvetica text-center py-8">🔒 You don&apos;t have access to client data.</p>
+        ) : (
         <div className="flex items-end gap-2 h-32">
           {d.clientsByMonth.map((m) => {
             const max = Math.max(...d.clientsByMonth.map((x) => x.count), 1);
@@ -145,12 +170,15 @@ export default function ClientRetentionPage() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Top clients */}
       <div className="surface-card p-6">
         <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-5">Client Lifetime Value (Top 8)</h2>
-        {d.topClientsByValue.length === 0 ? (
+        {invoicesDenied ? (
+          <p className="text-white/30 text-sm font-helvetica text-center py-8">🔒 You don&apos;t have access to invoice data.</p>
+        ) : d.topClientsByValue.length === 0 ? (
           <p className="text-white/20 text-sm font-helvetica text-center py-8">No payment data yet.</p>
         ) : (
           <BarChart data={d.topClientsByValue.map((c) => ({ label: c.name, value: c.value }))} format={formatNaira} />

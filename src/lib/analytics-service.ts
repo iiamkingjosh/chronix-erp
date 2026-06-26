@@ -21,6 +21,15 @@ function setCached<T>(key: string, data: T): T {
 }
 export function clearAnalyticsCache(): void { _cache.clear(); }
 
+/* Sample size below which a percentage/rate is flagged as low-confidence
+ * rather than rendered with the same visual certainty as a real-scale
+ * number. 10 is the threshold: below it, a single record swings the
+ * result by >=10 percentage points, which is too coarse for the rate to
+ * mean anything a viewer should act on - matching the common "small cell"
+ * convention used in basic reporting (don't trust a rate computed from
+ * a single-digit denominator). */
+export const LOW_SAMPLE_THRESHOLD = 10;
+
 /* Resolve a month string "YYYY-MM" from a Date */
 function monthStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -30,8 +39,32 @@ function lastMonthStr() {
   const d = new Date(); d.setMonth(d.getMonth() - 1); return monthStr(d);
 }
 
-/* Safe wrapper — any single failing collection returns [] instead of crashing */
-const safe = <T,>(p: Promise<T[]>) => p.catch((): T[] => []);
+/** Source collection names used to tag which metrics are affected by a
+ * denied read - matches the literal collection name each getX() call
+ * targets, so a page can map a denied source straight to the section(s)
+ * that depend on it. */
+export type AnalyticsSource = "invoices" | "tickets" | "clients" | "leads" | "projects" | "subscriptions" | "users";
+
+interface FetchResult<T> { items: T[]; denied: boolean; }
+
+/** Replaces the old safe() wrapper, which collapsed EVERY failure
+ * (permission-denied or otherwise) into a silent []  - indistinguishable
+ * from a genuinely empty collection. This keeps that same fail-soft
+ * behavior for the data itself (a failed collection still contributes []
+ * to every calculation, so the page never crashes), but tags specifically
+ * a permission-denied rejection so the caller can tell "rule rejected
+ * this" apart from "collection is genuinely empty." A non-permission
+ * failure (network, etc.) still degrades to [] with denied=false, same
+ * as before - this is deliberately scoped to the rule-rejection case the
+ * investigation found, not a general error-classification rework. */
+async function fetchOrDenied<T>(p: Promise<T[]>): Promise<FetchResult<T>> {
+  try {
+    return { items: await p, denied: false };
+  } catch (err) {
+    const code = (err as { code?: string } | undefined)?.code;
+    return { items: [], denied: code === "permission-denied" };
+  }
+}
 
 /* ── Master Dashboard ───────────────────────────────────── */
 
@@ -44,22 +77,34 @@ export interface MasterDashboardData {
   expiringSubsCount:   number;
   activeProjectsCount: number;
   teamHeadcount:       number;
+  deniedSources:       AnalyticsSource[];
 }
 
 export const EMPTY_MASTER: MasterDashboardData = {
   revenueThisMonth: 0, revenueLastMonth: 0, outstandingInvoices: 0,
   activeClientsCount: 0, openTicketsCount: 0, expiringSubsCount: 0,
-  activeProjectsCount: 0, teamHeadcount: 0,
+  activeProjectsCount: 0, teamHeadcount: 0, deniedSources: [],
 };
 
 export async function getMasterDashboard(): Promise<MasterDashboardData> {
   const cached = getCached<MasterDashboardData>("master");
   if (cached) return cached;
 
-  const [invoices, tickets, clients, projects, subs, staff] = await Promise.all([
-    safe(getInvoices()), safe(getTickets()), safe(getClients()),
-    safe(getProjects()), safe(getSubscriptions()), safe(getStaffList()),
+  const [invoicesR, ticketsR, clientsR, projectsR, subsR, staffR] = await Promise.all([
+    fetchOrDenied(getInvoices()), fetchOrDenied(getTickets()), fetchOrDenied(getClients()),
+    fetchOrDenied(getProjects()), fetchOrDenied(getSubscriptions()), fetchOrDenied(getStaffList()),
   ]);
+
+  const deniedSources: AnalyticsSource[] = [];
+  if (invoicesR.denied) deniedSources.push("invoices");
+  if (ticketsR.denied)  deniedSources.push("tickets");
+  if (clientsR.denied)  deniedSources.push("clients");
+  if (projectsR.denied) deniedSources.push("projects");
+  if (subsR.denied)     deniedSources.push("subscriptions");
+  if (staffR.denied)    deniedSources.push("users");
+
+  const invoices = invoicesR.items, tickets = ticketsR.items, clients = clientsR.items,
+        projects = projectsR.items, subs = subsR.items, staff = staffR.items;
 
   const thisM = thisMonthStr();
   const lastM = lastMonthStr();
@@ -74,6 +119,7 @@ export async function getMasterDashboard(): Promise<MasterDashboardData> {
     expiringSubsCount:   subs.filter((s) => { if (s.cancelled) return false; const d = getDaysLeft(s.expiryDate); return d >= 0 && d <= 60; }).length,
     activeProjectsCount: projects.filter((p) => p.status === "in_progress").length,
     teamHeadcount:       staff.length,
+    deniedSources,
   });
 }
 
@@ -89,18 +135,25 @@ export interface SalesData {
   pipelineValue:         number;
   totalLeads:            number;
   convertedLeads:        number;
+  deniedSources:         AnalyticsSource[];
 }
 
 export const EMPTY_SALES: SalesData = {
   monthlyRevenue: [], revenueByClient: [],
   dealsClosedThisMonth: 0, leadConversionRate: 0,
-  pipelineValue: 0, totalLeads: 0, convertedLeads: 0,
+  pipelineValue: 0, totalLeads: 0, convertedLeads: 0, deniedSources: [],
 };
 
 export async function getSalesAnalytics(): Promise<SalesData> {
   const cached = getCached<SalesData>("sales");
   if (cached) return cached;
-  const [invoices, leads] = await Promise.all([safe(getInvoices()), safe(getLeads())]);
+  const [invoicesR, leadsR] = await Promise.all([fetchOrDenied(getInvoices()), fetchOrDenied(getLeads())]);
+
+  const deniedSources: AnalyticsSource[] = [];
+  if (invoicesR.denied) deniedSources.push("invoices");
+  if (leadsR.denied)    deniedSources.push("leads");
+
+  const invoices = invoicesR.items, leads = leadsR.items;
 
   const now = new Date();
   const months: MonthlyRevenue[] = [];
@@ -130,6 +183,7 @@ export async function getSalesAnalytics(): Promise<SalesData> {
     pipelineValue:        invoices.filter((i) => i.status === "pending").reduce((s, i) => s + (i.total ?? 0), 0),
     totalLeads,
     convertedLeads,
+    deniedSources,
   });
 }
 
@@ -138,23 +192,27 @@ export async function getSalesAnalytics(): Promise<SalesData> {
 export interface ServiceData {
   avgResolutionHours: number;
   slaBreachRate:      number;
+  slaBreachSampleSize: number;
   ticketsByPriority:  { priority: string; count: number }[];
   ticketsByStatus:    { status: string;   count: number }[];
   topIssues:          { title: string;    count: number }[];
   totalResolved:      number;
   totalBreached:      number;
+  deniedSources:      AnalyticsSource[];
 }
 
 export const EMPTY_SERVICE: ServiceData = {
-  avgResolutionHours: 0, slaBreachRate: 0,
+  avgResolutionHours: 0, slaBreachRate: 0, slaBreachSampleSize: 0,
   ticketsByPriority: [], ticketsByStatus: [],
-  topIssues: [], totalResolved: 0, totalBreached: 0,
+  topIssues: [], totalResolved: 0, totalBreached: 0, deniedSources: [],
 };
 
 export async function getServiceAnalytics(): Promise<ServiceData> {
   const cached = getCached<ServiceData>("service");
   if (cached) return cached;
-  const tickets = await safe(getTickets());
+  const ticketsR = await fetchOrDenied(getTickets());
+  const deniedSources: AnalyticsSource[] = ticketsR.denied ? ["tickets"] : [];
+  const tickets = ticketsR.items;
 
   const resolved = tickets.filter((t) => t.resolvedAt);
   const avgResolutionHours = resolved.length
@@ -174,13 +232,15 @@ export async function getServiceAnalytics(): Promise<ServiceData> {
   tickets.forEach((t) => { titleCounts[t.title] = (titleCounts[t.title] ?? 0) + 1; });
 
   return setCached("service", {
-    avgResolutionHours: Math.round(avgResolutionHours * 10) / 10,
-    slaBreachRate:      open.length > 0 ? Math.round((breached.length / open.length) * 100) : 0,
-    ticketsByPriority:  Object.entries(priorityCounts).map(([priority, count]) => ({ priority, count })),
-    ticketsByStatus:    Object.entries(statusCounts).map(([status, count]) => ({ status, count })),
-    topIssues:          Object.entries(titleCounts).map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count).slice(0, 8),
-    totalResolved:      resolved.length,
-    totalBreached:      breached.length,
+    avgResolutionHours:  Math.round(avgResolutionHours * 10) / 10,
+    slaBreachRate:       open.length > 0 ? Math.round((breached.length / open.length) * 100) : 0,
+    slaBreachSampleSize: open.length,
+    ticketsByPriority:   Object.entries(priorityCounts).map(([priority, count]) => ({ priority, count })),
+    ticketsByStatus:     Object.entries(statusCounts).map(([status, count]) => ({ status, count })),
+    topIssues:           Object.entries(titleCounts).map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count).slice(0, 8),
+    totalResolved:       resolved.length,
+    totalBreached:       breached.length,
+    deniedSources,
   });
 }
 
@@ -192,17 +252,24 @@ export interface TeamData {
   projectsOnTrack:     number;
   projectsDelayed:     number;
   totalProjects:       number;
+  deniedSources:       AnalyticsSource[];
 }
 
 export const EMPTY_TEAM: TeamData = {
   tasksCompleted: [], openTicketsPerStaff: [],
-  projectsOnTrack: 0, projectsDelayed: 0, totalProjects: 0,
+  projectsOnTrack: 0, projectsDelayed: 0, totalProjects: 0, deniedSources: [],
 };
 
 export async function getTeamAnalytics(): Promise<TeamData> {
   const cached = getCached<TeamData>("team");
   if (cached) return cached;
-  const [tickets, projects] = await Promise.all([safe(getTickets()), safe(getProjects())]);
+  const [ticketsR, projectsR] = await Promise.all([fetchOrDenied(getTickets()), fetchOrDenied(getProjects())]);
+
+  const deniedSources: AnalyticsSource[] = [];
+  if (ticketsR.denied)  deniedSources.push("tickets");
+  if (projectsR.denied) deniedSources.push("projects");
+
+  const tickets = ticketsR.items, projects = projectsR.items;
 
   const taskMap: Record<string, { name: string; count: number }> = {};
   projects.forEach((p) => {
@@ -228,31 +295,41 @@ export async function getTeamAnalytics(): Promise<TeamData> {
     projectsOnTrack:     active.length - delayed,
     projectsDelayed:     delayed,
     totalProjects:       projects.length,
+    deniedSources,
   });
 }
 
 /* ── Client Retention ───────────────────────────────────── */
 
 export interface RetentionData {
-  activeClients:     number;
-  retainedLeads:     number;
-  retentionRate:     number;
-  avgClientValue:    number;
-  topClientsByValue: { name: string; value: number }[];
-  clientsByMonth:    { month: string; label: string; count: number }[];
+  activeClients:       number;
+  retainedLeads:       number;
+  retentionRate:       number;
+  retentionSampleSize: number;
+  avgClientValue:      number;
+  topClientsByValue:   { name: string; value: number }[];
+  clientsByMonth:      { month: string; label: string; count: number }[];
+  deniedSources:       AnalyticsSource[];
 }
 
 export const EMPTY_RETENTION: RetentionData = {
-  activeClients: 0, retainedLeads: 0, retentionRate: 0,
-  avgClientValue: 0, topClientsByValue: [], clientsByMonth: [],
+  activeClients: 0, retainedLeads: 0, retentionRate: 0, retentionSampleSize: 0,
+  avgClientValue: 0, topClientsByValue: [], clientsByMonth: [], deniedSources: [],
 };
 
 export async function getRetentionAnalytics(): Promise<RetentionData> {
   const cached = getCached<RetentionData>("retention");
   if (cached) return cached;
-  const [clients, invoices, leads] = await Promise.all([
-    safe(getClients()), safe(getInvoices()), safe(getLeads()),
+  const [clientsR, invoicesR, leadsR] = await Promise.all([
+    fetchOrDenied(getClients()), fetchOrDenied(getInvoices()), fetchOrDenied(getLeads()),
   ]);
+
+  const deniedSources: AnalyticsSource[] = [];
+  if (clientsR.denied)  deniedSources.push("clients");
+  if (invoicesR.denied) deniedSources.push("invoices");
+  if (leadsR.denied)    deniedSources.push("leads");
+
+  const clients = clientsR.items, invoices = invoicesR.items, leads = leadsR.items;
 
   const clientValueMap: Record<string, number> = {};
   invoices.filter((i) => i.status === "paid").forEach((inv) => {
@@ -275,11 +352,13 @@ export async function getRetentionAnalytics(): Promise<RetentionData> {
   }
 
   return setCached("retention", {
-    activeClients:     clients.length,
-    retainedLeads:     retained,
-    retentionRate:     total > 0 ? Math.round((retained / total) * 100) : 0,
-    avgClientValue:    clients.length > 0 ? Math.round(Object.values(clientValueMap).reduce((s, v) => s + v, 0) / clients.length) : 0,
-    topClientsByValue: Object.entries(clientValueMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8),
+    activeClients:       clients.length,
+    retainedLeads:       retained,
+    retentionRate:       total > 0 ? Math.round((retained / total) * 100) : 0,
+    retentionSampleSize: total,
+    avgClientValue:      clients.length > 0 ? Math.round(Object.values(clientValueMap).reduce((s, v) => s + v, 0) / clients.length) : 0,
+    topClientsByValue:   Object.entries(clientValueMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8),
     clientsByMonth,
+    deniedSources,
   });
 }

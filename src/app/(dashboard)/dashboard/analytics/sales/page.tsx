@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getSalesAnalytics, EMPTY_SALES, type SalesData } from "@/lib/analytics-service";
+import { getSalesAnalytics, EMPTY_SALES, LOW_SAMPLE_THRESHOLD, type SalesData } from "@/lib/analytics-service";
 import { formatNaira } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +69,9 @@ export default function SalesAnalyticsPage() {
   if (loading) return <Spinner />;
 
   const d = data;
+  const invoicesDenied = d.deniedSources.includes("invoices");
+  const leadsDenied    = d.deniedSources.includes("leads");
+  const lowLeadSample  = d.totalLeads < LOW_SAMPLE_THRESHOLD;
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -82,14 +85,22 @@ export default function SalesAnalyticsPage() {
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Deals Closed (MTD)",   value: String(d.dealsClosedThisMonth),                accent: "text-emerald-400" },
-          { label: "Lead Conversion Rate", value: `${d.leadConversionRate}%`,                     accent: d.leadConversionRate >= 30 ? "text-emerald-400" : "text-amber-400" },
-          { label: "Pipeline Value",       value: formatNaira(d.pipelineValue),                   accent: "text-secondary" },
-          { label: "Leads Converted",      value: `${d.convertedLeads} / ${d.totalLeads}`,        accent: "text-white" },
+          { label: "Deals Closed (MTD)",   value: String(d.dealsClosedThisMonth),                accent: "text-emerald-400", denied: invoicesDenied },
+          { label: "Lead Conversion Rate", value: lowLeadSample ? `${d.leadConversionRate}% (${d.convertedLeads} of ${d.totalLeads})` : `${d.leadConversionRate}%`,
+            accent: lowLeadSample ? "text-white/50" : (d.leadConversionRate >= 30 ? "text-emerald-400" : "text-amber-400"), denied: leadsDenied },
+          { label: "Pipeline Value",       value: formatNaira(d.pipelineValue),                   accent: "text-secondary", denied: invoicesDenied },
+          { label: "Leads Converted",      value: `${d.convertedLeads} / ${d.totalLeads}`,        accent: "text-white", denied: leadsDenied },
         ].map((item) => (
           <div key={item.label} className="surface-card p-5 min-h-[90px]">
             <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">{item.label}</p>
-            <p className={cn("font-orbitron text-2xl font-bold tabular-nums", item.accent)}>{item.value}</p>
+            {item.denied ? (
+              <p className="text-white/30 text-xs font-helvetica leading-snug mt-2">🔒 You don&apos;t have access to this data.</p>
+            ) : (
+              <p className={cn("font-orbitron text-2xl font-bold tabular-nums", item.accent)}>{item.value}</p>
+            )}
+            {item.label === "Lead Conversion Rate" && !item.denied && lowLeadSample && (
+              <p className="text-[10px] text-white/30 font-helvetica mt-1">Low sample size — not statistically meaningful yet.</p>
+            )}
           </div>
         ))}
       </div>
@@ -97,13 +108,21 @@ export default function SalesAnalyticsPage() {
       {/* Monthly Revenue */}
       <div className="surface-card p-6">
         <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-6">Monthly Revenue (Last 6 Months)</h2>
-        <MonthlyChart data={d.monthlyRevenue} />
+        {invoicesDenied ? (
+          <p className="text-center text-white/30 text-sm font-helvetica py-8">🔒 You don&apos;t have access to invoice data.</p>
+        ) : (
+          <MonthlyChart data={d.monthlyRevenue} />
+        )}
       </div>
 
       {/* Revenue by Client */}
       <div className="surface-card p-6">
         <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-5">Revenue by Client (Top 10)</h2>
-        {d.revenueByClient.length === 0 ? (
+        {invoicesDenied ? (
+          <div className="py-8 text-center">
+            <p className="text-white/30 text-sm font-helvetica">🔒 You don&apos;t have access to invoice data.</p>
+          </div>
+        ) : d.revenueByClient.length === 0 ? (
           <div className="py-8 text-center">
             <p className="text-white/20 text-sm font-helvetica">No paid invoices yet.</p>
             <Link href="/dashboard/finance/invoices/new" className="mt-2 inline-block text-accent text-sm font-helvetica hover:underline">Create invoice →</Link>
@@ -116,7 +135,11 @@ export default function SalesAnalyticsPage() {
       {/* Conversion funnel */}
       <div className="surface-card p-6">
         <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-5">Lead Conversion Funnel</h2>
-        {d.totalLeads === 0 ? (
+        {leadsDenied ? (
+          <div className="py-8 text-center">
+            <p className="text-white/30 text-sm font-helvetica">🔒 You don&apos;t have access to lead data.</p>
+          </div>
+        ) : d.totalLeads === 0 ? (
           <div className="py-8 text-center">
             <p className="text-white/20 text-sm font-helvetica">No leads in the system yet.</p>
             <Link href="/dashboard/crm/leads/new" className="mt-2 inline-block text-accent text-sm font-helvetica hover:underline">Add first lead →</Link>
@@ -140,6 +163,7 @@ export default function SalesAnalyticsPage() {
               <div className="flex-1 rounded-xl p-4 text-center bg-accent/20">
                 <p className="font-orbitron text-2xl font-bold text-accent">{d.leadConversionRate}%</p>
                 <p className="text-xs text-white/60 font-helvetica mt-1">Conversion Rate</p>
+                {lowLeadSample && <p className="text-[10px] text-white/40 font-helvetica mt-1">({d.convertedLeads} of {d.totalLeads} — low sample)</p>}
               </div>
             </div>
           </div>

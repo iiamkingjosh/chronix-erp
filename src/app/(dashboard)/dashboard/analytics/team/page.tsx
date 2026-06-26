@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getTeamAnalytics, EMPTY_TEAM, type TeamData } from "@/lib/analytics-service";
+import { getTeamAnalytics, EMPTY_TEAM, LOW_SAMPLE_THRESHOLD, type TeamData } from "@/lib/analytics-service";
 import { cn } from "@/lib/utils";
 
 function Spinner() {
@@ -40,8 +40,11 @@ export default function TeamProductivityPage() {
   if (loading) return <Spinner />;
 
   const d = data;
+  const projectsDenied = d.deniedSources.includes("projects");
+  const ticketsDenied  = d.deniedSources.includes("tickets");
   const totalActive = d.projectsOnTrack + d.projectsDelayed;
   const trackPct    = totalActive > 0 ? Math.round((d.projectsOnTrack / totalActive) * 100) : 100;
+  const lowTrackSample = totalActive < LOW_SAMPLE_THRESHOLD;
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -56,27 +59,46 @@ export default function TeamProductivityPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="surface-card p-5 text-center min-h-[90px]">
           <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">Projects On Track</p>
-          <p className="font-orbitron text-3xl font-bold text-emerald-400 tabular-nums">{d.projectsOnTrack}</p>
-          <p className="text-xs text-white/30 font-helvetica mt-1">of {totalActive} active</p>
+          {projectsDenied ? (
+            <p className="text-white/30 text-xs font-helvetica leading-snug mt-2">🔒 No access to project data.</p>
+          ) : (
+            <>
+              <p className="font-orbitron text-3xl font-bold text-emerald-400 tabular-nums">{d.projectsOnTrack}</p>
+              <p className="text-xs text-white/30 font-helvetica mt-1">of {totalActive} active</p>
+            </>
+          )}
         </div>
         <div className="surface-card p-5 text-center min-h-[90px]">
           <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">Delayed Projects</p>
-          <p className={cn("font-orbitron text-3xl font-bold tabular-nums", d.projectsDelayed > 0 ? "text-red-400" : "text-white/40")}>
-            {d.projectsDelayed}
-          </p>
+          {projectsDenied ? (
+            <p className="text-white/30 text-xs font-helvetica leading-snug mt-2">🔒 No access to project data.</p>
+          ) : (
+            <p className={cn("font-orbitron text-3xl font-bold tabular-nums", d.projectsDelayed > 0 ? "text-red-400" : "text-white/40")}>
+              {d.projectsDelayed}
+            </p>
+          )}
         </div>
         <div className="surface-card p-5 text-center min-h-[90px]">
           <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">On-Time Rate</p>
-          <p className={cn("font-orbitron text-3xl font-bold tabular-nums", trackPct >= 80 ? "text-emerald-400" : trackPct >= 60 ? "text-amber-400" : "text-red-400")}>
-            {trackPct}%
-          </p>
+          {projectsDenied ? (
+            <p className="text-white/30 text-xs font-helvetica leading-snug mt-2">🔒 No access to project data.</p>
+          ) : (
+            <>
+              <p className={cn("font-orbitron text-3xl font-bold tabular-nums", lowTrackSample ? "text-white/50" : (trackPct >= 80 ? "text-emerald-400" : trackPct >= 60 ? "text-amber-400" : "text-red-400"))}>
+                {trackPct}%
+              </p>
+              {lowTrackSample && <p className="text-[10px] text-white/30 font-helvetica mt-1">({d.projectsOnTrack} of {totalActive} — low sample)</p>}
+            </>
+          )}
         </div>
       </div>
 
       {/* Project health bar */}
       <div className="surface-card p-6">
         <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-4">Project Health</h2>
-        {d.totalProjects === 0 ? (
+        {projectsDenied ? (
+          <p className="text-white/30 text-sm font-helvetica text-center py-4">🔒 You don&apos;t have access to project data.</p>
+        ) : d.totalProjects === 0 ? (
           <p className="text-white/20 text-sm font-helvetica text-center py-4">No projects yet.</p>
         ) : (
           <>
@@ -100,7 +122,9 @@ export default function TeamProductivityPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="surface-card p-6">
           <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-5">Tasks Completed per Staff</h2>
-          {d.tasksCompleted.length === 0 ? (
+          {projectsDenied ? (
+            <p className="text-white/30 text-sm font-helvetica text-center py-8">🔒 You don&apos;t have access to project data.</p>
+          ) : d.tasksCompleted.length === 0 ? (
             <p className="text-white/20 text-sm font-helvetica text-center py-8">No completed tasks yet.</p>
           ) : (
             <BarChart data={d.tasksCompleted} color="bg-emerald-500/50" />
@@ -108,7 +132,9 @@ export default function TeamProductivityPage() {
         </div>
         <div className="surface-card p-6">
           <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-5">Open Tickets per Staff</h2>
-          {d.openTicketsPerStaff.length === 0 ? (
+          {ticketsDenied ? (
+            <p className="text-white/30 text-sm font-helvetica text-center py-8">🔒 You don&apos;t have access to ticket data.</p>
+          ) : d.openTicketsPerStaff.length === 0 ? (
             <p className="text-white/20 text-sm font-helvetica text-center py-8">No open tickets.</p>
           ) : (
             <BarChart data={d.openTicketsPerStaff} color="bg-accent/50" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServiceAnalytics, EMPTY_SERVICE, type ServiceData } from "@/lib/analytics-service";
+import { getServiceAnalytics, EMPTY_SERVICE, LOW_SAMPLE_THRESHOLD, type ServiceData } from "@/lib/analytics-service";
 import { PRIORITY_LABELS, STATUS_LABELS, PRIORITY_STYLES, STATUS_STYLES } from "@/types/tickets";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +41,8 @@ export default function ServiceAnalyticsPage() {
   if (loading) return <Spinner />;
 
   const d = data;
+  const ticketsDenied = d.deniedSources.includes("tickets");
+  const lowSlaSample  = d.slaBreachSampleSize < LOW_SAMPLE_THRESHOLD;
 
   const priorityBarData = d.ticketsByPriority.map((p) => ({
     label: PRIORITY_LABELS[p.priority as keyof typeof PRIORITY_LABELS] ?? p.priority,
@@ -66,14 +68,22 @@ export default function ServiceAnalyticsPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Avg Resolution Time", value: `${d.avgResolutionHours}h`,  accent: d.avgResolutionHours > 0 && d.avgResolutionHours <= 24 ? "text-emerald-400" : d.avgResolutionHours > 24 ? "text-amber-400" : "text-white/50" },
-          { label: "SLA Breach Rate",     value: `${d.slaBreachRate}%`,       accent: d.slaBreachRate > 20 ? "text-red-400" : d.slaBreachRate > 0 ? "text-amber-400" : "text-emerald-400" },
-          { label: "Total Resolved",      value: String(d.totalResolved),     accent: "text-emerald-400" },
-          { label: "Currently Breached",  value: String(d.totalBreached),     accent: d.totalBreached > 0 ? "text-red-400" : "text-white/50" },
+          { label: "Avg Resolution Time", value: `${d.avgResolutionHours}h`,  accent: d.avgResolutionHours > 0 && d.avgResolutionHours <= 24 ? "text-emerald-400" : d.avgResolutionHours > 24 ? "text-amber-400" : "text-white/50", low: false },
+          { label: "SLA Breach Rate",     value: lowSlaSample ? `${d.slaBreachRate}% (${d.totalBreached} of ${d.slaBreachSampleSize})` : `${d.slaBreachRate}%`,
+            accent: lowSlaSample ? "text-white/50" : (d.slaBreachRate > 20 ? "text-red-400" : d.slaBreachRate > 0 ? "text-amber-400" : "text-emerald-400"), low: lowSlaSample },
+          { label: "Total Resolved",      value: String(d.totalResolved),     accent: "text-emerald-400", low: false },
+          { label: "Currently Breached",  value: String(d.totalBreached),     accent: d.totalBreached > 0 ? "text-red-400" : "text-white/50", low: false },
         ].map((item) => (
           <div key={item.label} className="surface-card p-5 min-h-[90px]">
             <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">{item.label}</p>
-            <p className={cn("font-orbitron text-2xl font-bold tabular-nums", item.accent)}>{item.value}</p>
+            {ticketsDenied ? (
+              <p className="text-white/30 text-xs font-helvetica leading-snug mt-2">🔒 You don&apos;t have access to this data.</p>
+            ) : (
+              <>
+                <p className={cn("font-orbitron text-2xl font-bold tabular-nums", item.accent)}>{item.value}</p>
+                {item.low && <p className="text-[10px] text-white/30 font-helvetica mt-1">Low sample size — not statistically meaningful yet.</p>}
+              </>
+            )}
           </div>
         ))}
       </div>
@@ -82,7 +92,9 @@ export default function ServiceAnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="surface-card p-6">
           <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-5">Tickets by Priority</h2>
-          {priorityBarData.length === 0 ? (
+          {ticketsDenied ? (
+            <p className="text-white/30 text-sm font-helvetica text-center py-8">🔒 You don&apos;t have access to ticket data.</p>
+          ) : priorityBarData.length === 0 ? (
             <p className="text-white/20 text-sm font-helvetica text-center py-8">No tickets yet. Create a ticket to see this chart.</p>
           ) : (
             <BarChart data={priorityBarData} colorFn={(label) => {
@@ -98,7 +110,9 @@ export default function ServiceAnalyticsPage() {
 
         <div className="surface-card p-6">
           <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-5">Tickets by Status</h2>
-          {statusBarData.length === 0 ? (
+          {ticketsDenied ? (
+            <p className="text-white/30 text-sm font-helvetica text-center py-8">🔒 You don&apos;t have access to ticket data.</p>
+          ) : statusBarData.length === 0 ? (
             <p className="text-white/20 text-sm font-helvetica text-center py-8">No tickets yet. Create a ticket to see this chart.</p>
           ) : (
             <BarChart data={statusBarData} colorFn={(label) => {
@@ -116,7 +130,9 @@ export default function ServiceAnalyticsPage() {
       {/* Top Issues */}
       <div className="surface-card p-6">
         <h2 className="font-orbitron text-sm font-semibold text-white/60 uppercase tracking-widest mb-5">Top Issues Log</h2>
-        {d.topIssues.length === 0 ? (
+        {ticketsDenied ? (
+          <p className="text-white/30 text-sm font-helvetica text-center py-8">🔒 You don&apos;t have access to ticket data.</p>
+        ) : d.topIssues.length === 0 ? (
           <p className="text-white/20 text-sm font-helvetica text-center py-8">No ticket data yet.</p>
         ) : (
           <div className="space-y-2">
