@@ -163,7 +163,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         "fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-out",
         isOpen ? "translate-x-0" : "-translate-x-full",
         // Desktop: static in-flow, always visible, full height
-        "lg:static lg:translate-x-0 lg:z-auto lg:shrink-0 lg:min-h-screen"
+        "lg:static lg:translate-x-0 lg:z-auto lg:shrink-0 lg:h-screen"
       )}>
         <Link
           href="/dashboard"
