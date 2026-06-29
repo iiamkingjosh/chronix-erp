@@ -161,6 +161,14 @@
         { "fieldPath": "status",      "order": "ASCENDING" },
         { "fieldPath": "slaDeadline", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "personal_tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdBy", "order": "ASCENDING" },
+        { "fieldPath": "order",     "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

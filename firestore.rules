@@ -650,8 +650,31 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    match /{document=**} {
-      allow read, write: if isAuth() && isRootAdmin();
+    /* ── Personal Tasks ──────────────────────────────── */
+    // The first genuinely zero-override collection in this app: scoped
+    // entirely to createdBy == the signed-in user, with no manager,
+    // HR, or admin read/write path of any kind. The catch-all below
+    // would otherwise still let Root Admin in (it matches every path
+    // not explicitly excluded) - explicitly carved out there too.
+    match /personal_tasks/{taskId} {
+      allow read:   if isAuth() && resource.data.createdBy == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAuth() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isAuth() && resource.data.createdBy == request.auth.uid;
+    }
+
+    // Split off the first path segment as its own plain-string wildcard
+    // (same as {taskId}/{docId} elsewhere in this file) instead of trying
+    // to string-compare {document=**}'s capture, which binds to Firestore's
+    // `path` type - not a string, and not list-indexable either. In
+    // rules_version 2 a trailing recursive wildcard matches zero or more
+    // segments, so {collection}/{document=**} still covers every path the
+    // original bare {document=**} did. Excluding personal_tasks here is
+    // required, not optional: Firestore unions every matching rule for a
+    // path, so without it Root Admin would still reach personal_tasks
+    // through this catch-all regardless of the no-override rule above.
+    match /{collection}/{document=**} {
+      allow read, write: if isAuth() && isRootAdmin() && collection != 'personal_tasks';
     }
   }
 }
