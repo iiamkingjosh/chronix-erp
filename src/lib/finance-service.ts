@@ -17,19 +17,13 @@ import { createInvoiceJournalEntry, createPaymentJournalEntry } from "@/lib/acco
 import { getJournalEntriesByReference, voidJournalEntry } from "@/lib/accounting/journal-entries";
 import { logAuditEvent } from "@/lib/audit-service";
 import { createNotification } from "@/lib/notifications-service";
-import { validateAmount, round } from "@/lib/utils";
+import { validateAmount, round, stripUndefined } from "@/lib/utils";
 
 /** Amounts within this tolerance of each other are treated as equal (floating-point rounding). */
 const AMOUNT_TOLERANCE = 0.01;
 
 const INV = "invoices";
 const PAY = "payments";
-
-function stripUndefined<T extends object>(obj: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, v]) => v !== undefined)
-  ) as Partial<T>;
-}
 
 export async function createInvoice(data: Omit<Invoice, "id">): Promise<Invoice> {
   validateAmount(data.subtotal, "subtotal");

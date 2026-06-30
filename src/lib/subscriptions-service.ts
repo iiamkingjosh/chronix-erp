@@ -3,22 +3,13 @@ import {
   updateDoc, query, orderBy, arrayUnion,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { round } from "./utils";
+import { round, stripUndefined } from "./utils";
 import { createInvoice } from "./finance-service";
 import { getNextInvoiceNumber } from "./invoiceCounter";
 import type { Subscription, RenewalLog } from "@/types/subscriptions";
 import type { Invoice } from "@/types/finance";
 
 const SUBS = "subscriptions";
-
-// arrayUnion() rejects literal `undefined` inside the object being unioned
-// (unlike top-level field omission on a plain update). Same small helper
-// already used in finance-service.ts for the same reason.
-function stripUndefined<T extends object>(obj: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, v]) => v !== undefined)
-  ) as Partial<T>;
-}
 
 export async function createSubscription(data: Omit<Subscription, "id">): Promise<Subscription> {
   const ref = await addDoc(collection(db, SUBS), data);

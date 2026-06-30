@@ -130,16 +130,32 @@ function Column({
 
 export default function MyTasksPage() {
   const { profile } = useAuth();
-  const [tasks, setTasks]     = useState<PersonalTask[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<PersonalTask | "new" | null>(null);
+  const [tasks, setTasks]         = useState<PersonalTask[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [editing, setEditing]     = useState<PersonalTask | "new" | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  function fetchTasks(uid: string) {
+    getMyTasks(uid)
+      .then(setTasks)
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  }
+
   useEffect(() => {
     if (!profile?.uid) return;
-    getMyTasks(profile.uid).then(setTasks).finally(() => setLoading(false));
+    fetchTasks(profile.uid);
   }, [profile?.uid]);
+
+  function handleRetryLoad() {
+    if (!profile?.uid) return;
+    setLoading(true);
+    setLoadError(false);
+    fetchTasks(profile.uid);
+  }
 
   async function handleSave(data: {
     title: string; description?: string; subtasks: PersonalSubtask[];
@@ -165,14 +181,26 @@ export default function MyTasksPage() {
   }
 
   async function handleDelete(task: PersonalTask) {
-    await deleteTask(task.id);
-    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    setActionError("");
+    try {
+      await deleteTask(task.id);
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    } catch {
+      setActionError("Couldn't delete the task. Please try again.");
+    }
   }
 
   async function handleToggleSubtask(task: PersonalTask, subtaskId: string) {
+    setActionError("");
     const subtasks = task.subtasks.map((s) => (s.id === subtaskId ? { ...s, done: !s.done } : s));
     setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, subtasks } : t)));
-    await updateTask(task.id, { subtasks });
+    try {
+      await updateTask(task.id, { subtasks });
+    } catch {
+      // Revert the optimistic toggle — it never actually persisted.
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
+      setActionError("Couldn't update the subtask. Please try again.");
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -227,6 +255,15 @@ export default function MyTasksPage() {
 
   if (loading) return <Spinner />;
 
+  if (loadError) {
+    return (
+      <div className="surface-card px-6 py-16 text-center">
+        <p className="text-red-400 text-sm font-helvetica mb-4">⚠ Couldn&apos;t load your tasks. Please try again.</p>
+        <button onClick={handleRetryLoad} className="btn-primary text-sm px-4 py-2.5">Retry</button>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in space-y-6">
       <div className="flex items-center justify-between">
@@ -236,6 +273,13 @@ export default function MyTasksPage() {
         </div>
         <button onClick={() => setEditing("new")} className="btn-primary text-sm px-4 py-2.5">+ New Task</button>
       </div>
+
+      {actionError && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+          <span className="text-red-400">⚠</span>
+          <p className="text-red-400 text-sm font-helvetica">{actionError}</p>
+        </div>
+      )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <div className="flex gap-4">

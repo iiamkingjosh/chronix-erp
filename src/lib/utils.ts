@@ -17,3 +17,12 @@ export function validateAmount(amount: unknown, field = "amount"): number {
   }
   return Math.round(n * 100) / 100;
 }
+
+/** Firestore rejects literal `undefined` field values (addDoc/setDoc/
+ * arrayUnion all throw) - this strips them so an unset optional field is
+ * omitted instead of crashing the write. */
+export function stripUndefined<T extends object>(obj: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as Partial<T>;
+}

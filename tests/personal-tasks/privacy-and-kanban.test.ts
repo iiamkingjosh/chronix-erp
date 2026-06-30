@@ -52,6 +52,29 @@ describe("Personal Tasks: the owner's own access works end-to-end through the re
   });
 });
 
+describe("FIXED: addDoc()/updateDoc() rejected literal `undefined` for an unset optional field", () => {
+  it("creating a task with a blank description succeeds — this is the real bug that was hit", async () => {
+    const { uid } = await signInAs("Staff");
+
+    const created = await createTask(taskData(uid, { title: "No description here", description: undefined }));
+
+    const mine = await getMyTasks(uid);
+    expect(mine).toHaveLength(1);
+    expect(mine[0].title).toBe("No description here");
+    expect(mine[0]).not.toHaveProperty("description");
+  });
+
+  it("clearing a previously-set description via update actually persists the clear, not just locally", async () => {
+    const { uid } = await signInAs("Staff");
+    const created = await createTask(taskData(uid, { title: "Has a description", description: "Some detail" }));
+
+    await updateTask(created.id, { description: undefined });
+
+    const mine = await getMyTasks(uid);
+    expect(mine[0]).not.toHaveProperty("description");
+  });
+});
+
 describe("FIXED: personal_tasks is genuinely zero-override — not even Root Admin can read another user's tasks", () => {
   it("Root Admin is denied both a direct doc read and a query, despite the pre-existing isRootAdmin() catch-all rule", async () => {
     const ownerUid = "owner-uid-1";

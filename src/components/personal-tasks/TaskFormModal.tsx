@@ -26,6 +26,7 @@ export default function TaskFormModal({ task, onSave, onClose }: Props) {
   const [importance, setImportance]   = useState<1 | 2 | 3>(task?.importance ?? 2);
   const [dueDate, setDueDate]         = useState(task?.dueDate ?? "");
   const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState("");
 
   function addSubtask() {
     if (!newSubtask.trim()) return;
@@ -44,6 +45,7 @@ export default function TaskFormModal({ task, onSave, onClose }: Props) {
   async function handleSave() {
     if (!title.trim() || saving) return;
     setSaving(true);
+    setError("");
     try {
       await onSave({
         title:       title.trim(),
@@ -54,6 +56,8 @@ export default function TaskFormModal({ task, onSave, onClose }: Props) {
         dueDate:     dueDate || undefined,
       });
       onClose();
+    } catch {
+      setError("Failed to save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -180,6 +184,8 @@ export default function TaskFormModal({ task, onSave, onClose }: Props) {
               </button>
             </div>
           </div>
+
+          {error && <p className="text-xs text-red-400 font-helvetica">{error}</p>}
 
           <div className="flex gap-3 pt-2">
             <button onClick={onClose} className="flex-1 border border-white/10 text-white/40 hover:text-white rounded-lg py-2.5 text-sm font-helvetica transition-colors">

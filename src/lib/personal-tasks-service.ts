@@ -1,8 +1,9 @@
 import {
   collection, doc, addDoc, getDocs, deleteDoc, updateDoc,
-  query, where, orderBy, writeBatch,
+  query, where, orderBy, writeBatch, deleteField,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { stripUndefined } from "./utils";
 import type { PersonalTask, TaskStatus } from "@/types/personal-tasks";
 
 const COL = "personal_tasks";
@@ -19,15 +20,24 @@ export async function getMyTasks(uid: string): Promise<PersonalTask[]> {
 }
 
 export async function createTask(data: Omit<PersonalTask, "id">): Promise<PersonalTask> {
-  const ref = await addDoc(collection(db, COL), data);
+  const ref = await addDoc(collection(db, COL), stripUndefined(data));
   return { ...data, id: ref.id };
 }
 
+/** TaskFormModal always submits the task's full current shape, so an
+ * `undefined` here means "the user cleared this field," not "leave it
+ * untouched" - stripping the key (like createTask does) would silently
+ * leave the old value in Firestore while the UI shows it as cleared.
+ * deleteField() makes the removal actually persist. */
 export async function updateTask(
   id: string,
   patch: Partial<Omit<PersonalTask, "id" | "createdBy" | "createdAt">>
 ): Promise<void> {
-  await updateDoc(doc(db, COL, id), { ...patch, updatedAt: new Date().toISOString() });
+  const payload: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+  for (const [key, value] of Object.entries(patch)) {
+    payload[key] = value === undefined ? deleteField() : value;
+  }
+  await updateDoc(doc(db, COL, id), payload);
 }
 
 export async function deleteTask(id: string): Promise<void> {
