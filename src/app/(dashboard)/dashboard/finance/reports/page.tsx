@@ -6,6 +6,7 @@ import { getInvoices, getPayments, getInvoiceRevenue } from "@/lib/finance-servi
 import { getExpenses } from "@/lib/expense-service";
 import { getPOs } from "@/lib/procurement-service";
 import { runFullBackfill, type FullBackfillResult } from "@/lib/accounting/backfill";
+import { generateMonthlyPLGrid, type MonthlyPLRow } from "@/lib/accounting/profit-loss";
 import { formatNaira, formatDate } from "@/types/finance";
 import type { Invoice, Payment } from "@/types/finance";
 import type { Expense } from "@/types/expense";
@@ -49,6 +50,9 @@ export default function FinancialReportsPage() {
   const [pos,      setPos]        = useState<PurchaseOrder[]>([]);
   const [loading, setLoading]     = useState(true);
 
+  const [plGrid,        setPlGrid]        = useState<{ rows: MonthlyPLRow[]; totals: MonthlyPLRow } | null>(null);
+  const [plGridLoading, setPlGridLoading] = useState(false);
+
   const canView       = profile ? hasPermission(profile.role, "view:finance") || hasPermission(profile.role, "view:reports") : false;
   const canReconcile  = profile ? ["CEO", "CFO", "Root", "Root Admin", "Chronix Root"].includes(profile.role) : false;
 
@@ -80,29 +84,20 @@ export default function FinancialReportsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!profile) return;
+    setPlGridLoading(true);
+    setPlGrid(null);
+    generateMonthlyPLGrid(parseInt(year))
+      .then(setPlGrid)
+      .catch((e) => console.error("[finance/reports] P&L ledger fetch failed:", e))
+      .finally(() => setPlGridLoading(false));
+  }, [year, profile]);
+
   if (!canView) return <div className="p-8 text-white/40 font-helvetica">Access restricted.</div>;
 
-  /* ── P&L helpers ── */
-  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-  const plData = MONTHS.map((month, mi) => {
-    const period = `${year}-${String(mi + 1).padStart(2, "0")}`;
-    const revenue  = invoices.filter((i) => i.status === "paid" && i.invoiceDate?.startsWith(period)).reduce((s, i) => s + getInvoiceRevenue(i), 0);
-    // Only count PAID expenses — these match what is journalized into the ledger.
-    // Approved-but-unpaid are Accounts Payable (see AP Aging tab), not yet cash expenses.
-    const expTotal = expenses
-      .filter((e) => e.status === "paid" && e.date?.startsWith(period))
-      .reduce((s, e) => s + e.amount, 0);
-    const poTotal = pos
-      .filter((p) => p.status === "paid" && p.createdAt?.slice(0, 7) === period)
-      .reduce((s, p) => s + p.total, 0);
-    const totalExp = expTotal + poTotal;
-    return { month, revenue, expenses: totalExp, profit: revenue - totalExp };
-  });
-
-  const totalRevenue  = plData.reduce((s, r) => s + r.revenue, 0);
-  const totalExpenses = plData.reduce((s, r) => s + r.expenses, 0);
-  const totalProfit   = totalRevenue - totalExpenses;
+  const plRows    = plGrid?.rows    ?? [];
+  const plTotals  = plGrid?.totals  ?? { month: "TOTAL", revenue: 0, expenses: 0, profit: 0 };
 
   // Approved-but-unpaid liabilities — surfaced separately so nothing is hidden
   const approvedUnpaidExpenses = expenses
@@ -131,13 +126,14 @@ export default function FinancialReportsPage() {
       return acc;
     }, {});
   const revenueClientRows = Object.entries(revenueByClient).sort((a, b) => b[1] - a[1]);
+  const totalClientRevenue = revenueClientRows.reduce((s, [, v]) => s + v, 0);
 
   /* ── Exports ── */
   function exportPL() {
     exportCSV(
-      [["Month", "Revenue excl VAT (₦)", "Expenses (₦)", "Profit (₦)"],
-       ...plData.map((r) => [r.month, r.revenue.toFixed(2), r.expenses.toFixed(2), r.profit.toFixed(2)]),
-       ["TOTAL", totalRevenue.toFixed(2), totalExpenses.toFixed(2), totalProfit.toFixed(2)]],
+      [["Month", "Revenue (₦)", "Expenses (₦)", "Profit (₦)"],
+       ...plRows.map((r) => [r.month, r.revenue.toFixed(2), r.expenses.toFixed(2), r.profit.toFixed(2)]),
+       ["TOTAL", plTotals.revenue.toFixed(2), plTotals.expenses.toFixed(2), plTotals.profit.toFixed(2)]],
       `PL-${year}.csv`
     );
   }
@@ -178,7 +174,7 @@ export default function FinancialReportsPage() {
 
     let body = "";
     if (tab === "pl") {
-      const rows = plData.map((r) => `<tr>
+      const rows = plRows.map((r) => `<tr>
         <td>${r.month}</td>
         <td class="num pos">${fmtN(r.revenue)}</td>
         <td class="num neg">${fmtN(r.expenses)}</td>
@@ -186,10 +182,10 @@ export default function FinancialReportsPage() {
         <td class="ctr">${r.revenue > 0 ? ((r.profit / r.revenue) * 100).toFixed(1) + "%" : "—"}</td>
       </tr>`).join("");
       body = `<h1>P&amp;L Statement — ${esc(year)}</h1>
-        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; Revenue (excl. VAT): ${fmtN(totalRevenue)} &nbsp;·&nbsp; Profit: ${fmtN(totalProfit)}</p>
-        <table><thead><tr><th>Month</th><th>Revenue (excl. VAT)</th><th>Expenses</th><th>Net Profit</th><th>Margin</th></tr></thead>
+        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; Revenue: ${fmtN(plTotals.revenue)} &nbsp;·&nbsp; Profit: ${fmtN(plTotals.profit)}</p>
+        <table><thead><tr><th>Month</th><th>Revenue</th><th>Expenses</th><th>Net Profit</th><th>Margin</th></tr></thead>
         <tbody>${rows}</tbody>
-        <tfoot><tr><td>TOTAL</td><td class="num">${fmtN(totalRevenue)}</td><td class="num">${fmtN(totalExpenses)}</td><td class="num">${fmtN(totalProfit)}</td><td></td></tr></tfoot></table>`;
+        <tfoot><tr><td>TOTAL</td><td class="num">${fmtN(plTotals.revenue)}</td><td class="num">${fmtN(plTotals.expenses)}</td><td class="num">${fmtN(plTotals.profit)}</td><td></td></tr></tfoot></table>`;
     } else if (tab === "ar") {
       const rows = arRows.map((i) => `<tr>
         <td>${esc(i.invoiceNumber)}</td><td>${esc(i.client.name)}</td>
@@ -218,13 +214,13 @@ export default function FinancialReportsPage() {
       const rows = revenueClientRows.map(([client, total], idx) => `<tr>
         <td class="ctr">${idx + 1}</td><td>${esc(client)}</td>
         <td class="num">${fmtN(total)}</td>
-        <td class="ctr">${totalRevenue > 0 ? ((total / totalRevenue) * 100).toFixed(1) + "%" : "—"}</td>
+        <td class="ctr">${totalClientRevenue > 0 ? ((total / totalClientRevenue) * 100).toFixed(1) + "%" : "—"}</td>
       </tr>`).join("");
       body = `<h1>Revenue by Client — ${esc(year)}</h1>
-        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; Total: ${fmtN(totalRevenue)}</p>
+        <p class="sub">Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; Total: ${fmtN(totalClientRevenue)}</p>
         <table><thead><tr><th>#</th><th>Client</th><th>Revenue</th><th>Share</th></tr></thead>
         <tbody>${rows || `<tr><td colspan="4" style="text-align:center;color:#999">No paid invoices for ${esc(year)}.</td></tr>`}</tbody>
-        <tfoot><tr><td></td><td>Total</td><td class="num">${fmtN(totalRevenue)}</td><td></td></tr></tfoot></table>`;
+        <tfoot><tr><td></td><td>Total</td><td class="num">${fmtN(totalClientRevenue)}</td><td></td></tr></tfoot></table>`;
     }
 
     const w = window.open("", "_blank");
@@ -371,64 +367,70 @@ export default function FinancialReportsPage() {
         <>
           {/* P&L */}
           {tab === "pl" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {[
-                  { label: "Total Revenue (excl. VAT)", value: formatNaira(totalRevenue),      color: "text-emerald-400" },
-                  { label: "Paid Expenses",             value: formatNaira(totalExpenses),     color: "text-red-400" },
-                  { label: "Net Profit",                value: formatNaira(totalProfit),       color: totalProfit >= 0 ? "text-secondary" : "text-red-400" },
-                  { label: "Approved (Unliquidated)",   value: formatNaira(totalUnliquidated), color: "text-amber-400" },
-                ].map((c) => (
-                  <div key={c.label} className="surface-card p-5 text-center">
-                    <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">{c.label}</p>
-                    <p className={cn("font-orbitron text-xl font-bold tabular-nums", c.color)}>{c.value}</p>
-                    {c.label === "Approved (Unliquidated)" && (
-                      <p className="text-white/20 text-[10px] font-helvetica mt-1">AP — not yet cash</p>
-                    )}
-                  </div>
-                ))}
+            plGridLoading || !plGrid ? (
+              <div className="flex items-center justify-center py-24">
+                <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
               </div>
-              <div className="surface-card overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/10">
-                  <h2 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest">Monthly P&amp;L — {year}</h2>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {[
+                    { label: "Total Revenue",               value: formatNaira(plTotals.revenue),   color: "text-emerald-400" },
+                    { label: "Total Expenses",              value: formatNaira(plTotals.expenses),  color: "text-red-400" },
+                    { label: "Net Profit",                  value: formatNaira(plTotals.profit),    color: plTotals.profit >= 0 ? "text-secondary" : "text-red-400" },
+                    { label: "Approved (Unliquidated)",     value: formatNaira(totalUnliquidated),  color: "text-amber-400" },
+                  ].map((c) => (
+                    <div key={c.label} className="surface-card p-5 text-center">
+                      <p className="text-white/40 text-xs font-helvetica uppercase tracking-wider mb-2">{c.label}</p>
+                      <p className={cn("font-orbitron text-xl font-bold tabular-nums", c.color)}>{c.value}</p>
+                      {c.label === "Approved (Unliquidated)" && (
+                        <p className="text-white/20 text-[10px] font-helvetica mt-1">AP — not yet cash</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-white/10">
-                        <th className="px-5 py-3 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Month</th>
-                        <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Revenue (excl. VAT)</th>
-                        <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Expenses</th>
-                        <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Net Profit</th>
-                        <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Margin</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {plData.map((r) => (
-                        <tr key={r.month} className="hover:bg-white/[0.02]">
-                          <td className="px-5 py-3 text-sm text-white font-helvetica">{r.month}</td>
-                          <td className="px-5 py-3 text-sm text-emerald-400 font-helvetica text-right tabular-nums">{formatNaira(r.revenue)}</td>
-                          <td className="px-5 py-3 text-sm text-red-400 font-helvetica text-right tabular-nums">{formatNaira(r.expenses)}</td>
-                          <td className={cn("px-5 py-3 text-sm font-semibold font-helvetica text-right tabular-nums", r.profit >= 0 ? "text-white" : "text-red-400")}>{formatNaira(r.profit)}</td>
+                <div className="surface-card overflow-hidden">
+                  <div className="px-5 py-4 border-b border-white/10">
+                    <h2 className="font-orbitron text-xs font-semibold text-white/40 uppercase tracking-widest">Monthly P&amp;L — {year}</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="px-5 py-3 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Month</th>
+                          <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Revenue</th>
+                          <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Expenses</th>
+                          <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Net Profit</th>
+                          <th className="px-5 py-3 text-right text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">Margin</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {plRows.map((r) => (
+                          <tr key={r.month} className="hover:bg-white/[0.02]">
+                            <td className="px-5 py-3 text-sm text-white font-helvetica">{r.month}</td>
+                            <td className="px-5 py-3 text-sm text-emerald-400 font-helvetica text-right tabular-nums">{formatNaira(r.revenue)}</td>
+                            <td className="px-5 py-3 text-sm text-red-400 font-helvetica text-right tabular-nums">{formatNaira(r.expenses)}</td>
+                            <td className={cn("px-5 py-3 text-sm font-semibold font-helvetica text-right tabular-nums", r.profit >= 0 ? "text-white" : "text-red-400")}>{formatNaira(r.profit)}</td>
+                            <td className="px-5 py-3 text-xs text-white/40 font-helvetica text-right">
+                              {r.revenue > 0 ? `${((r.profit / r.revenue) * 100).toFixed(1)}%` : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="border-t-2 border-white/20 bg-white/[0.02]">
+                          <td className="px-5 py-3 text-sm font-bold text-white font-orbitron">TOTAL</td>
+                          <td className="px-5 py-3 text-sm font-bold text-emerald-400 font-helvetica text-right">{formatNaira(plTotals.revenue)}</td>
+                          <td className="px-5 py-3 text-sm font-bold text-red-400 font-helvetica text-right">{formatNaira(plTotals.expenses)}</td>
+                          <td className={cn("px-5 py-3 text-sm font-bold font-helvetica text-right", plTotals.profit >= 0 ? "text-secondary" : "text-red-400")}>{formatNaira(plTotals.profit)}</td>
                           <td className="px-5 py-3 text-xs text-white/40 font-helvetica text-right">
-                            {r.revenue > 0 ? `${((r.profit / r.revenue) * 100).toFixed(1)}%` : "—"}
+                            {plTotals.revenue > 0 ? `${((plTotals.profit / plTotals.revenue) * 100).toFixed(1)}%` : "—"}
                           </td>
                         </tr>
-                      ))}
-                      <tr className="border-t-2 border-white/20 bg-white/[0.02]">
-                        <td className="px-5 py-3 text-sm font-bold text-white font-orbitron">TOTAL</td>
-                        <td className="px-5 py-3 text-sm font-bold text-emerald-400 font-helvetica text-right">{formatNaira(totalRevenue)}</td>
-                        <td className="px-5 py-3 text-sm font-bold text-red-400 font-helvetica text-right">{formatNaira(totalExpenses)}</td>
-                        <td className={cn("px-5 py-3 text-sm font-bold font-helvetica text-right", totalProfit >= 0 ? "text-secondary" : "text-red-400")}>{formatNaira(totalProfit)}</td>
-                        <td className="px-5 py-3 text-xs text-white/40 font-helvetica text-right">
-                          {totalRevenue > 0 ? `${((totalProfit / totalRevenue) * 100).toFixed(1)}%` : "—"}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            </div>
+            )
           )}
 
           {/* AR Aging */}
@@ -555,12 +557,12 @@ export default function FinancialReportsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white font-helvetica">{client}</p>
                         <div className="mt-1.5 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                          <div className="h-full bg-accent/60 rounded-full" style={{ width: `${(total / totalRevenue) * 100}%` }} />
+                          <div className="h-full bg-accent/60 rounded-full" style={{ width: `${(total / totalClientRevenue) * 100}%` }} />
                         </div>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-bold text-white font-helvetica tabular-nums">{formatNaira(total)}</p>
-                        <p className="text-[10px] text-white/30 font-helvetica">{((total / totalRevenue) * 100).toFixed(1)}%</p>
+                        <p className="text-[10px] text-white/30 font-helvetica">{((total / totalClientRevenue) * 100).toFixed(1)}%</p>
                       </div>
                     </div>
                   ))}

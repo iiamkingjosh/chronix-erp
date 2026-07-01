@@ -102,3 +102,49 @@ export async function generateAnnualPL(year: number, userId: string): Promise<Pr
   report.period = "annual";
   return report;
 }
+
+export interface MonthlyPLRow {
+  month: string;
+  revenue: number;
+  expenses: number;
+  profit: number;
+}
+
+export async function generateMonthlyPLGrid(
+  year: number
+): Promise<{ rows: MonthlyPLRow[]; totals: MonthlyPLRow }> {
+  const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const rows: MonthlyPLRow[] = MONTH_NAMES.map((month) => ({
+    month, revenue: 0, expenses: 0, profit: 0,
+  }));
+
+  const entries = await getJournalEntriesByDateRange(`${year}-01-01`, `${year}-12-31`);
+  for (const entry of entries) {
+    const mi = parseInt(entry.entryDate.slice(5, 7), 10) - 1;
+    if (mi < 0 || mi > 11) continue;
+    for (const line of entry.lineItems) {
+      const code = line.accountCode;
+      if (code.startsWith("4")) {
+        rows[mi].revenue += line.credit - line.debit;
+      } else if (code.startsWith("5") || code.startsWith("6")) {
+        rows[mi].expenses += line.debit - line.credit;
+      }
+    }
+  }
+
+  for (const row of rows) {
+    row.profit = row.revenue - row.expenses;
+  }
+
+  const totals = rows.reduce<MonthlyPLRow>(
+    (acc, r) => ({
+      month: "TOTAL",
+      revenue:  acc.revenue  + r.revenue,
+      expenses: acc.expenses + r.expenses,
+      profit:   acc.profit   + r.profit,
+    }),
+    { month: "TOTAL", revenue: 0, expenses: 0, profit: 0 }
+  );
+
+  return { rows, totals };
+}
