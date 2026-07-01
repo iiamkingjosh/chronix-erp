@@ -363,7 +363,7 @@ export async function markEntryPaid(
       if (!(run as unknown as Record<string, unknown>)._journalPosted) {
         try {
           await createPayrollJournalEntry(fullRun, userId);
-          updateDoc(doc(db, PAY, runId), { _journalPosted: true, _journalError: null }).catch(() => {});
+          await updateDoc(doc(db, PAY, runId), { _journalPosted: true, _journalError: null });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           console.error("[accounting] payroll journal failed:", msg);
@@ -393,7 +393,7 @@ export async function markAllPaid(
     if (!(run as unknown as Record<string, unknown>)._journalPosted) {
       try {
         await createPayrollJournalEntry(fullRun, userId);
-        updateDoc(doc(db, PAY, runId), { _journalPosted: true, _journalError: null }).catch(() => {});
+        await updateDoc(doc(db, PAY, runId), { _journalPosted: true, _journalError: null });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error("[accounting] payroll journal failed:", msg);

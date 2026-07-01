@@ -32,7 +32,7 @@ export default function PLReportPage() {
       if (period === "monthly") {
         const mm    = String(month).padStart(2, "0");
         const start = `${year}-${mm}-01`;
-        const end   = new Date(year, month, 0).toISOString().split("T")[0];
+        const end   = new Date(Date.UTC(year, month, 0)).toISOString().split("T")[0];
         r = await generateProfitLoss(start, end, profile.uid);
         r.period = "monthly";
       } else if (period === "quarterly") {
