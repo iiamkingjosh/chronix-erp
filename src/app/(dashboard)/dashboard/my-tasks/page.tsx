@@ -131,8 +131,8 @@ function Column({
 export default function MyTasksPage() {
   const { profile } = useAuth();
   const [tasks, setTasks]         = useState<PersonalTask[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [loadErrorKind, setLoadErrorKind] = useState<"transient" | "structural" | null>(null);
   const [actionError, setActionError] = useState("");
   const [editing, setEditing]     = useState<PersonalTask | "new" | null>(null);
 
@@ -141,7 +141,16 @@ export default function MyTasksPage() {
   function fetchTasks(uid: string) {
     getMyTasks(uid)
       .then(setTasks)
-      .catch(() => setLoadError(true))
+      .catch((err: unknown) => {
+        const code = (err as { code?: string } | undefined)?.code;
+        console.error("[My Tasks] load failed — code:", code ?? "unknown",
+          err instanceof Error ? err.message : err);
+        // failed-precondition = missing index; permission-denied = rules gap.
+        // Both are structural: the query will fail identically every time,
+        // so a Retry button is misleading rather than useful.
+        const structural = code === "failed-precondition" || code === "permission-denied";
+        setLoadErrorKind(structural ? "structural" : "transient");
+      })
       .finally(() => setLoading(false));
   }
 
@@ -153,7 +162,7 @@ export default function MyTasksPage() {
   function handleRetryLoad() {
     if (!profile?.uid) return;
     setLoading(true);
-    setLoadError(false);
+    setLoadErrorKind(null);
     fetchTasks(profile.uid);
   }
 
@@ -255,11 +264,20 @@ export default function MyTasksPage() {
 
   if (loading) return <Spinner />;
 
-  if (loadError) {
+  if (loadErrorKind) {
     return (
       <div className="surface-card px-6 py-16 text-center">
-        <p className="text-red-400 text-sm font-helvetica mb-4">⚠ Couldn&apos;t load your tasks. Please try again.</p>
-        <button onClick={handleRetryLoad} className="btn-primary text-sm px-4 py-2.5">Retry</button>
+        <p className="text-red-400 text-sm font-helvetica mb-3">⚠ Couldn&apos;t load your tasks.</p>
+        {loadErrorKind === "structural" ? (
+          <p className="text-white/30 text-xs font-helvetica">
+            This is a configuration issue — Retry won&apos;t help. Contact an administrator if it persists.
+          </p>
+        ) : (
+          <>
+            <p className="text-white/30 text-xs font-helvetica mb-4">Please try again.</p>
+            <button onClick={handleRetryLoad} className="btn-primary text-sm px-4 py-2.5">Retry</button>
+          </>
+        )}
       </div>
     );
   }

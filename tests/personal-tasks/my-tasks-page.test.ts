@@ -41,19 +41,44 @@ function makeTask(overrides: Partial<PersonalTask> = {}): PersonalTask {
 }
 
 describe("MyTasksPage: initial load failure shows a real error state, distinguishable from genuine emptiness", () => {
-  it("shows a retry-able error panel, not the Kanban board, when getMyTasks rejects", async () => {
-    getMyTasks.mockRejectedValue(new Error("simulated load failure"));
+  it("transient failure shows a retryable error panel — Retry button present, not the Kanban board", async () => {
+    // Plain Error with no .code → treated as transient; Retry is meaningful.
+    getMyTasks.mockRejectedValue(new Error("simulated transient failure"));
 
     render(createElement(MyTasksPage));
 
     await waitFor(() => {
-      expect(screen.getByText("⚠ Couldn't load your tasks. Please try again.")).toBeTruthy();
+      expect(screen.getByText("⚠ Couldn't load your tasks.")).toBeTruthy();
     });
-
-    // The empty-column "Drop here" state must NOT appear here — that's
-    // reserved for genuinely zero tasks, a different, real state.
-    expect(screen.queryByText("Drop here")).toBeNull();
+    expect(screen.getByText("Please try again.")).toBeTruthy();
     expect(screen.getByText("Retry")).toBeTruthy();
+    expect(screen.queryByText("Drop here")).toBeNull();
+  });
+
+  it("structural failure (failed-precondition / missing index) shows NO Retry — 'Retry won't help' message instead", async () => {
+    const err = Object.assign(new Error("Missing index"), { code: "failed-precondition" });
+    getMyTasks.mockRejectedValue(err);
+
+    render(createElement(MyTasksPage));
+
+    await waitFor(() => {
+      expect(screen.getByText("⚠ Couldn't load your tasks.")).toBeTruthy();
+    });
+    expect(screen.getByText(/This is a configuration issue/)).toBeTruthy();
+    // Retry must NOT appear — it loops forever against a structural failure.
+    expect(screen.queryByText("Retry")).toBeNull();
+  });
+
+  it("structural failure (permission-denied) also suppresses Retry", async () => {
+    const err = Object.assign(new Error("Permission denied"), { code: "permission-denied" });
+    getMyTasks.mockRejectedValue(err);
+
+    render(createElement(MyTasksPage));
+
+    await waitFor(() => {
+      expect(screen.getByText("⚠ Couldn't load your tasks.")).toBeTruthy();
+    });
+    expect(screen.queryByText("Retry")).toBeNull();
   });
 
   it("genuinely zero tasks (load succeeds with an empty list) shows the real empty board, not the error panel", async () => {
@@ -65,11 +90,12 @@ describe("MyTasksPage: initial load failure shows a real error state, distinguis
       expect(screen.getAllByText("Drop here").length).toBeGreaterThan(0);
     });
 
-    expect(screen.queryByText("⚠ Couldn't load your tasks. Please try again.")).toBeNull();
+    expect(screen.queryByText("⚠ Couldn't load your tasks.")).toBeNull();
   });
 
   it("Retry re-fetches and recovers into the real board on success", async () => {
-    getMyTasks.mockRejectedValueOnce(new Error("simulated load failure"));
+    // No .code → transient → Retry button appears.
+    getMyTasks.mockRejectedValueOnce(new Error("simulated transient failure"));
     getMyTasks.mockResolvedValueOnce([makeTask({ title: "Recovered task" })]);
 
     render(createElement(MyTasksPage));
