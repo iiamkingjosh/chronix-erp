@@ -55,6 +55,11 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
     currentAssets: {
       cash:               g("1010"),
       pettyCash:          g("1020"),
+      // Cash-basis: AR is not in the double-entry ledger until payment is
+      // received.  outstandingAR is shown on the balance sheet as a memo
+      // line (for management visibility) but excluded from the total so that
+      // Assets = L + E holds.  It is derived from the invoices collection,
+      // not from account 1100 (which receives no new entries under cash-basis).
       accountsReceivable: outstandingAR,
       vatRecoverable:     g("1110"),
       inventory:          g("1200"),
@@ -70,7 +75,8 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
   };
   assets.currentAssets.total =
     assets.currentAssets.cash         + assets.currentAssets.pettyCash +
-    assets.currentAssets.accountsReceivable + assets.currentAssets.vatRecoverable +
+    // accountsReceivable intentionally excluded — memo only, see comment above
+    assets.currentAssets.vatRecoverable +
     assets.currentAssets.inventory    + assets.currentAssets.prepaidExpenses;
   assets.fixedAssets.total =
     assets.fixedAssets.officeEquipment + assets.fixedAssets.computerEquipment;

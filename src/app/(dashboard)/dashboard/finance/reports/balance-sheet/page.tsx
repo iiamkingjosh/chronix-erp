@@ -64,13 +64,13 @@ export default function BalanceSheetPage() {
                 <Row label="Cash in Bank"         amount={report.assets.currentAssets.cash}               indent />
                 <Row label="Petty Cash"           amount={report.assets.currentAssets.pettyCash}          indent />
                 <tr className="border-b border-white/5">
-                  <td className="pl-6 py-2 text-sm text-white/70 font-helvetica">
+                  <td className="pl-6 py-2 text-sm text-white/40 font-helvetica italic">
                     Accounts Receivable
-                    <span className="block text-[10px] text-white/30 font-helvetica mt-0.5">
-                      Outstanding receivables — from unpaid invoices
+                    <span className="block text-[10px] text-white/25 font-helvetica mt-0.5 not-italic">
+                      Outstanding receivables — from unpaid invoices (memo only, not in total)
                     </span>
                   </td>
-                  <td className="py-2 text-sm text-right font-helvetica text-white">
+                  <td className="py-2 text-sm text-right font-helvetica text-white/40 italic">
                     {formatNaira(report.assets.currentAssets.accountsReceivable)}
                   </td>
                 </tr>
