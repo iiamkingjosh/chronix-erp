@@ -60,7 +60,7 @@ export default function InvoicesPage() {
     setDeletingId(id);
     try {
       const inv = invoices.find((i) => i.id === id);
-      await deleteInvoice(id);
+      await deleteInvoice(id, profile?.uid ?? "");
       if (profile) logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "delete", module: "invoices", entityId: id, entityRef: inv?.invoiceNumber, details: `Invoice ${inv?.invoiceNumber ?? id} deleted`, timestamp: new Date().toISOString() });
       setInvoices((prev) => prev.filter((i) => i.id !== id));
       setConfirmDeleteId(null);

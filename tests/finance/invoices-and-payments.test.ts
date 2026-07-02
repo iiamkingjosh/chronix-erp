@@ -169,7 +169,7 @@ describe("Edge case — deleteInvoice has no internal guard, but firestore.rules
     // exploitable in practice — defense-in-depth via rules covers the gap.
     // Recording this as a corrected finding rather than forcing the
     // originally-assumed (incorrect) deviation to "pass."
-    await expect(deleteInvoice(invoice.id)).rejects.toThrow(/permission/i);
+    await expect(deleteInvoice(invoice.id, "test-actor")).rejects.toThrow(/permission/i);
 
     const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
     expect(persisted).not.toBeNull(); // invoice still exists — deletion did not go through
@@ -185,7 +185,7 @@ describe("Edge case — deleteInvoice has no internal guard, but firestore.rules
     const invoice = await createInvoice(makeInvoice({ subtotal: 10_000, vatAmount: 750, total: 10_750 }));
     expect(invoice.status).toBe("pending");
 
-    await deleteInvoice(invoice.id);
+    await deleteInvoice(invoice.id, "test-actor");
 
     const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
     expect(persisted).toBeNull();

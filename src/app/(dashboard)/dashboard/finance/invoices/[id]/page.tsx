@@ -129,7 +129,7 @@ export default function InvoiceViewPage() {
     if (!invoice || invoice.status === "paid" || !canDelete || !profile) return;
     setDeleting(true);
     try {
-      await deleteInvoice(invoice.id);
+      await deleteInvoice(invoice.id, profile.uid);
       logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "delete", module: "invoices", entityId: invoice.id, entityRef: invoice.invoiceNumber, details: `Invoice ${invoice.invoiceNumber} deleted`, timestamp: new Date().toISOString() });
       router.replace("/dashboard/finance/invoices");
     } finally {

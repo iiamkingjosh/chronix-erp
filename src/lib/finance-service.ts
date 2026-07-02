@@ -110,8 +110,24 @@ export function getInvoiceRevenue(invoice: { subtotal?: number; total: number; v
   return invoice.total;
 }
 
-/** Removes invoice document. Call only for unpaid invoices after UI/auth checks. */
-export async function deleteInvoice(id: string): Promise<void> {
+/**
+ * Voids any posted journal entries for the invoice, then deletes the invoice
+ * document. If voiding fails the deletion is aborted — a partial state where
+ * the invoice is gone but its journal entry is still posted is exactly the
+ * problem this guards against.
+ */
+export async function deleteInvoice(id: string, actorUid: string): Promise<void> {
+  const entries = await getJournalEntriesByReference(id);
+  const toVoid  = entries.filter(
+    (e) => e.referenceType === "invoice" && e.status === "posted"
+  );
+  for (const entry of toVoid) {
+    await voidJournalEntry(
+      entry.id,
+      "Invoice deleted — journal entry voided automatically",
+      actorUid
+    );
+  }
   await deleteDoc(doc(db, INV, id));
 }
 

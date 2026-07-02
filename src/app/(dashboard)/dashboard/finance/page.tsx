@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getInvoices, getInvoiceRevenue } from "@/lib/finance-service";
-import { getExpenses } from "@/lib/expense-service";
-import { getPOs } from "@/lib/procurement-service";
+import { getInvoices } from "@/lib/finance-service";
+import { getJournalEntriesByDateRange } from "@/lib/accounting/journal-entries";
 import { formatNaira, formatDate } from "@/types/finance";
 import type { Invoice } from "@/types/finance";
 import { cn } from "@/lib/utils";
@@ -45,35 +44,47 @@ function StatCard({
 }
 
 export default function FinanceDashboard() {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [totalExpenses, setTotalExpenses] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices]         = useState<Invoice[]>([]);
+  const [ledgerRevenue,  setLedgerRevenue]  = useState(0);
+  const [ledgerExpenses, setLedgerExpenses] = useState(0);
+  const [loading, setLoading]           = useState(true);
 
   useEffect(() => {
-    Promise.all([getInvoices(), getExpenses(), getPOs()])
-      .then(([invs, exps, pos]) => {
+    const year     = new Date().getFullYear();
+    const ytdStart = `${year}-01-01`;
+    const ytdEnd   = `${year}-12-31`;
+
+    Promise.all([
+      getInvoices(),
+      getJournalEntriesByDateRange(ytdStart, ytdEnd),
+    ])
+      .then(([invs, entries]) => {
         setInvoices(invs);
-        const claimsTotal = exps
-          .filter((e) => e.status === "paid")
-          .reduce((s, e) => s + e.amount, 0);
-        const poTotal = pos
-          .filter((p) => p.status === "paid")
-          .reduce((s, p) => s + p.total, 0);
-        // Approved-but-unpaid expenses are AP liabilities, not yet P&L cash expenses.
-        setTotalExpenses(claimsTotal + poTotal);
+
+        let rev = 0, exp = 0;
+        for (const entry of entries) {
+          for (const line of entry.lineItems) {
+            const code = line.accountCode;
+            if (code.startsWith("4")) {
+              rev += line.credit - line.debit;
+            } else if (code.startsWith("5") || code.startsWith("6")) {
+              exp += line.debit - line.credit;
+            }
+          }
+        }
+        setLedgerRevenue(rev);
+        setLedgerExpenses(exp);
       })
       .catch((e) => console.error("[finance] Failed to load data:", e))
       .finally(() => setLoading(false));
   }, []);
 
-  const paid    = invoices.filter((i) => i.status === "paid");
   const pending = invoices.filter((i) => i.status === "pending");
   const overdue = invoices.filter((i) => i.status === "overdue");
-
-  const totalRevenue = paid.reduce((s, i) => s + getInvoiceRevenue(i), 0);
   const totalPending = pending.reduce((s, i) => s + i.total, 0);
   const totalOverdue = overdue.reduce((s, i) => s + i.total, 0);
-  const netBalance   = totalRevenue - totalExpenses;
+
+  const netProfit = ledgerRevenue - ledgerExpenses;
 
   if (loading) {
     return (
@@ -89,27 +100,27 @@ export default function FinanceDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
         <StatCard
           label="Total Revenue"
-          value={formatNaira(totalRevenue)}
-          sub={`${paid.length} paid invoice${paid.length !== 1 ? "s" : ""} (excl. VAT)`}
+          value={formatNaira(ledgerRevenue)}
+          sub="year-to-date · from journal ledger"
           icon={<RevenueIcon />}
           iconClass="bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
           valueClass="text-emerald-400"
         />
         <StatCard
           label="Total Expenses"
-          value={formatNaira(totalExpenses)}
-          sub="paid expense claims + purchase orders"
+          value={formatNaira(ledgerExpenses)}
+          sub="year-to-date · from journal ledger"
           icon={<ExpensesIcon />}
           iconClass="bg-red-500/10 border-red-500/20 text-red-400"
           valueClass="text-red-400"
         />
         <StatCard
-          label="Net Balance"
-          value={formatNaira(Math.abs(netBalance))}
-          sub={netBalance >= 0 ? "surplus" : "deficit"}
+          label="Net Profit"
+          value={formatNaira(Math.abs(netProfit))}
+          sub={netProfit >= 0 ? "profit · year-to-date" : "loss · year-to-date"}
           icon={<BalanceIcon />}
-          iconClass={netBalance >= 0 ? "bg-secondary/10 border-secondary/20 text-secondary" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}
-          valueClass={netBalance >= 0 ? "text-secondary" : "text-amber-400"}
+          iconClass={netProfit >= 0 ? "bg-secondary/10 border-secondary/20 text-secondary" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}
+          valueClass={netProfit >= 0 ? "text-secondary" : "text-amber-400"}
         />
         <StatCard
           label="Pending"
