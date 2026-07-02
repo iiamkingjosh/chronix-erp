@@ -63,7 +63,17 @@ export default function BalanceSheetPage() {
               <tbody>
                 <Row label="Cash in Bank"         amount={report.assets.currentAssets.cash}               indent />
                 <Row label="Petty Cash"           amount={report.assets.currentAssets.pettyCash}          indent />
-                <Row label="Accounts Receivable"  amount={report.assets.currentAssets.accountsReceivable} indent />
+                <tr className="border-b border-white/5">
+                  <td className="pl-6 py-2 text-sm text-white/70 font-helvetica">
+                    Accounts Receivable
+                    <span className="block text-[10px] text-white/30 font-helvetica mt-0.5">
+                      Outstanding receivables — from unpaid invoices
+                    </span>
+                  </td>
+                  <td className="py-2 text-sm text-right font-helvetica text-white">
+                    {formatNaira(report.assets.currentAssets.accountsReceivable)}
+                  </td>
+                </tr>
                 <Row label="Inventory"            amount={report.assets.currentAssets.inventory}          indent />
                 <Row label="Prepaid Expenses"     amount={report.assets.currentAssets.prepaidExpenses}    indent />
                 <Row label="VAT Recoverable"      amount={report.assets.currentAssets.vatRecoverable}     indent />
@@ -97,10 +107,11 @@ export default function BalanceSheetPage() {
               <div className="overflow-x-auto">
               <table className="w-full mb-4">
                 <tbody>
-                  <Row label="Accounts Payable" amount={report.liabilities.currentLiabilities.accountsPayable} indent />
-                  <Row label="VAT Payable"       amount={report.liabilities.currentLiabilities.vatPayable}      indent />
-                  <Row label="WHT Payable"       amount={report.liabilities.currentLiabilities.whtPayable}      indent />
-                  <Row label="PAYE Payable"      amount={report.liabilities.currentLiabilities.payePayable}     indent />
+                  <Row label="Accounts Payable"               amount={report.liabilities.currentLiabilities.accountsPayable}          indent />
+                  <Row label="VAT Payable"                   amount={report.liabilities.currentLiabilities.vatPayable}               indent />
+                  <Row label="WHT Payable"                   amount={report.liabilities.currentLiabilities.whtPayable}               indent />
+                  <Row label="PAYE Payable"                  amount={report.liabilities.currentLiabilities.payePayable}              indent />
+                  <Row label="Payroll Deductions Payable"    amount={report.liabilities.currentLiabilities.payrollDeductionsPayable} indent />
                   <Subtotal label="Total Liabilities" amount={report.liabilities.total} />
                 </tbody>
               </table>

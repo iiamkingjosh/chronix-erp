@@ -1,7 +1,26 @@
+import { getDocs, collection, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import type { Invoice } from "@/types/finance";
 import { getJournalEntriesByDateRange } from "./journal-entries";
 
 export async function generateBalanceSheet(asOfDate: string, userId: string) {
-  const entries = await getJournalEntriesByDateRange("2020-01-01", asOfDate);
+  const [entries, invoiceSnap] = await Promise.all([
+    getJournalEntriesByDateRange("2020-01-01", asOfDate),
+    // Cash-basis: AR is the sum of outstanding balances on unpaid invoices,
+    // not account 1100's ledger balance (which receives no new entries under
+    // cash-basis since invoice creation no longer posts a JE).
+    getDocs(query(
+      collection(db, "invoices"),
+      where("status", "in", ["pending", "partially_paid", "overdue"]),
+    )),
+  ]);
+
+  // Outstanding amount per invoice = total - amountPaid (handles partial payments).
+  // Only include invoices dated on or before the "as of" date.
+  const outstandingAR = invoiceSnap.docs
+    .map((d) => d.data() as Invoice)
+    .filter((inv) => (inv.invoiceDate ?? inv.createdAt?.slice(0, 10) ?? "") <= asOfDate)
+    .reduce((sum, inv) => sum + Math.max(0, (inv.total ?? 0) - (inv.amountPaid ?? 0)), 0);
 
   // Accumulate net debit (debit − credit) per account code across all time
   const bal: Record<string, number> = {};
@@ -36,7 +55,7 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
     currentAssets: {
       cash:               g("1010"),
       pettyCash:          g("1020"),
-      accountsReceivable: g("1100"),
+      accountsReceivable: outstandingAR,
       vatRecoverable:     g("1110"),
       inventory:          g("1200"),
       prepaidExpenses:    g("1300"),
@@ -61,19 +80,21 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
   // Liability accounts (2xxx) are credit-normal: bal[] is negative, so negate.
   const liabilities = {
     currentLiabilities: {
-      accountsPayable: -g("2010"),
-      vatPayable:      -g("2100"),
-      whtPayable:      -g("2200"),
-      payePayable:     -g("2300"),
+      accountsPayable:           -g("2010"),
+      vatPayable:                -g("2100"),
+      whtPayable:                -g("2200"),
+      payePayable:               -g("2300"),
+      payrollDeductionsPayable:  -g("2400"),
       total: 0,
     },
     total: 0,
   };
   liabilities.currentLiabilities.total =
-    Math.max(0, liabilities.currentLiabilities.accountsPayable) +
-    Math.max(0, liabilities.currentLiabilities.vatPayable)      +
-    Math.max(0, liabilities.currentLiabilities.whtPayable)      +
-    Math.max(0, liabilities.currentLiabilities.payePayable);
+    Math.max(0, liabilities.currentLiabilities.accountsPayable)          +
+    Math.max(0, liabilities.currentLiabilities.vatPayable)               +
+    Math.max(0, liabilities.currentLiabilities.whtPayable)               +
+    Math.max(0, liabilities.currentLiabilities.payePayable)              +
+    Math.max(0, liabilities.currentLiabilities.payrollDeductionsPayable);
   liabilities.total = liabilities.currentLiabilities.total;
 
   // ── Equity ─────────────────────────────────────────────────────────────────
