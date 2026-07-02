@@ -27,48 +27,52 @@ afterAll(async () => {
 });
 
 describe("Invariant #2 — one financial event produces exactly one journal entry", () => {
-  it("createInvoice (as CFO) posts exactly one balanced journal entry referencing the invoice", async () => {
+  it("createInvoice (cash-basis) posts NO journal entry — revenue is recognised at payment, not at invoicing", async () => {
     await signInAs("CFO");
     const invoice = await createInvoice(makeInvoice({ subtotal: 100_000, vatAmount: 7_500, total: 107_500 }));
 
+    // Under cash-basis, no JE is created when an invoice is issued.
     const entries = await getJournalEntriesByReference(invoice.id);
-    expect(entries).toHaveLength(1);
-    expect(entries[0].totalDebit).toBeCloseTo(107_500, 2);
-    expect(entries[0].totalCredit).toBeCloseTo(107_500, 2);
+    expect(entries).toHaveLength(0);
 
     const persisted = await readDocAsAdmin<Invoice & { _journalPosted?: boolean }>("invoices", invoice.id);
-    expect(persisted?._journalPosted).toBe(true);
+    expect(persisted?._journalPosted).toBeFalsy(); // flag is not set — no JE was attempted
   });
 
-  it("createPayment (as CFO) posts exactly one journal entry and marks the invoice paid", async () => {
+  it("createPayment (as CFO) posts exactly one cash-basis journal entry and marks the invoice paid", async () => {
     await signInAs("CFO");
     const invoiceData = makeInvoice({ subtotal: 50_000, vatAmount: 3_750, total: 53_750 });
     const invoice = await createInvoice(invoiceData);
 
     const payment = await createPayment(makePayment({ ...invoice, id: invoice.id } as Invoice));
+    // Payment JE is keyed to payment.id (referenceId = payment.id), not invoice.id.
     const paymentEntries = await queryAsAdmin<JournalEntry>("journal_entries", "referenceId", payment.id);
     expect(paymentEntries).toHaveLength(1);
+
+    // Verify it's a DR Cash / CR Revenue / CR VAT entry (cash-basis shape).
+    const je = paymentEntries[0];
+    expect(je.totalDebit).toBeCloseTo(53_750, 2);
+    expect(je.totalCredit).toBeCloseTo(53_750, 2);
 
     const persistedInvoice = await readDocAsAdmin<Invoice>("invoices", invoice.id);
     expect(persistedInvoice?.status).toBe("paid");
   });
 });
 
-describe("FIXED (D11 — renumbered; originally mislabeled D9, which was already taken by markInvoiceSent's bypass finding) — Sales Rep invoice creation now correctly flags its own journal status", () => {
-  it("Sales Rep creates an invoice; the journal entry posts AND _journalPosted is now correctly set on their own invoice", async () => {
+describe("FIXED under cash-basis (D11 — previously mislabeled D9) — invoice creation no longer posts any JE, eliminating the Sales-Rep rule gap entirely", () => {
+  it("Sales Rep creates an invoice; no journal entry is posted (cash-basis — revenue recognised at payment)", async () => {
     const { uid } = await signInAs("Sales Rep");
     const invoice = await createInvoice(makeInvoice({ subtotal: 80_000, vatAmount: 6_000, total: 86_000, createdBy: uid }));
 
+    // Under cash-basis, no JE at invoice creation — D11's rule gap is moot.
     const entries = await getJournalEntriesByReference(invoice.id);
-    expect(entries).toHaveLength(1);
+    expect(entries).toHaveLength(0);
 
     const persisted = await readDocAsAdmin<Invoice & { _journalPosted?: boolean; _journalError?: string | null }>(
       "invoices",
       invoice.id
     );
-    // EXPECTED and now ACTUAL: the creator-scoped rule lets Sales Rep write
-    // these two fields on their own invoice, so the flag is no longer lost.
-    expect(persisted?._journalPosted).toBe(true);
+    expect(persisted?._journalPosted).toBeFalsy();
     expect(persisted?._journalError ?? null).toBeNull();
   });
 
@@ -93,36 +97,27 @@ describe("FIXED (D11 — renumbered; originally mislabeled D9, which was already
   });
 });
 
-describe("FIXED: reopening a paid invoice — now blocked when real payments exist, and correctly voids the journal entry when it's safe to reopen", () => {
-  it("an invoice marked paid manually (handleMarkPaid — no real payment, amountPaid stays 0) CAN be reopened, and its journal entry is voided", async () => {
+describe("Reopening a paid invoice", () => {
+  it("an invoice with no payment record CAN be reopened (status flipped manually, no real payment, no JE to void)", async () => {
     await signInAs("CFO");
     const invoice = await createInvoice(makeInvoice({ subtotal: 60_000, vatAmount: 4_500, total: 64_500 }));
-    await updateInvoiceStatus(invoice.id, "paid"); // manual flip — no createPayment(), so amountPaid is still unset
+    await updateInvoiceStatus(invoice.id, "paid"); // manual flip — no createPayment(), amountPaid still unset
 
+    // Under cash-basis, no JE was posted at invoice creation.
     const entriesBefore = await getJournalEntriesByReference(invoice.id);
-    expect(entriesBefore[0].status).toBe("posted");
+    expect(entriesBefore).toHaveLength(0);
 
     await reopenInvoice(invoice.id, "test-cfo-uid");
 
     const persisted = await readDocAsAdmin<Invoice & { _journalVoidError?: string | null }>("invoices", invoice.id);
     expect(persisted?.status).toBe("pending");
-    expect(persisted?._journalVoidError ?? null).toBeNull();
-
-    const entriesAfter = await getJournalEntriesByReference(invoice.id);
-    const original = entriesAfter.find((e) => e.id === entriesBefore[0].id);
-    expect(original?.status).toBe("void"); // the original invoice-creation entry is now voided
-
-    const reversalCandidates = await getJournalEntriesByReference(entriesBefore[0].id);
-    const reversal = reversalCandidates.find((e) => e.status === "posted");
-    expect(reversal).toBeDefined(); // and a reversing entry was posted
+    expect(persisted?._journalVoidError ?? null).toBeNull(); // nothing to void → no error
   });
 
   it("an invoice with a REAL payment recorded (amountPaid > 0) is genuinely rejected, not silently reopened", async () => {
     await signInAs("CFO");
     const invoice = await createInvoice(makeInvoice({ subtotal: 60_000, vatAmount: 4_500, total: 64_500 }));
-    await createPayment(makePayment(invoice as Invoice)); // a real payment — invoice.status becomes "paid" with amountPaid > 0
-
-    const entriesBefore = await getJournalEntriesByReference(invoice.id);
+    await createPayment(makePayment(invoice as Invoice)); // real payment — invoice.status becomes "paid"
 
     await expect(reopenInvoice(invoice.id, "test-cfo-uid")).rejects.toThrow(
       /Cannot reopen an invoice with recorded payments/
@@ -130,24 +125,15 @@ describe("FIXED: reopening a paid invoice — now blocked when real payments exi
 
     const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
     expect(persisted?.status).toBe("paid"); // unchanged — rejection happened before any write
-
-    const entriesAfter = await getJournalEntriesByReference(invoice.id);
-    // Nothing was voided — every entry (invoice creation + payment) is still posted.
-    for (const entry of entriesAfter) expect(entry.status).toBe("posted");
-    expect(entriesAfter).toHaveLength(entriesBefore.length);
   });
 
-  it("calling reopenInvoice twice on the same invoice does not throw on the second call's already-void entry (idempotency guard)", async () => {
+  it("calling reopenInvoice twice on the same invoice does not throw on the second call (idempotency guard)", async () => {
     await signInAs("CFO");
     const invoice = await createInvoice(makeInvoice({ subtotal: 30_000, vatAmount: 2_250, total: 32_250 }));
     await updateInvoiceStatus(invoice.id, "paid");
 
-    await reopenInvoice(invoice.id, "test-cfo-uid"); // voids the original entry
+    await reopenInvoice(invoice.id, "test-cfo-uid");
 
-    // A second reopen call (e.g. a double-click, or status manually flipped
-    // back to "paid" and reopened again) must not throw trying to re-void
-    // an already-void entry — voidJournalEntry() itself is not idempotent,
-    // so the caller (reopenInvoice) must skip non-"posted" entries itself.
     await updateInvoiceStatus(invoice.id, "paid");
     await expect(reopenInvoice(invoice.id, "test-cfo-uid")).resolves.toBeUndefined();
   });
@@ -159,25 +145,16 @@ describe("Edge case — deleteInvoice has no internal guard, but firestore.rules
     const invoice = await createInvoice(makeInvoice({ subtotal: 30_000, vatAmount: 2_250, total: 32_250 }));
     await updateInvoiceStatus(invoice.id, "paid");
 
-    // Original hypothesis (from the PRD's reading of finance-service.ts in
-    // isolation) was that this would succeed, since the function's own
-    // comment ("call only for unpaid invoices after UI/auth checks") is not
-    // backed by any in-function check. Running it for real shows that
-    // firestore.rules' `canDeleteUnpaidInvoice() && resource.data.status != 'paid'`
-    // (rule line 268) independently blocks this for every role, including
-    // CFO. The application-level guard is genuinely missing, but it is not
-    // exploitable in practice — defense-in-depth via rules covers the gap.
-    // Recording this as a corrected finding rather than forcing the
-    // originally-assumed (incorrect) deviation to "pass."
     await expect(deleteInvoice(invoice.id, "test-actor")).rejects.toThrow(/permission/i);
 
     const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
-    expect(persisted).not.toBeNull(); // invoice still exists — deletion did not go through
+    expect(persisted).not.toBeNull();
     expect(persisted?.status).toBe("paid");
 
+    // Under cash-basis, no JE was posted at invoice creation, and the invoice
+    // was marked paid via status flip (no createPayment), so no payment JE either.
     const entries = await getJournalEntriesByReference(invoice.id);
-    expect(entries).toHaveLength(1);
-    expect(entries[0].status).toBe("posted"); // ledger is undisturbed, as it should be
+    expect(entries).toHaveLength(0);
   });
 
   it("deleting a NOT-yet-paid invoice succeeds (rules correctly allow this case)", async () => {
@@ -190,13 +167,10 @@ describe("Edge case — deleteInvoice has no internal guard, but firestore.rules
     const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
     expect(persisted).toBeNull();
 
-    // Its journal entry (posted at creation, independent of payment status)
-    // is still orphaned — deleting an invoice never voids/reverses its
-    // ledger entry, regardless of payment status. This part of the
-    // original finding still holds.
-    const orphanedEntries = await getJournalEntriesByReference(invoice.id);
-    expect(orphanedEntries).toHaveLength(1);
-    expect(orphanedEntries[0].status).toBe("posted");
+    // Under cash-basis, no JE was posted at invoice creation — nothing is
+    // left in the ledger after deletion.
+    const entries = await getJournalEntriesByReference(invoice.id);
+    expect(entries).toHaveLength(0);
   });
 });
 
@@ -212,18 +186,15 @@ describe("FIXED (D6) — concurrent full-amount payments against the same invoic
 
     const fulfilled = results.filter((r) => r.status === "fulfilled");
     const rejected  = results.filter((r) => r.status === "rejected");
-    // Firestore transactions retry on contention, but both payments are for
-    // the FULL invoice amount — only one can land without exceeding the
-    // total, so exactly one succeeds and one is rejected as an overpayment.
     expect(fulfilled).toHaveLength(1);
     expect(rejected).toHaveLength(1);
 
     const allPaymentsForInvoice = await queryAsAdmin("payments", "invoiceId", invoice.id);
-    expect(allPaymentsForInvoice).toHaveLength(1); // only the successful payment was ever written
+    expect(allPaymentsForInvoice).toHaveLength(1);
 
     const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
     expect(persisted?.status).toBe("paid");
-    expect(persisted?.amountPaid).toBeCloseTo(215_000, 2); // not 430,000 — the race is closed
+    expect(persisted?.amountPaid).toBeCloseTo(215_000, 2);
   });
 
   it("two simultaneous HALF-amount payments both succeed and correctly sum to \"paid\" (the legitimate concurrent case)", async () => {
@@ -237,64 +208,60 @@ describe("FIXED (D6) — concurrent full-amount payments against the same invoic
 
     expect(p1.id).not.toBe(p2.id);
     const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
-    expect(persisted?.amountPaid).toBeCloseTo(215_000, 2); // both contributions correctly accumulated, not lost to a race
+    expect(persisted?.amountPaid).toBeCloseTo(215_000, 2);
     expect(persisted?.status).toBe("paid");
 
     const entries1 = await queryAsAdmin<JournalEntry>("journal_entries", "referenceId", p1.id);
     const entries2 = await queryAsAdmin<JournalEntry>("journal_entries", "referenceId", p2.id);
     expect(entries1).toHaveLength(1);
-    expect(entries2).toHaveLength(1); // each real payment still gets its own journal entry
+    expect(entries2).toHaveLength(1);
   });
 });
 
 describe("FIXED (D5) — invariant #6: voiding a journal entry now works for every canManageFinance() role, not just Root Admin", () => {
-  it("CFO rejecting an invoice DOES now void its journal entry and post a reversing entry", async () => {
+  it("CFO rejecting an invoice: no JE exists to void (cash-basis — JE only posts at payment), rejection completes cleanly", async () => {
     const { uid } = await signInAs("CFO");
     const invoice = await createInvoice(
       makeInvoice({ subtotal: 40_000, vatAmount: 3_000, total: 43_000, approvalStatus: "pending_approval" })
     );
 
+    // Under cash-basis, no JE at invoice creation.
     const entriesBefore = await getJournalEntriesByReference(invoice.id);
-    expect(entriesBefore[0].status).toBe("posted");
+    expect(entriesBefore).toHaveLength(0);
 
     await updateInvoiceApproval(invoice.id, "rejected", "Test CFO", { actorUid: uid, rejectionReason: "wrong client" });
 
     const persisted = await readDocAsAdmin<Invoice & { _journalVoidError?: string | null }>("invoices", invoice.id);
     expect(persisted?.approvalStatus).toBe("rejected");
-    expect(persisted?._journalVoidError ?? null).toBeNull(); // no failure to flag
-
-    const entriesAfter = await getJournalEntriesByReference(invoice.id);
-    const original = entriesAfter.find((e) => e.id === entriesBefore[0].id);
-    expect(original?.status).toBe("void"); // the original is now voided...
-
-    // The reversal's referenceId points at the ORIGINAL JOURNAL ENTRY's id
-    // (voidJournalEntry sets `referenceId: original.id`), not the invoice
-    // id — so it has to be looked up separately, not via the same
-    // invoice-keyed query used for entriesBefore/entriesAfter above.
-    const reversalCandidates = await getJournalEntriesByReference(entriesBefore[0].id);
-    const reversal = reversalCandidates.find((e) => e.status === "posted");
-    expect(reversal).toBeDefined(); // ...and a reversing entry was posted
-    expect(reversal?.totalDebit).toBeCloseTo(entriesBefore[0].totalCredit, 2); // debits/credits swapped
+    expect(persisted?._journalVoidError ?? null).toBeNull(); // nothing to void → no void error
   });
 
-  it("Finance Officer (also canManageFinance(), but not in the UI's narrower canApprove gate) can void too — confirming the rule matches canManageFinance(), not just the two UI-exposed roles", async () => {
+  it("Finance Officer (also canManageFinance()) can void a payment journal entry — confirming the rule matches canManageFinance()", async () => {
     const { uid } = await signInAs("Finance Officer");
     const invoice = await createInvoice(
-      makeInvoice({ subtotal: 20_000, vatAmount: 1_500, total: 21_500, approvalStatus: "pending_approval" })
+      makeInvoice({ subtotal: 20_000, vatAmount: 1_500, total: 21_500 })
     );
-    const entriesBefore = await getJournalEntriesByReference(invoice.id);
+    const payment = await createPayment(makePayment(invoice as Invoice));
 
-    await updateInvoiceApproval(invoice.id, "rejected", "Test Finance Officer", { actorUid: uid });
+    // The cash-basis JE is keyed to the payment (referenceId = payment.id).
+    const entries = await queryAsAdmin<JournalEntry>("journal_entries", "referenceId", payment.id);
+    expect(entries).toHaveLength(1);
 
-    const entriesAfter = await getJournalEntriesByReference(invoice.id);
-    const original = entriesAfter.find((e) => e.id === entriesBefore[0].id);
-    expect(original?.status).toBe("void");
+    await voidJournalEntry(entries[0].id, "test void", uid);
+
+    const afterVoid = await readDocAsAdmin<{ status: string }>("journal_entries", entries[0].id);
+    expect(afterVoid?.status).toBe("void");
   });
 
   it("a role outside canManageFinance() (e.g. Sales Rep) still cannot void — confirming the rule isn't a blanket unlock", async () => {
-    await signInAs("Sales Rep");
+    // CFO creates the invoice and records the payment to generate a payment JE.
+    await signInAs("CFO");
     const invoice = await createInvoice(makeInvoice({ subtotal: 10_000, vatAmount: 750, total: 10_750 }));
-    const entries = await getJournalEntriesByReference(invoice.id);
+    const payment = await createPayment(makePayment(invoice as Invoice));
+    await signOutCurrent();
+
+    await signInAs("Sales Rep");
+    const entries = await queryAsAdmin<JournalEntry>("journal_entries", "referenceId", payment.id);
 
     await expect(
       voidJournalEntry(entries[0].id, "test", "sales-rep-uid")
@@ -304,10 +271,9 @@ describe("FIXED (D5) — invariant #6: voiding a journal entry now works for eve
   it("the rule rejects an update outside the exact posted->void transition, even from an authorized role (no blanket unlock)", async () => {
     await signInAs("CFO");
     const invoice = await createInvoice(makeInvoice({ subtotal: 10_000, vatAmount: 750, total: 10_750 }));
-    const entries = await getJournalEntriesByReference(invoice.id);
+    const payment = await createPayment(makePayment(invoice as Invoice));
+    const entries = await queryAsAdmin<JournalEntry>("journal_entries", "referenceId", payment.id);
 
-    // Attempt to edit an unrelated field on a posted entry directly — not
-    // the void transition the rule was written to allow.
     await expect(
       updateDoc(doc(db, "journal_entries", entries[0].id), { description: "edited directly" })
     ).rejects.toThrow(/permission/i);
@@ -344,21 +310,20 @@ describe("FIXED (D6) — invariant #8: a payment can no longer silently overpay/
     await createPayment(makePayment(invoice as Invoice, { amount: 100_000 }));
 
     await expect(
-      createPayment(makePayment(invoice as Invoice, { amount: 10_000 })) // would total 110,000 > 107,500
+      createPayment(makePayment(invoice as Invoice, { amount: 10_000 }))
     ).rejects.toThrow(/exceeding the invoice total/);
 
     const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);
-    expect(persisted?.amountPaid).toBeCloseTo(100_000, 2); // unchanged — the rejected payment wrote nothing
-    expect(persisted?.status).toBe("partially_paid"); // unchanged
+    expect(persisted?.amountPaid).toBeCloseTo(100_000, 2);
+    expect(persisted?.status).toBe("partially_paid");
 
     const allPayments = await queryAsAdmin("payments", "invoiceId", invoice.id);
-    expect(allPayments).toHaveLength(1); // the overpayment attempt never created a payment doc
+    expect(allPayments).toHaveLength(1);
   });
 
   it("a payment within rounding tolerance of the exact remaining balance is accepted as \"paid\", not rejected", async () => {
     await signInAs("CFO");
     const invoice = await createInvoice(makeInvoice({ subtotal: 100_000, vatAmount: 7_500, total: 107_500 }));
-    // 0.005 over due to floating-point — within the 0.01 tolerance.
     await expect(createPayment(makePayment(invoice as Invoice, { amount: 107_500.005 }))).resolves.toBeDefined();
 
     const persisted = await readDocAsAdmin<Invoice>("invoices", invoice.id);

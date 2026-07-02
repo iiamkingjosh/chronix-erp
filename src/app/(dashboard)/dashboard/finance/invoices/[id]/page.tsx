@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getInvoice, updateInvoiceStatus, reopenInvoice, deleteInvoice, updateInvoiceApproval, getPayments } from "@/lib/finance-service";
+import Link from "next/link";
+import { getInvoice, reopenInvoice, deleteInvoice, updateInvoiceApproval, getPayments } from "@/lib/finance-service";
 import { db, auth } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { createWHTJournalEntry } from "@/lib/accounting/auto-journal";
@@ -102,13 +103,6 @@ export default function InvoiceViewPage() {
       setRejectModal(false);
       setRejectReason("");
     } finally { setApproving(false); }
-  }
-
-  async function handleMarkPaid() {
-    if (!invoice || !profile) return;
-    await updateInvoiceStatus(invoice.id, "paid");
-    logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "invoices", entityId: invoice.id, entityRef: invoice.invoiceNumber, details: `Invoice ${invoice.invoiceNumber} marked as paid`, timestamp: new Date().toISOString() });
-    setInvoice((prev) => prev ? { ...prev, status: "paid" } : prev);
   }
 
   async function handleReopen() {
@@ -378,12 +372,12 @@ export default function InvoiceViewPage() {
             </>
           )}
           {canManage && invoice.status !== "paid" && invoice.approvalStatus !== "draft" && (
-            <button
-              onClick={handleMarkPaid}
+            <Link
+              href="/dashboard/finance/payments"
               className="flex items-center gap-2 px-4 py-2 text-sm text-emerald-400 border border-emerald-500/30 rounded-xl hover:bg-emerald-500/10 font-helvetica transition-colors"
             >
-              <CheckIcon /> Mark as Paid
-            </button>
+              <CashIcon /> Record Payment
+            </Link>
           )}
           {showReopenBtn && (
             <button
@@ -1136,6 +1130,9 @@ function CheckIcon() {
 }
 function RefreshIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>;
+}
+function CashIcon() {
+  return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" strokeWidth="1.5"/><path d="M6 12h.01M18 12h.01"/></svg>;
 }
 function DownloadIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;

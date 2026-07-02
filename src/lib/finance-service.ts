@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Invoice, Payment, InvoiceStatus, ApprovalStatus } from "@/types/finance";
-import { createInvoiceJournalEntry, createPaymentJournalEntry } from "@/lib/accounting/auto-journal";
+import { createCashBasisPaymentJournalEntry } from "@/lib/accounting/auto-journal";
 import { getJournalEntriesByReference, voidJournalEntry } from "@/lib/accounting/journal-entries";
 import { logAuditEvent } from "@/lib/audit-service";
 import { createNotification } from "@/lib/notifications-service";
@@ -30,14 +30,7 @@ export async function createInvoice(data: Omit<Invoice, "id">): Promise<Invoice>
   validateAmount(data.total, "total");
   const ref     = await addDoc(collection(db, INV), data);
   const invoice = { ...data, id: ref.id };
-  try {
-    await createInvoiceJournalEntry(invoice, data.createdBy);
-    await updateDoc(doc(db, INV, ref.id), { _journalPosted: true, _journalError: null });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("[accounting] Failed to create invoice journal entry:", msg);
-    updateDoc(doc(db, INV, ref.id), { _journalError: msg }).catch(() => {});
-  }
+  // Cash-basis: no journal entry at invoice creation — JE posts at payment receipt.
   logAuditEvent({
     actorUid: data.createdBy, actorName: data.createdBy, actorRole: "Finance",
     action: "create", module: "invoices", entityId: ref.id,
@@ -139,6 +132,10 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
   const paymentRef = doc(collection(db, PAY));
   const invoiceRef = doc(db, INV, data.invoiceId);
 
+  // Hoisted so the invoice data is accessible after the transaction closes —
+  // needed to build the cash-basis payment JE (revenue per line item).
+  let invoice!: Invoice;
+
   // Transactional (not batch): deciding the invoice's new status depends on
   // reading its current amountPaid first, and a transaction guarantees that
   // read-then-decide-then-write is atomic against concurrent payments on the
@@ -151,7 +148,7 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
     if (!invoiceSnap.exists()) {
       throw new Error(`Invoice ${data.invoiceId} not found`);
     }
-    const invoice = invoiceSnap.data() as Invoice;
+    invoice = invoiceSnap.data() as Invoice;
 
     const amountPaidBefore = round(invoice.amountPaid ?? 0);
     const amountPaidAfter  = round(amountPaidBefore + data.amount);
@@ -172,7 +169,7 @@ export async function createPayment(data: Omit<Payment, "id">): Promise<Payment>
 
   const payment = { ...data, id: paymentRef.id };
   try {
-    await createPaymentJournalEntry(payment, data.recordedBy);
+    await createCashBasisPaymentJournalEntry(payment, invoice, data.recordedBy);
     await updateDoc(doc(db, PAY, paymentRef.id), { _journalPosted: true, _journalError: null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

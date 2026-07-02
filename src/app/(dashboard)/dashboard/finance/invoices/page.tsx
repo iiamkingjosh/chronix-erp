@@ -199,12 +199,12 @@ export default function InvoicesPage() {
                           View
                         </Link>
                         {canManage && inv.status !== "paid" && (
-                          <button
-                            onClick={() => markStatus(inv.id, "paid")}
+                          <Link
+                            href="/dashboard/finance/payments"
                             className="text-xs text-emerald-400 hover:text-emerald-300 font-helvetica px-2.5 py-1 rounded-lg border border-emerald-500/20 hover:border-emerald-500/40 transition-colors"
                           >
-                            Mark Paid
-                          </button>
+                            Record Payment
+                          </Link>
                         )}
                         {canManage && inv.status === "pending" && (
                           <button

@@ -61,7 +61,7 @@ describe("FIXED: DEVIATION D4 — \"revenue\" is now the same number on every sc
 });
 
 describe("Invariant #4 — the filed VAT return must reconcile with what's shown elsewhere as \"VAT collected\"", () => {
-  it("Still open (separate from D7's banner fix) — an unpaid invoice's VAT is already counted by the ledger-derived return, but excluded by the page-level \"paid only\" estimate", async () => {
+  it("FIXED under cash-basis — an unpaid invoice's VAT no longer appears in the ledger-derived return; both sides now agree at ₦0, eliminating the prior discrepancy", async () => {
     const { uid } = await signInAs("CFO");
     const now = new Date();
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -72,25 +72,23 @@ describe("Invariant #4 — the filed VAT return must reconcile with what's shown
     );
     expect(invoice.status).toBe("pending");
 
-    // The canonical, ledger-derived figure (accounting/vat-return.ts) —
-    // this is what actually gets filed with FIRS via saveVATReturn().
+    // Under cash-basis, createInvoice() posts NO journal entry.
+    // generateVATReturn() derives VAT from posted JEs — there are none,
+    // so the ledger-derived filed return correctly shows ₦0 for this period.
     const filedReturn = await generateVATReturn(month, uid);
-    expect(filedReturn.vatCollected.total).toBeCloseTo(7_500, 2);
+    expect(filedReturn.vatCollected.total).toBeCloseTo(0, 2);
 
-    // The page-level estimate used on tax/vat/page.tsx and the tax
-    // dashboard (tax/page.tsx) — both filter `status === "paid"` first.
+    // The page-level estimate (tax/vat/page.tsx, tax/page.tsx) filters to
+    // status === "paid" — the invoice is pending, so it also returns ₦0.
     const pageEstimate = [invoice]
       .filter((i) => i.status === "paid")
       .reduce((s, i) => s + (i.vatAmount != null ? Number(i.vatAmount) : Number(i.total) * VAT_RATE), 0);
 
-    // EXPECTED under invariant #4: these should be the same number, since
-    // they're both supposedly describing "VAT collected this month."
-    // ACTUAL: the journal entry (and therefore the filed return) recognizes
-    // the VAT at invoice-creation time regardless of payment status; the
-    // dashboard estimate recognizes it only once paid. A CFO looking at the
-    // VAT dashboard right now sees ₦0 for a return that will actually file ₦7,500.
+    // Both sides agree: ₦0 VAT on an unpaid invoice.
+    // The old open discrepancy (accrual JE at creation vs. paid-only filter)
+    // is eliminated by the cash-basis rewrite.
     expect(pageEstimate).toBe(0);
-    expect(filedReturn.vatCollected.total).not.toBe(pageEstimate);
+    expect(filedReturn.vatCollected.total).toBe(pageEstimate);
   });
 });
 

@@ -96,68 +96,84 @@ export async function createInvoiceJournalEntry(
   });
 }
 
-/* ── Payment received ────────────────────────────────────────────────────── */
+/* ── Payment received (cash basis) ──────────────────────────────────────── */
 /*
- *  Standard:
- *  Debit  1010  Cash in Bank          (amount received)
- *  Credit 1100  Accounts Receivable   (clears the debt)
+ * Cash-basis: revenue is recognised when cash is received, not at invoicing.
+ * No Accounts Receivable (1100) involved — the accrual two-step
+ * (DR 1100 at invoice → DR Cash / CR 1100 at payment) collapses into one
+ * entry at payment time.
  *
- *  VAT Direct (client remitted VAT to FIRS on our behalf):
- *  Debit  1010  Cash in Bank          (amount - vatAmount — cash actually received)
- *  Debit  2100  VAT Payable           (vatAmount — liability discharged by client)
- *  Credit 1100  Accounts Receivable   (amount — full invoice cleared)
+ * Standard (full or partial):
+ *   Debit  1010  Cash in Bank      (payment.amount)
+ *   Credit 40XX  Revenue per item  (item.lineTotal × ratio, one line per item)
+ *   Credit 2100  VAT Payable       (invoice.vatAmount × ratio)
+ *
+ * VAT-direct (client remits VAT directly to FIRS — never passes through us):
+ *   Debit  1010  Cash in Bank      (payment.amount − payment.vatAmount — net received)
+ *   Credit 40XX  Revenue per item  (item.lineTotal × ratio — no VAT line)
+ *
+ * Partial-payment ratio = payment.amount / invoice.total applied uniformly to
+ * each revenue line and to vatAmount so the entry always self-balances.
  */
-export async function createPaymentJournalEntry(
+export async function createCashBasisPaymentJournalEntry(
   payment: Payment,
+  invoice: Invoice,
   userId: string
 ): Promise<JournalEntry> {
+  const ratio       = invoice.total > 0 ? payment.amount / invoice.total : 1;
+  const isVatDirect = payment.method === "vat_direct" && (payment.vatAmount ?? 0) > 0;
+
   const lineItems: JournalLineItem[] = [];
 
-  if (payment.method === "vat_direct" && payment.vatAmount && payment.vatAmount > 0) {
-    const cashReceived = round(payment.amount - payment.vatAmount);
-    const vatAmt       = round(payment.vatAmount);
-
+  if (isVatDirect) {
+    const cashReceived = round(payment.amount - (payment.vatAmount ?? 0));
     lineItems.push({
       accountCode: "1010",
       accountName: "Cash in Bank — Fidelity",
       debit:  cashReceived,
       credit: 0,
-      description: `Cash received from ${payment.clientName} (VAT paid directly to FIRS)`,
+      description: `Cash received from ${payment.clientName} (VAT remitted to FIRS by client)`,
     });
-    lineItems.push({
-      accountCode: "2100",
-      accountName: "VAT Payable (7.5%)",
-      debit:  vatAmt,
-      credit: 0,
-      description: `VAT remitted to FIRS by ${payment.clientName}`,
-    });
-    lineItems.push({
-      accountCode: "1100",
-      accountName: "Accounts Receivable",
-      debit:  0,
-      credit: round(payment.amount),
-      description: `Full AR cleared — ${payment.clientName}`,
-    });
+    for (const item of invoice.items) {
+      const rev = revenueAccount(item.name);
+      lineItems.push({
+        accountCode: rev.code,
+        accountName: rev.name,
+        debit:  0,
+        credit: round(item.lineTotal * ratio),
+        description: item.name,
+      });
+    }
   } else {
     lineItems.push({
       accountCode: "1010",
       accountName: "Cash in Bank — Fidelity",
       debit:  round(payment.amount),
       credit: 0,
-      description: "Bank transfer received",
+      description: `Bank transfer received from ${payment.clientName}`,
     });
+    for (const item of invoice.items) {
+      const rev = revenueAccount(item.name);
+      lineItems.push({
+        accountCode: rev.code,
+        accountName: rev.name,
+        debit:  0,
+        credit: round(item.lineTotal * ratio),
+        description: item.name,
+      });
+    }
     lineItems.push({
-      accountCode: "1100",
-      accountName: "Accounts Receivable",
+      accountCode: "2100",
+      accountName: "VAT Payable (7.5%)",
       debit:  0,
-      credit: round(payment.amount),
-      description: `Payment from ${payment.clientName}`,
+      credit: round((invoice.vatAmount ?? 0) * ratio),
+      description: "Output VAT — cash basis",
     });
   }
 
   return createJournalEntry({
     entryDate:     payment.paymentDate,
-    description:   `Payment ${payment.id} — ${payment.clientName}`,
+    description:   `Payment ${payment.invoiceNumber} — ${payment.clientName}`,
     reference:     payment.invoiceNumber,
     referenceType: "payment",
     referenceId:   payment.id,
