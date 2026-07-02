@@ -74,7 +74,7 @@ export async function getJournalEntriesByDateRange(
     collection(db, "journal_entries"),
     where("entryDate", ">=", startDate),
     where("entryDate", "<=", endDate),
-    where("status", "==", "posted"),
+    where("status", "in", ["posted", "void"]),
     orderBy("entryDate"),
     orderBy("entryNumber")
   );
