@@ -86,9 +86,12 @@ export default function FinancialReportsPage() {
 
   useEffect(() => {
     if (!profile) return;
-    setPlGridLoading(true);
-    setPlGrid(null);
-    generateMonthlyPLGrid(parseInt(year))
+    void Promise.resolve()
+      .then(() => {
+        setPlGridLoading(true);
+        setPlGrid(null);
+        return generateMonthlyPLGrid(parseInt(year));
+      })
       .then(setPlGrid)
       .catch((e) => console.error("[finance/reports] P&L ledger fetch failed:", e))
       .finally(() => setPlGridLoading(false));

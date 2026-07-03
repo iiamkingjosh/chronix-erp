@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -60,18 +60,13 @@ function LoginPageInner() {
   const searchParams    = useSearchParams();
   const selfSignupOn = process.env.NEXT_PUBLIC_ENABLE_SELF_SIGNUP !== "false";
 
-  const [mode, setMode] = useState<"signin" | "register">("signin");
-
-  useEffect(() => {
-    if (!selfSignupOn) {
-      setMode("signin");
-      return;
-    }
+  const mode = useMemo<"signin" | "register">(() => {
+    if (!selfSignupOn) return "signin";
     const wr =
       searchParams.get("mode") === "register" ||
       searchParams.get("register") === "1" ||
       searchParams.get("register") === "true";
-    setMode(wr ? "register" : "signin");
+    return wr ? "register" : "signin";
   }, [searchParams, selfSignupOn]);
 
   const [serverError, setServerError]   = useState<string | null>(null);
@@ -90,14 +85,12 @@ function LoginPageInner() {
   const regForm   = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
   const goSignIn = useCallback(() => {
-    setMode("signin");
     setServerError(null);
     regForm.reset();
     router.replace(pathname);
   }, [pathname, regForm, router]);
 
   const goRegister = useCallback(() => {
-    setMode("register");
     setServerError(null);
     loginForm.reset();
     setResetSent(false);

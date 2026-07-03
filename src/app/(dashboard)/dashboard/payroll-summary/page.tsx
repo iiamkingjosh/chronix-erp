@@ -25,7 +25,7 @@ export default function PayrollSummaryPage() {
   const canView = profile ? hasPermission(profile.role, "view:payroll-summary") : false;
 
   useEffect(() => {
-    if (!profile || !canView) { setLoading(false); return; }
+    if (!profile || !canView) { void Promise.resolve().then(() => setLoading(false)); return; }
     let cancelled = false;
     (async () => {
       try {

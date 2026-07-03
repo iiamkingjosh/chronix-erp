@@ -49,8 +49,11 @@ export default function AddEmployeePage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoadError(null);
-    Promise.all([getStaffList(), getEmployees()])
+    void Promise.resolve()
+      .then(() => {
+        if (!cancelled) setLoadError(null);
+        return Promise.all([getStaffList(), getEmployees()]);
+      })
       .then(([staff, emps]) => {
         if (cancelled) return;
         setUsers(staff);

@@ -42,11 +42,13 @@ export function useInactivityLogout(active: boolean, onLogout: () => void): {
   useEffect(() => {
     if (!active) {
       clearTimers();
-      setShowWarning(false);
+      void Promise.resolve().then(() => setShowWarning(false));
       return;
     }
 
-    resetTimers();
+    clearTimers();
+    warningTimer.current = setTimeout(() => setShowWarning(true), WARNING_AT_MS);
+    logoutTimer.current  = setTimeout(() => { setShowWarning(false); onLogout(); }, LOGOUT_AT_MS);
 
     function handleActivity() {
       const now = Date.now();

@@ -1,5 +1,5 @@
 import {
-  Document, Page, Text, View, Image, StyleSheet,
+  Document, Page, Text, View, Image as PdfImage, StyleSheet,
 } from "@react-pdf/renderer";
 import type { DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
@@ -69,8 +69,7 @@ export function PayslipPDFDocument({
         {/* Header */}
         <View style={S.header}>
           <View>
-            {/* eslint-disable-next-line jsx-a11y/alt-text */}
-            {logoSrc && <Image src={logoSrc} style={S.logo} />}
+            {logoSrc && <PdfImage src={logoSrc} style={S.logo} />}
             <Text style={S.coName}>Chronix Technology Limited</Text>
             <Text style={S.coDetail}>No.7 Jerry Iriabe Street, Lekki Phase 1, Lagos</Text>
             <Text style={S.coDetail}>Info@chronixtechnology.com</Text>
@@ -208,7 +207,7 @@ export function BulkPayslipPDFDocument({
             {/* Header */}
             <View style={S.header}>
               <View>
-                {logoSrc && <Image src={logoSrc} style={S.logo} />}
+                {logoSrc && <PdfImage src={logoSrc} style={S.logo} />}
                 <Text style={S.coName}>Chronix Technology Limited</Text>
                 <Text style={S.coDetail}>No.7 Jerry Iriabe Street, Lekki Phase 1, Lagos</Text>
                 <Text style={S.coDetail}>Info@chronixtechnology.com</Text>

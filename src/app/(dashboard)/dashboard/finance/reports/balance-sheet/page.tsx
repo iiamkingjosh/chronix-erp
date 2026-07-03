@@ -7,6 +7,23 @@ import { formatNaira } from "@/types/finance";
 
 type BS = Awaited<ReturnType<typeof generateBalanceSheet>>;
 
+function Row({ label, amount, indent = false }: { label: string; amount: number; indent?: boolean }) {
+  return (
+    <tr className="border-b border-white/5">
+      <td className={`py-2 text-sm text-white/70 font-helvetica ${indent ? "pl-6" : ""}`}>{label}</td>
+      <td className="py-2 text-sm text-right font-helvetica text-white">{formatNaira(amount)}</td>
+    </tr>
+  );
+}
+function Subtotal({ label, amount }: { label: string; amount: number }) {
+  return (
+    <tr className="border-t border-white/20">
+      <td className="py-2 text-sm font-semibold text-white font-helvetica">{label}</td>
+      <td className="py-2 text-sm font-semibold text-right text-accent font-helvetica">{formatNaira(amount)}</td>
+    </tr>
+  );
+}
+
 export default function BalanceSheetPage() {
   const { profile } = useAuth();
   const [asOf, setAsOf]       = useState(new Date().toISOString().split("T")[0]);
@@ -21,19 +38,6 @@ export default function BalanceSheetPage() {
   }
 
   useEffect(() => { load(); }, [asOf]); // eslint-disable-line
-
-  const Row = ({ label, amount, indent = false }: { label: string; amount: number; indent?: boolean }) => (
-    <tr className="border-b border-white/5">
-      <td className={`py-2 text-sm text-white/70 font-helvetica ${indent ? "pl-6" : ""}`}>{label}</td>
-      <td className="py-2 text-sm text-right font-helvetica text-white">{formatNaira(amount)}</td>
-    </tr>
-  );
-  const Subtotal = ({ label, amount }: { label: string; amount: number }) => (
-    <tr className="border-t border-white/20">
-      <td className="py-2 text-sm font-semibold text-white font-helvetica">{label}</td>
-      <td className="py-2 text-sm font-semibold text-right text-accent font-helvetica">{formatNaira(amount)}</td>
-    </tr>
-  );
 
   return (
     <div className="animate-fade-in">

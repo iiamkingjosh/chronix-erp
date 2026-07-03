@@ -23,13 +23,14 @@ export default function MyPerformancePage() {
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
-    if (!profile?.uid) return;
+    const uid = profile?.uid;
+    if (!uid) return;
     let cancelled = false;
     async function load() {
       const snap = await getDocs(
         query(
           collection(db, "performance_reviews"),
-          where("employeeId", "==", profile!.uid),
+          where("employeeId", "==", uid),
           orderBy("reviewPeriod", "desc")
         )
       );

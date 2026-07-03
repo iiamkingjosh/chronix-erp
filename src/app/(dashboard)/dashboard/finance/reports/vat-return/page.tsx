@@ -6,6 +6,15 @@ import { generateVATReturn, saveVATReturn, getVATReturnForPeriod } from "@/lib/a
 import { formatNaira } from "@/types/finance";
 import type { VATReturn } from "@/types/finance";
 
+function VATRow({ label, amount }: { label: string; amount: number }) {
+  return amount === 0 ? null : (
+    <tr className="border-b border-white/5">
+      <td className="py-2 pl-5 text-sm text-white/70 font-helvetica">{label}</td>
+      <td className="py-2 text-sm text-right font-helvetica text-white">{formatNaira(amount)}</td>
+    </tr>
+  );
+}
+
 export default function VATReturnPage() {
   const { profile } = useAuth();
   const now   = new Date();
@@ -42,14 +51,6 @@ export default function VATReturnPage() {
   }
 
   useEffect(() => { load(); }, [year, month]); // eslint-disable-line
-
-  const VATRow = ({ label, amount }: { label: string; amount: number }) =>
-    amount === 0 ? null : (
-      <tr className="border-b border-white/5">
-        <td className="py-2 pl-5 text-sm text-white/70 font-helvetica">{label}</td>
-        <td className="py-2 text-sm text-right font-helvetica text-white">{formatNaira(amount)}</td>
-      </tr>
-    );
 
   return (
     <div className="animate-fade-in">

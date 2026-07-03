@@ -12,6 +12,22 @@ type Period = "monthly" | "quarterly" | "annual";
 function fmtD(s: string) {
   return new Date(s + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
+function Row({ label, amount, indent = false }: { label: string; amount: number; indent?: boolean }) {
+  return (
+    <tr className={cn("border-b border-white/5", amount === 0 && "opacity-30")}>
+      <td className={cn("py-2 text-sm text-white/70 font-helvetica", indent && "pl-6")}>{label}</td>
+      <td className="py-2 text-sm text-right font-helvetica text-white">{formatNaira(amount)}</td>
+    </tr>
+  );
+}
+function Total({ label, amount, highlight }: { label: string; amount: number; highlight?: string }) {
+  return (
+    <tr className={cn("border-t border-white/20", highlight)}>
+      <td className="py-3 text-sm font-bold text-white font-helvetica">{label}</td>
+      <td className={cn("py-3 text-sm font-bold text-right font-helvetica", amount >= 0 ? "text-emerald-400" : "text-red-400")}>{formatNaira(amount)}</td>
+    </tr>
+  );
+}
 
 export default function PLReportPage() {
   const { profile } = useAuth();
@@ -45,19 +61,6 @@ export default function PLReportPage() {
   }
 
   useEffect(() => { load(); }, [period, year, month, qtr]); // eslint-disable-line
-
-  const Row = ({ label, amount, indent = false }: { label: string; amount: number; indent?: boolean }) => (
-    <tr className={cn("border-b border-white/5", amount === 0 && "opacity-30")}>
-      <td className={cn("py-2 text-sm text-white/70 font-helvetica", indent && "pl-6")}>{label}</td>
-      <td className="py-2 text-sm text-right font-helvetica text-white">{formatNaira(amount)}</td>
-    </tr>
-  );
-  const Total = ({ label, amount, highlight }: { label: string; amount: number; highlight?: string }) => (
-    <tr className={cn("border-t border-white/20", highlight)}>
-      <td className="py-3 text-sm font-bold text-white font-helvetica">{label}</td>
-      <td className={cn("py-3 text-sm font-bold text-right font-helvetica", amount >= 0 ? "text-emerald-400" : "text-red-400")}>{formatNaira(amount)}</td>
-    </tr>
-  );
 
   return (
     <div className="animate-fade-in">

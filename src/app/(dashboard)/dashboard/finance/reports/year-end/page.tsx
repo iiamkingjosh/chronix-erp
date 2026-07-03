@@ -26,11 +26,16 @@ export default function YearEndClosePage() {
   const [error, setError]         = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    setSuccessRef(null);
-    setError(null);
-    setSummary(null);
-    getYearEndSummary(year).then(setSummary).finally(() => setLoading(false));
+    void Promise.resolve()
+      .then(() => {
+        setLoading(true);
+        setSuccessRef(null);
+        setError(null);
+        setSummary(null);
+        return getYearEndSummary(year);
+      })
+      .then(setSummary)
+      .finally(() => setLoading(false));
   }, [year]);
 
   async function handleClose() {

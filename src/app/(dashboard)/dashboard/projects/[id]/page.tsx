@@ -562,7 +562,7 @@ export default function ProjectDetailPage() {
             <div className="surface-card p-5">
               <p className="font-orbitron text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-3">Status</p>
               <p className="text-[11px] text-white/30 font-helvetica mb-3">
-                Auto-derived from task completion. "On Hold" is the one manual override.
+                Auto-derived from task completion. &quot;On Hold&quot; is the one manual override.
               </p>
               <button onClick={handleToggleHold} className={cn("w-full text-xs px-3 py-2 rounded-lg border font-helvetica text-left hover:opacity-80 transition-opacity", PROJECT_STATUS_STYLES[project.status === "on_hold" ? "in_progress" : "on_hold"])}>
                 {project.status === "on_hold" ? "→ Take Off Hold" : "→ Put On Hold"}

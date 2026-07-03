@@ -62,7 +62,7 @@ export default function StaffPage() {
   }, []);
 
   useEffect(() => {
-    loadUsers();
+    void Promise.resolve().then(loadUsers);
   }, [loadUsers]);
 
   const canManageDirectory =

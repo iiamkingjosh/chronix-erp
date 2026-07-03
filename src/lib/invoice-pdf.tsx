@@ -1,5 +1,5 @@
 import {
-  Document, Page, View, Text, Image, StyleSheet,
+  Document, Page, View, Text, Image as PdfImage, StyleSheet,
 } from "@react-pdf/renderer";
 import type { Invoice } from "@/types/finance";
 import { COMPANY } from "@/types/finance";
@@ -235,14 +235,14 @@ export function InvoicePDFDocument({
       <Page size="A4" style={S.page}>
 
         {/* ── Watermark (absolute, behind all content) ── */}
-        {watermarkSrc ? <Image src={watermarkSrc as string} style={S.watermark} /> : null}
+        {watermarkSrc ? <PdfImage src={watermarkSrc as string} style={S.watermark} /> : null}
 
         {/* ── Header: INVOICE left | Logo + Company right ── */}
         <View style={S.header}>
           <Text style={S.invoiceTitle}>INVOICE</Text>
           <View style={S.headerRight}>
             <View style={S.logoRow}>
-              {logoSrc ? <Image src={logoSrc as string} style={S.logoIcon} /> : null}
+              {logoSrc ? <PdfImage src={logoSrc as string} style={S.logoIcon} /> : null}
               <Text style={S.brandText}>Chronix Tech</Text>
             </View>
             <Text style={S.companyFullName}>{COMPANY.name}</Text>
