@@ -1,7 +1,7 @@
 import { db } from "@/lib/firebase";
 import {
   collection, doc, getDoc, getDocs,
-  setDoc, updateDoc, query, where, orderBy, runTransaction, Timestamp,
+  setDoc, query, where, orderBy, runTransaction, Timestamp,
 } from "firebase/firestore";
 import type { JournalEntry, JournalLineItem } from "@/types/finance";
 import { round } from "@/lib/utils";
@@ -92,53 +92,76 @@ export async function getJournalEntriesByReference(referenceId: string): Promise
 }
 
 /* ── Void ────────────────────────────────────────────────────────────────── */
-/**
- * Voids a posted journal entry by:
- * 1. Marking the original entry status = "void"
- * 2. Posting a reversing entry (all debits/credits swapped) with the same date
- *
- * Journal entries are immutable by Firestore rules — this is the only correct
- * way to correct an error in the ledger.
- */
 export async function voidJournalEntry(
   id: string,
   reason: string,
   userId: string
 ): Promise<JournalEntry> {
-  const original = await getJournalEntry(id);
-  if (!original) throw new Error(`Journal entry ${id} not found`);
-  if (original.status !== "posted")
-    throw new Error(`Entry ${id} is already ${original.status} — cannot void`);
+  // Pre-flight — bail early without burning a journal number on an obviously
+  // invalid request (entry missing or already voided).
+  const precheck = await getJournalEntry(id);
+  if (!precheck) throw new Error(`Journal entry ${id} not found`);
+  if (precheck.status !== "posted")
+    throw new Error(`Entry ${id} is already ${precheck.status} — cannot void`);
 
-  const now = new Date().toISOString();
+  // getNextJournalNumber() uses its own internal runTransaction (for the
+  // sequence counter), which cannot be nested inside another runTransaction.
+  // Call it before the outer transaction. Gaps in the sequence are acceptable
+  // if the outer transaction fails after all retries.
+  const entryNumber  = await getNextJournalNumber();
+  const now          = new Date().toISOString();
+  const originalRef  = doc(db, "journal_entries", id);
+  const reversingRef = doc(collection(db, "journal_entries"));
 
-  // Mark original as voided
-  await updateDoc(doc(db, "journal_entries", id), {
-    status:     "void",
-    voidedBy:   userId,
-    voidedAt:   now,
-    voidReason: reason,
+  let reversingEntry!: JournalEntry;
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(originalRef);
+    if (!snap.exists()) throw new Error(`Journal entry ${id} not found`);
+    const original = { id: snap.id, ...snap.data() } as JournalEntry;
+
+    // Re-validate inside the transaction — closes the race where two concurrent
+    // void attempts both pass the pre-flight status check above.
+    if (original.status !== "posted")
+      throw new Error(`Entry ${id} is already ${original.status} — cannot void`);
+
+    const reversedLines: JournalLineItem[] = original.lineItems.map((l) => ({
+      accountCode: l.accountCode,
+      accountName: l.accountName,
+      debit:       l.credit,
+      credit:      l.debit,
+      description: l.description,
+    }));
+    const totalDebit  = round(reversedLines.reduce((s, l) => s + l.debit,  0));
+    const totalCredit = round(reversedLines.reduce((s, l) => s + l.credit, 0));
+
+    reversingEntry = {
+      id:            reversingRef.id,
+      entryNumber,
+      entryDate:     original.entryDate,
+      description:   `VOID — ${original.description}`,
+      ...(original.reference     !== undefined && { reference:     original.reference }),
+      referenceType: original.referenceType ?? "manual",
+      referenceId:   original.id,
+      lineItems:     reversedLines,
+      totalDebit,
+      totalCredit,
+      status:        "posted",
+      createdBy:     userId,
+      createdAt:     now,
+      postedBy:      userId,
+      postedAt:      now,
+    };
+
+    // Both writes in one transaction — either both commit or neither does.
+    tx.update(originalRef, {
+      status:     "void",
+      voidedBy:   userId,
+      voidedAt:   now,
+      voidReason: reason,
+    });
+    tx.set(reversingRef, reversingEntry);
   });
 
-  // Post reversing entry
-  const reversedLines: JournalLineItem[] = original.lineItems.map((l) => ({
-    accountCode:  l.accountCode,
-    accountName:  l.accountName,
-    debit:        l.credit,   // swap
-    credit:       l.debit,    // swap
-    description:  l.description,
-  }));
-
-  return createJournalEntry({
-    entryDate:     original.entryDate,
-    description:   `VOID — ${original.description}`,
-    reference:     original.reference,
-    referenceType: original.referenceType ?? "manual",
-    referenceId:   original.id,
-    lineItems:     reversedLines,
-    status:        "posted",
-    createdBy:     userId,
-    postedBy:      userId,
-    postedAt:      now,
-  });
+  return reversingEntry;
 }
