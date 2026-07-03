@@ -26,6 +26,10 @@ function systemJavaIsModernEnough() {
 
 let env = { ...process.env };
 
+// Ensure the Firestore emulator JVM has enough heap — the default (~256 MB)
+// is too small for the full test suite, causing RESOURCE_EXHAUSTED failures.
+env.JAVA_TOOL_OPTIONS = "-Xmx2048m -Xms512m";
+
 if (!systemJavaIsModernEnough()) {
   const toolsDir = path.join(repoRoot, ".tools");
   const jdkDir = existsSync(toolsDir)
