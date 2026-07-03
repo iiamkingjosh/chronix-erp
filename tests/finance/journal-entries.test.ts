@@ -67,6 +67,7 @@ describe("FIXED: DEVIATION D8 — createWHTJournalEntry() is now a canonical, sh
     const record: WHTRecord = {
       id: "wht-test-1", whtId: generateWHTId(), vendorName: "Acme Vendor",
       invoiceAmount: 100_000, whtRate: 5, whtAmount: 5_000,
+      category: "contractor", status: "paid", billDate: "2026-06-10",
       paymentDate: "2026-06-15", certStatus: "pending",
       createdAt: new Date().toISOString(), createdBy: uid,
     };
@@ -88,5 +89,37 @@ describe("FIXED: DEVIATION D8 — createWHTJournalEntry() is now a canonical, sh
     const entries = await queryAsAdmin<JournalEntry>("journal_entries", "referenceId", "wht-test-1");
     expect(entries).toHaveLength(1);
     expect(entries[0].status).toBe("posted");
+  });
+
+  it("DEVIATION FIX — debits the bill's expense account (from record.category), never account 2010 (Accounts Payable), since nothing ever credits 2010 to establish that liability first", async () => {
+    const { uid } = await signInAs("CFO");
+    const record: WHTRecord = {
+      id: "wht-test-3", whtId: generateWHTId(), vendorName: "Acme Vendor",
+      invoiceAmount: 200_000, whtRate: 5, whtAmount: 10_000,
+      category: "contractor", status: "paid", billDate: "2026-06-10",
+      paymentDate: "2026-06-15", certStatus: "pending",
+      createdAt: new Date().toISOString(), createdBy: uid,
+    };
+
+    const entry = await createWHTJournalEntry(record, uid);
+    const debitLine = entry.lineItems.find((l) => l.debit > 0);
+
+    expect(debitLine?.accountCode).toBe("6070"); // Professional Fees — the "contractor" category account
+    expect(debitLine?.accountCode).not.toBe("2010");
+    expect(debitLine?.debit).toBe(200_000);
+    expect(entry.lineItems.some((l) => l.accountCode === "2010")).toBe(false);
+  });
+
+  it("DEVIATION FIX — throws rather than posting an entry for a bill with no paymentDate (i.e. still 'pending', never marked paid)", async () => {
+    const { uid } = await signInAs("CFO");
+    const record: WHTRecord = {
+      id: "wht-test-4", whtId: generateWHTId(), vendorName: "Acme Vendor",
+      invoiceAmount: 50_000, whtRate: 5, whtAmount: 2_500,
+      category: "software", status: "pending", billDate: "2026-06-10",
+      certStatus: "pending",
+      createdAt: new Date().toISOString(), createdBy: uid,
+    };
+
+    await expect(createWHTJournalEntry(record, uid)).rejects.toThrow(/no paymentDate/);
   });
 });

@@ -3,19 +3,20 @@
 import { useEffect, useState } from "react";
 import {
   getWHTRecords, createWHTRecord, updateWHTCertStatus, updateWHTRecord,
+  markWHTPaid, deleteWHTRecord,
 } from "@/lib/tax-service";
 import { generateWHTId, WHT_CERT_STYLES, formatTaxDate, currentPeriod } from "@/types/tax";
 import type { WHTRecord } from "@/types/tax";
 import { getInvoices } from "@/lib/finance-service";
 import { formatNaira } from "@/types/finance";
 import type { Invoice } from "@/types/finance";
+import { EXPENSE_CATEGORY_LABELS } from "@/types/expense";
+import type { ExpenseCategory } from "@/types/expense";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
-import { db, auth } from "@/lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
-import { cn, round } from "@/lib/utils";
-import { createWHTJournalEntry } from "@/lib/accounting/auto-journal";
+import { auth } from "@/lib/firebase";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_WHT_RATE = 5;
 
@@ -43,10 +44,10 @@ function triggerDownload(blob: Blob, filename: string) {
 
 function doExportCSV(records: WHTRecord[], period: string) {
   const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-  const headers = ["WHT ID", "Vendor", "Invoice Amount (NGN)", "WHT Rate (%)", "WHT Amount (NGN)", "Payment Date", "Cert Status", "Source Ref", "Notes"];
+  const headers = ["WHT ID", "Vendor", "Invoice Amount (NGN)", "WHT Rate (%)", "WHT Amount (NGN)", "Status", "Bill Date", "Payment Date", "Cert Status", "Source Ref", "Notes"];
   const rows = records.map((r) => [
     r.whtId, r.vendorName, r.invoiceAmount, r.whtRate, r.whtAmount,
-    r.paymentDate, r.certStatus, r.sourceRef ?? "", r.notes ?? "",
+    r.status, r.billDate, r.paymentDate ?? "", r.certStatus, r.sourceRef ?? "", r.notes ?? "",
   ]);
   const csv = [headers, ...rows].map((r) => r.map(esc).join(",")).join("\n");
   triggerDownload(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }), `wht-${period}.csv`);
@@ -56,10 +57,10 @@ function doExportXLS(records: WHTRecord[], period: string) {
   const esc = (s: string | number) =>
     String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const type = (v: string | number) => (typeof v === "number" ? "Number" : "String");
-  const headers = ["WHT ID", "Vendor", "Invoice Amount (NGN)", "WHT Rate (%)", "WHT Amount (NGN)", "Payment Date", "Cert Status", "Source Ref", "Notes"];
+  const headers = ["WHT ID", "Vendor", "Invoice Amount (NGN)", "WHT Rate (%)", "WHT Amount (NGN)", "Status", "Bill Date", "Payment Date", "Cert Status", "Source Ref", "Notes"];
   const rows = records.map((r) => [
     r.whtId, r.vendorName, r.invoiceAmount, r.whtRate, r.whtAmount,
-    r.paymentDate, r.certStatus, r.sourceRef ?? "", r.notes ?? "",
+    r.status, r.billDate, r.paymentDate ?? "", r.certStatus, r.sourceRef ?? "", r.notes ?? "",
   ]);
   const headerXML = headers.map((h) => `<Cell><Data ss:Type="String">${esc(h)}</Data></Cell>`).join("");
   const rowsXML = rows.map((r) => `<Row>${r.map((c) => `<Cell><Data ss:Type="${type(c)}">${esc(c)}</Data></Cell>`).join("")}</Row>`).join("");
@@ -72,7 +73,7 @@ function doExportPDF(records: WHTRecord[], period: string) {
   const rowsHTML = records
     .map(
       (r) =>
-        `<tr><td>${r.whtId}</td><td>${r.vendorName}</td><td class="num">₦${r.invoiceAmount.toLocaleString()}</td><td class="ctr">${r.whtRate}%</td><td class="num">₦${r.whtAmount.toLocaleString()}</td><td>${r.paymentDate}</td><td>${r.certStatus}</td></tr>`,
+        `<tr><td>${r.whtId}</td><td>${r.vendorName}</td><td class="num">₦${r.invoiceAmount.toLocaleString()}</td><td class="ctr">${r.whtRate}%</td><td class="num">₦${r.whtAmount.toLocaleString()}</td><td>${r.paymentDate ?? r.billDate + " (pending)"}</td><td>${r.certStatus}</td></tr>`,
     )
     .join("");
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>WHT Records — ${period}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;padding:32px;font-size:12px}h1{font-size:18px;margin-bottom:4px}p.sub{color:#666;font-size:11px;margin-bottom:20px}table{width:100%;border-collapse:collapse}th{background:#f4f4f4;border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em}td{border:1px solid #eee;padding:6px 8px}.num{text-align:right}.ctr{text-align:center}tfoot td{background:#f9f9f9;font-weight:600}@media print{body{padding:16px}}</style></head><body><h1>Withholding Tax Records</h1><p class="sub">Period: ${period} &nbsp;·&nbsp; Generated: ${new Date().toLocaleDateString("en-GB")} &nbsp;·&nbsp; ${records.length} record${records.length !== 1 ? "s" : ""}</p><table><thead><tr><th>WHT ID</th><th>Vendor</th><th>Invoice Amt</th><th>Rate</th><th>WHT Amount</th><th>Date</th><th>Cert Status</th></tr></thead><tbody>${rowsHTML}</tbody><tfoot><tr><td colspan="4" style="font-weight:600">Total</td><td class="num">₦${total.toLocaleString()}</td><td colspan="2"></td></tr></tfoot></table></body></html>`;
@@ -94,11 +95,14 @@ export default function WHTPage() {
   const [showExport, setShowExport] = useState(false);
   const [form, setForm]             = useState({
     vendorName: "", invoiceAmount: "", whtRate: String(DEFAULT_WHT_RATE),
-    paymentDate: new Date().toISOString().split("T")[0],
+    category: "other" as ExpenseCategory,
+    billDate: new Date().toISOString().split("T")[0],
     sourceRef: "", notes: "",
   });
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [payingId, setPayingId]   = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
@@ -121,7 +125,7 @@ export default function WHTPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredRecords = allRecords.filter((r) => r.paymentDate.startsWith(period));
+  const filteredRecords = allRecords.filter((r) => (r.paymentDate ?? r.billDate).startsWith(period));
   const whtAmount       = (Number(form.invoiceAmount) || 0) * (Number(form.whtRate) || 0) / 100;
   const totalWHT        = filteredRecords.reduce((s, r) => s + r.whtAmount, 0);
   const pending         = filteredRecords.filter((r) => r.certStatus === "pending").length;
@@ -186,26 +190,25 @@ export default function WHTPage() {
         invoiceAmount: Number(form.invoiceAmount),
         whtRate:       Number(form.whtRate),
         whtAmount:     Math.round(whtAmount * 100) / 100,
-        paymentDate:   form.paymentDate,
+        category:      form.category,
+        status:        "pending",
+        billDate:      form.billDate,
         ...(form.sourceRef.trim() ? { sourceRef: form.sourceRef.trim() } : {}),
         ...(form.notes.trim()     ? { notes:     form.notes.trim()     } : {}),
         certStatus:    "pending",
         createdAt:     new Date().toISOString(),
         createdBy:     profile.uid,
       });
-      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT record logged: ₦${rec.whtAmount.toLocaleString()} deducted from ${rec.vendorName}`, timestamp: new Date().toISOString() });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT bill logged (unpaid): ₦${rec.whtAmount.toLocaleString()} WHT on ${rec.vendorName}`, timestamp: new Date().toISOString() });
 
-      try {
-        await createWHTJournalEntry(rec, profile.uid);
-        updateDoc(doc(db, "withholding_tax", rec.id), { _journalPosted: true }).catch(() => {});
-      } catch (e) {
-        console.error("[WHT] journal entry failed:", e);
-      }
+      // No journal entry here — this is just a record. Nothing posts to the
+      // ledger until handleMarkPaid() actually pays it, same as an invoice
+      // doesn't post until a payment is recorded against it.
 
       setAllRecords((prev) => [rec, ...prev]);
       setShowForm(false);
       setSelectedInvoiceId("");
-      setForm({ vendorName: "", invoiceAmount: "", whtRate: String(DEFAULT_WHT_RATE), paymentDate: new Date().toISOString().split("T")[0], sourceRef: "", notes: "" });
+      setForm({ vendorName: "", invoiceAmount: "", whtRate: String(DEFAULT_WHT_RATE), category: "other", billDate: new Date().toISOString().split("T")[0], sourceRef: "", notes: "" });
 
       auth.currentUser?.getIdToken().then((idToken) => {
         fetch("/api/notifications/send", {
@@ -225,6 +228,36 @@ export default function WHTPage() {
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save WHT record");
     } finally { setSaving(false); }
+  }
+
+  async function handleMarkPaid(e: React.MouseEvent, rec: WHTRecord) {
+    e.stopPropagation();
+    if (!profile || rec.status === "paid") return;
+    setPayingId(rec.id);
+    try {
+      await markWHTPaid(rec.id, profile.uid, { invoiceNumber: rec.sourceRef });
+      const paymentDate = new Date().toISOString().split("T")[0];
+      setAllRecords((prev) => prev.map((r) => r.id === rec.id ? { ...r, status: "paid", paymentDate } : r));
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT bill marked paid — ₦${rec.whtAmount.toLocaleString()} withheld from ${rec.vendorName}`, timestamp: new Date().toISOString() });
+    } catch (err) {
+      console.error("[WHT] mark paid failed:", err);
+    } finally { setPayingId(null); }
+  }
+
+  async function handleDelete(e: React.MouseEvent, rec: WHTRecord) {
+    e.stopPropagation();
+    if (rec.status === "paid") return;
+    if (!confirm(`Delete this WHT bill for ${rec.vendorName}? This cannot be undone.`)) return;
+    setDeletingId(rec.id);
+    try {
+      await deleteWHTRecord(rec.id);
+      setAllRecords((prev) => prev.filter((r) => r.id !== rec.id));
+      if (profile) {
+        logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "delete", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT bill for ${rec.vendorName} deleted (was never paid — no ledger impact)`, timestamp: new Date().toISOString() });
+      }
+    } catch (err) {
+      console.error("[WHT] delete failed:", err);
+    } finally { setDeletingId(null); }
   }
 
   async function handleToggleCert(e: React.MouseEvent, rec: WHTRecord) {
@@ -283,8 +316,9 @@ export default function WHTPage() {
                 <p className="text-white">{detailRec.whtRate}%</p>
               </div>
               <div>
-                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">Payment Date</p>
-                <p className="text-white">{formatTaxDate(detailRec.paymentDate)}</p>
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">{detailRec.status === "paid" ? "Payment Date" : "Bill Date"}</p>
+                <p className="text-white">{formatTaxDate(detailRec.paymentDate ?? detailRec.billDate)}</p>
+                {detailRec.status === "pending" && <p className="text-[10px] text-white/30 mt-0.5">Not yet paid — not in the ledger</p>}
               </div>
               {detailRec.sourceRef && (
                 <div className="col-span-2">
@@ -482,8 +516,18 @@ export default function WHTPage() {
               <div className="input-field bg-white/[0.02] text-secondary font-semibold">{formatNaira(whtAmount)}</div>
             </div>
             <div>
-              <label className="field-label">Payment Date</label>
-              <input type="date" value={form.paymentDate} onChange={(e) => setForm((p) => ({ ...p, paymentDate: e.target.value }))} className="input-field" />
+              <label className="field-label">Bill Date</label>
+              <input type="date" value={form.billDate} onChange={(e) => setForm((p) => ({ ...p, billDate: e.target.value }))} className="input-field" />
+              <p className="mt-1 text-[10px] text-white/20 font-helvetica">When you got the bill — not when you&apos;ll pay it. Logging doesn&apos;t touch the books.</p>
+            </div>
+            <div>
+              <label className="field-label">Expense Category</label>
+              <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value as ExpenseCategory }))} className="input-field">
+                {Object.entries(EXPENSE_CATEGORY_LABELS).map(([value, label]) => (
+                  <option key={value} value={value} className="bg-primary-dark">{label}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[10px] text-white/20 font-helvetica">Which account this posts to once it&apos;s actually paid.</p>
             </div>
             <div>
               <label className="field-label">PO / Invoice Ref (optional)</label>
@@ -519,7 +563,7 @@ export default function WHTPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
-                  {["WHT ID", "Vendor", "Invoice Amt", "Rate", "WHT Amount", "Date", "Cert Status"].map((h) => (
+                  {["WHT ID", "Vendor", "Invoice Amt", "Rate", "WHT Amount", "Status", "Date", "Cert Status"].map((h) => (
                     <th key={h} className="px-5 py-4 text-left text-[10px] font-semibold text-white/30 uppercase tracking-wider font-helvetica">{h}</th>
                   ))}
                   {canManage && <th className="px-5 py-4" />}
@@ -545,7 +589,16 @@ export default function WHTPage() {
                       <td className="px-5 py-3.5 text-sm text-white/70 font-helvetica">{formatNaira(rec.invoiceAmount)}</td>
                       <td className="px-5 py-3.5 text-sm text-white/70 font-helvetica">{rec.whtRate}%</td>
                       <td className="px-5 py-3.5 text-sm font-semibold text-amber-400 font-helvetica">{formatNaira(rec.whtAmount)}</td>
-                      <td className="px-5 py-3.5 text-xs text-white/40 font-helvetica">{formatTaxDate(rec.paymentDate)}</td>
+                      <td className="px-5 py-3.5">
+                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border font-helvetica capitalize",
+                          rec.status === "paid"
+                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                            : "bg-white/5 text-white/50 border-white/10"
+                        )}>
+                          {rec.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-white/40 font-helvetica">{formatTaxDate(rec.paymentDate ?? rec.billDate)}</td>
                       <td className="px-5 py-3.5">
                         {isError ? (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/15 text-red-400 border-red-500/30 font-helvetica">
@@ -559,16 +612,36 @@ export default function WHTPage() {
                       </td>
                       {canManage && (
                         <td className="px-5 py-3.5">
-                          <button
-                            onClick={(e) => handleToggleCert(e, rec)}
-                            className={cn("text-xs border px-2.5 py-1 rounded-lg font-helvetica transition-colors",
-                              rec.certStatus === "pending"
-                                ? "text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"
-                                : "text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                          <div className="flex items-center gap-1.5">
+                            {rec.status === "pending" && (
+                              <button
+                                onClick={(e) => handleMarkPaid(e, rec)}
+                                disabled={payingId === rec.id}
+                                className="text-xs border px-2.5 py-1 rounded-lg font-helvetica transition-colors text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10 disabled:opacity-40"
+                              >
+                                {payingId === rec.id ? "Posting…" : "Mark Paid"}
+                              </button>
                             )}
-                          >
-                            {rec.certStatus === "pending" ? "Mark Issued" : "Mark Pending"}
-                          </button>
+                            <button
+                              onClick={(e) => handleToggleCert(e, rec)}
+                              className={cn("text-xs border px-2.5 py-1 rounded-lg font-helvetica transition-colors",
+                                rec.certStatus === "pending"
+                                  ? "text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"
+                                  : "text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                              )}
+                            >
+                              {rec.certStatus === "pending" ? "Mark Issued" : "Mark Pending"}
+                            </button>
+                            {rec.status === "pending" && (
+                              <button
+                                onClick={(e) => handleDelete(e, rec)}
+                                disabled={deletingId === rec.id}
+                                className="text-xs border px-2.5 py-1 rounded-lg font-helvetica transition-colors text-red-400 border-red-500/20 hover:bg-red-500/10 disabled:opacity-40"
+                              >
+                                {deletingId === rec.id ? "Deleting…" : "Delete"}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>

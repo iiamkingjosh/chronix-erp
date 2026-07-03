@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { connectEmulators, clearAll, teardownEmulators, signInAs, readDocAsAdmin, queryAsAdmin } from "../helpers/emulator";
-import { createPO, updatePOStatus } from "@/lib/procurement-service";
+import { createPO, updatePOStatus, deletePO } from "@/lib/procurement-service";
 import type { PurchaseOrder } from "@/types/procurement";
+import type { JournalEntry } from "@/types/finance";
 
 beforeAll(async () => {
   await connectEmulators();
@@ -73,5 +74,48 @@ describe("DEVIATION D6 — there is no UI path to reach the \"cancelled\" PO sta
     // (orders/page.tsx's PO_FLOW array only walks forward through
     // pending->approved->delivered->paid), not a missing capability in the
     // service function, the type model, or firestore.rules.
+  });
+});
+
+describe("FIXED — POs now get the same pending/paid treatment as invoices and WHT bills", () => {
+  it("deletePO removes a pending PO cleanly — nothing was ever posted to the ledger to unwind (mirrors WHT/invoice: createPOJournalEntry only ever runs from the \"paid\" transition)", async () => {
+    const { uid } = await signInAs("System Admin");
+    const po = await createPO(makePOData());
+    await updatePOStatus(po.id, "approved", { uid, name: "Test Admin" });
+
+    await deletePO(po.id);
+    const persisted = await readDocAsAdmin<PurchaseOrder>("purchase_orders", po.id);
+    expect(persisted).toBeNull();
+
+    const entries = await queryAsAdmin("journal_entries", "referenceId", po.id);
+    expect(entries).toHaveLength(0);
+  });
+
+  it("deletePO refuses once a PO is paid — its journal entry is already posted and immutable", async () => {
+    const { uid } = await signInAs("System Admin");
+    const po = await createPO(makePOData());
+    await updatePOStatus(po.id, "approved", { uid, name: "Test Admin" });
+    await updatePOStatus(po.id, "delivered", { uid, name: "Test Admin" });
+    await updatePOStatus(po.id, "paid", { uid, name: "Test Admin" });
+
+    await expect(deletePO(po.id)).rejects.toThrow(/already been paid/);
+
+    const entries = await queryAsAdmin("journal_entries", "referenceId", po.id);
+    expect(entries).toHaveLength(1); // untouched
+  });
+
+  it("DEVIATION FIX — the journal entry's entryDate is the actual payment date, not the PO's original creation date", async () => {
+    const { uid } = await signInAs("System Admin");
+    // Simulate a real gap: PO created weeks before it's actually paid.
+    const po = await createPO(makePOData({ createdAt: "2026-05-01T09:00:00.000Z" }));
+
+    await updatePOStatus(po.id, "approved", { uid, name: "Test Admin" });
+    await updatePOStatus(po.id, "delivered", { uid, name: "Test Admin" });
+    await updatePOStatus(po.id, "paid", { uid, name: "Test Admin" }); // paidAt stamped "now"
+
+    const [entry] = await queryAsAdmin<JournalEntry>("journal_entries", "referenceId", po.id);
+    const today = new Date().toISOString().split("T")[0];
+    expect(entry.entryDate).toBe(today);        // dated when cash actually moved…
+    expect(entry.entryDate).not.toBe("2026-05-01"); // …not when the PO was written up
   });
 });

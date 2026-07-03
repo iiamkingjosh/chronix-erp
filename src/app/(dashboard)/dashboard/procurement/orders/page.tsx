@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getPOs, updatePOStatus } from "@/lib/procurement-service";
+import { getPOs, updatePOStatus, deletePO } from "@/lib/procurement-service";
 import {
   PO_STATUS_LABELS, PO_STATUS_STYLES,
   formatProcDate, formatProcDateTime,
@@ -20,6 +20,7 @@ export default function POListPage() {
   const [orders, setOrders]   = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter]   = useState<"all" | POStatus>("all");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const canManage = profile ? hasPermission(profile.role, "manage:procurement") : false;
 
@@ -33,6 +34,18 @@ export default function POListPage() {
     const next = PO_FLOW[idx + 1];
     await updatePOStatus(po.id, next, profile ? { uid: profile.uid, name: profile.displayName ?? profile.email } : undefined);
     setOrders((prev) => prev.map((o) => (o.id === po.id ? { ...o, status: next } : o)));
+  }
+
+  async function handleDelete(po: PurchaseOrder) {
+    if (po.status === "paid") return;
+    if (!confirm(`Delete PO ${po.poNumber} for ${po.vendorName}? This cannot be undone.`)) return;
+    setDeletingId(po.id);
+    try {
+      await deletePO(po.id);
+      setOrders((prev) => prev.filter((o) => o.id !== po.id));
+    } catch (err) {
+      console.error("[procurement] delete failed:", err);
+    } finally { setDeletingId(null); }
   }
 
   const filtered = filter === "all" ? orders : orders.filter((o) => o.status === filter);
@@ -144,14 +157,25 @@ export default function POListPage() {
                       </td>
                       {canManage && (
                         <td className="px-5 py-3.5 text-right">
-                          {nextStatus && po.status !== "cancelled" && (
-                            <button
-                              onClick={() => handleAdvanceStatus(po)}
-                              className="text-xs text-secondary hover:text-secondary/80 font-helvetica border border-secondary/20 hover:border-secondary/40 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
-                            >
-                              → {PO_STATUS_LABELS[nextStatus]}
-                            </button>
-                          )}
+                          <div className="flex items-center justify-end gap-1.5">
+                            {nextStatus && po.status !== "cancelled" && (
+                              <button
+                                onClick={() => handleAdvanceStatus(po)}
+                                className="text-xs text-secondary hover:text-secondary/80 font-helvetica border border-secondary/20 hover:border-secondary/40 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+                              >
+                                → {PO_STATUS_LABELS[nextStatus]}
+                              </button>
+                            )}
+                            {po.status !== "paid" && (
+                              <button
+                                onClick={() => handleDelete(po)}
+                                disabled={deletingId === po.id}
+                                className="text-xs text-red-400 hover:text-red-300 font-helvetica border border-red-500/20 hover:border-red-500/40 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap disabled:opacity-40"
+                              >
+                                {deletingId === po.id ? "Deleting…" : "Delete"}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>

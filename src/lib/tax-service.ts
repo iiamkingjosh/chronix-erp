@@ -6,6 +6,7 @@ import { db } from "./firebase";
 import type {
   TaxRule, VATRecord, WHTRecord, PAYERecord, TaxReport,
 } from "@/types/tax";
+import { createWHTJournalEntry } from "@/lib/accounting/auto-journal";
 
 const RULES  = "tax_rules";
 const VAT    = "vat_records";
@@ -130,6 +131,49 @@ export async function updateWHTRecord(
     ...updates,
     updatedAt: new Date().toISOString(),
   });
+}
+
+/** Deletes a WHT bill. Only ever safe for a "pending" record — one that was
+ * logged but never posted to the ledger, so there's nothing to unwind.
+ * firestore.rules independently blocks deleting a "paid" record; this
+ * app-side check exists so the UI can fail fast with a clear message
+ * instead of a rules-rejection round trip. */
+export async function deleteWHTRecord(id: string): Promise<void> {
+  const snap = await getDoc(doc(db, WHT, id));
+  if (snap.exists() && (snap.data() as WHTRecord).status === "paid") {
+    throw new Error("Cannot delete a WHT bill that's already been paid — its journal entry is posted.");
+  }
+  await deleteDoc(doc(db, WHT, id));
+}
+
+/** The only place a WHT journal entry gets posted. Marks the bill "paid" and
+ * records the actual payment date first — the money-moved state is true
+ * regardless of what happens next — then attempts the journal entry.
+ * Mirrors expense-service.ts's updateExpenseStatus: if journal posting
+ * fails, the failure is captured in _journalError for reconciliation rather
+ * than thrown, since a bill you've genuinely paid shouldn't get stuck
+ * showing "pending" just because the ledger write hiccuped. */
+export async function markWHTPaid(
+  id: string,
+  userId: string,
+  opts?: { invoiceNumber?: string; paidDate?: string }
+): Promise<void> {
+  const snap = await getDoc(doc(db, WHT, id));
+  if (!snap.exists()) throw new Error("WHT record not found");
+  const record = { id: snap.id, ...snap.data() } as WHTRecord;
+  if (record.status === "paid") return; // idempotent — already posted
+
+  const paymentDate = opts?.paidDate ?? new Date().toISOString().split("T")[0];
+  await updateDoc(doc(db, WHT, id), { status: "paid", paymentDate });
+
+  try {
+    await createWHTJournalEntry({ ...record, paymentDate }, userId, { invoiceNumber: opts?.invoiceNumber });
+    await updateDoc(doc(db, WHT, id), { _journalPosted: true, _journalError: null });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[accounting] Failed to create WHT journal entry:", msg);
+    updateDoc(doc(db, WHT, id), { _journalError: msg }).catch(() => {});
+  }
 }
 
 /* ── PAYE Records ───────────────────────────────────────────── */

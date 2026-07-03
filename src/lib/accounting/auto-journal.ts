@@ -306,23 +306,40 @@ export async function createPayrollJournalEntry(
 
 /* ── WHT deducted ─────────────────────────────────────────────────────────── */
 /*
- *  Debit  2010  Accounts Payable    (full invoice amount)
- *  Credit 2200  WHT Payable         (whtAmount — withheld for FIRS)
- *  Credit 1010  Cash in Bank        (net amount actually paid to vendor)
+ * Cash-basis, mirrors the invoice/payment pattern: logging a bill (status
+ * "pending") posts nothing — it's safe to edit or delete freely. Only
+ * marking it "paid" (tax-service.ts markWHTPaid) calls this and posts one
+ * self-contained entry, at that moment, for the actual cash movement.
+ *
+ * Previously this debited 2010 (Accounts Payable) for the full invoice
+ * amount, but nothing ever credited 2010 when the bill was first received —
+ * there was no earlier entry to net against, so AP only ever drifted
+ * downward into a meaningless balance. Debiting the real expense/COGS
+ * account instead is what actually happened: money left the business for
+ * a specific operating cost, net of tax withheld.
+ *
+ *  Debit  6xxx  Expense/COGS account (record.category)  (full invoice amount)
+ *  Credit 2200  WHT Payable                              (whtAmount — withheld for FIRS)
+ *  Credit 1010  Cash in Bank                              (net amount actually paid to vendor)
  */
 export async function createWHTJournalEntry(
   record: WHTRecord,
   userId: string,
   opts?: { invoiceNumber?: string }
 ): Promise<JournalEntry> {
+  if (!record.paymentDate)
+    throw new Error(`WHT record ${record.whtId} has no paymentDate — cannot post a journal entry for an unpaid bill.`);
+
   const description = opts?.invoiceNumber
     ? `WHT deducted — ${record.vendorName} (${opts.invoiceNumber})`
     : `WHT deducted — ${record.vendorName}`;
 
+  const acct = EXPENSE_ACCOUNT[record.category] ?? { code: "6090", name: "Other Operating Expenses" };
+
   const lineItems: JournalLineItem[] = [
-    { accountCode: "2010", accountName: "Accounts Payable",        debit: round(record.invoiceAmount),                          credit: 0,                                              description: `Vendor payment — ${record.vendorName}` },
-    { accountCode: "2200", accountName: "WHT Payable",             debit: 0,                                                    credit: round(record.whtAmount),                       description: `WHT ${record.whtRate}% withheld` },
-    { accountCode: "1010", accountName: "Cash in Bank — Fidelity", debit: 0,                                                    credit: round(record.invoiceAmount - record.whtAmount), description: `Net payment to ${record.vendorName}` },
+    { accountCode: acct.code, accountName: acct.name,             debit: round(record.invoiceAmount),                          credit: 0,                                              description: `${record.vendorName} — WHT-deducted payment` },
+    { accountCode: "2200",    accountName: "WHT Payable",         debit: 0,                                                    credit: round(record.whtAmount),                       description: `WHT ${record.whtRate}% withheld` },
+    { accountCode: "1010",    accountName: "Cash in Bank — Fidelity", debit: 0,                                                credit: round(record.invoiceAmount - record.whtAmount), description: `Net payment to ${record.vendorName}` },
   ];
 
   return createJournalEntry({
@@ -389,7 +406,7 @@ export async function createPOJournalEntry(
   }
 
   return createJournalEntry({
-    entryDate:     po.createdAt.slice(0, 10),
+    entryDate:     (po.paidAt ?? po.createdAt).slice(0, 10),
     description:   `PO ${po.poNumber} — ${po.vendorName}`,
     reference:     po.poNumber,
     referenceType: "manual",

@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, getDoc, getDocs,
-  updateDoc, query, orderBy, arrayUnion, where, limit,
+  updateDoc, deleteDoc, query, orderBy, arrayUnion, where, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Vendor, PurchaseOrder, POStatus, VendorRating } from "@/types/procurement";
@@ -63,6 +63,19 @@ export async function getPOsByVendor(vendorId: string): Promise<PurchaseOrder[]>
     query(collection(db, PO), where("vendorId", "==", vendorId), orderBy("createdAt", "desc"))
   );
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as PurchaseOrder));
+}
+
+/** Deletes a PO. Only ever safe for a non-"paid" PO — createPOJournalEntry is
+ * only ever called from the "paid" transition in updatePOStatus() below, so
+ * anything short of that has nothing posted to the ledger to unwind.
+ * firestore.rules independently blocks deleting a "paid" PO; this app-side
+ * check exists so the UI can fail fast with a clear message. */
+export async function deletePO(id: string): Promise<void> {
+  const snap = await getDoc(doc(db, PO, id));
+  if (snap.exists() && (snap.data() as PurchaseOrder).status === "paid") {
+    throw new Error("Cannot delete a PO that's already been paid — its journal entry is posted.");
+  }
+  await deleteDoc(doc(db, PO, id));
 }
 
 export async function updatePOStatus(

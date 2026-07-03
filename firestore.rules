@@ -370,9 +370,23 @@ service cloud.firestore {
 
     /* ── Purchase Orders ──────────────────────────────────── */
     match /purchase_orders/{poId} {
-      allow read: if hasViewProcurement();
-      allow create, update: if canManageProcurement();
-      allow delete: if false;
+      allow read:   if hasViewProcurement();
+      allow create: if canManageProcurement();
+      /** Once "paid", createPOJournalEntry() has already posted — total,
+          vatAmount, vendorCategory, and items can't change without
+          desyncing from that entry. Status progression, notes, and the
+          journal-flag bookkeeping fields remain writable after that. */
+      allow update: if canManageProcurement() && (
+        resource.data.status != 'paid' ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'notes', 'updatedAt', '_journalPosted', '_journalError'])
+      );
+      /** Safe by construction: createPOJournalEntry() is only ever called
+          from the "paid" transition in updatePOStatus() — anything short
+          of "paid" was never posted to the ledger, so deleting it has
+          nothing to unwind. A "paid" PO's journal entry is immutable, same
+          as every other posted entry, so it can never be deleted. */
+      allow delete: if canManageProcurement() && resource.data.status != 'paid';
     }
 
     /* ── Payroll Runs ─────────────────────────────────────── */
@@ -423,9 +437,26 @@ service cloud.firestore {
 
     /* ── Withholding Tax ──────────────────────────────────── */
     match /withholding_tax/{recordId} {
-      allow read: if isAuth() && hasViewTax();
-      allow create, update: if isAuth() && canManageTax();
-      allow delete: if false;
+      allow read:   if isAuth() && hasViewTax();
+      allow create: if isAuth() && canManageTax();
+      /** Once a bill is "paid" its journal entry is posted — the amount,
+          category, and vendor that produced that entry can't change
+          without desyncing from the ledger. Only cert/notes bookkeeping
+          and the journal-flag fields remain writable after that point.
+          markWHTPaid() itself (status: pending → paid) is exactly the one
+          update this restriction has to allow through, since it's still
+          being called while status == 'pending' in resource.data. */
+      allow update: if isAuth() && canManageTax() && (
+        resource.data.status != 'paid' ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['certStatus', 'notes', 'updatedAt', '_journalPosted', '_journalError'])
+      );
+      /** Safe by construction: a "pending" bill was never posted to the
+          ledger (see auto-journal.ts createWHTJournalEntry — only called
+          from markWHTPaid), so deleting it has nothing to unwind. A "paid"
+          bill's journal entry is immutable, same as every other posted
+          entry, so it can never be deleted. */
+      allow delete: if isAuth() && canManageTax() && resource.data.status != 'paid';
     }
 
     /* ── PAYE / Payroll Tax ───────────────────────────────── */

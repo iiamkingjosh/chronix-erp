@@ -1,6 +1,9 @@
+import type { ExpenseCategory } from "@/types/expense";
+
 export type TaxType        = "VAT" | "WHT" | "PAYE" | "Corporate";
 export type TaxAppliesTo   = "invoices" | "vendors" | "payroll" | "all";
 export type WHTCertStatus  = "issued" | "pending";
+export type WHTStatus      = "pending" | "paid";
 
 /* ── Tax Rules ─────────────────────────────────────────────── */
 
@@ -43,13 +46,19 @@ export interface WHTRecord {
   invoiceAmount: number;
   whtRate:       number;       // 5 for 5%
   whtAmount:     number;
-  paymentDate:   string;       // YYYY-MM-DD
+  category:      ExpenseCategory; // which expense/COGS account this bill belongs to
+  status:        WHTStatus;       // "pending": bill logged, no journal entry yet — safe to edit/delete.
+                                   // "paid": journal entry posted, amounts locked (see firestore.rules).
+  billDate:      string;       // YYYY-MM-DD — date the bill was logged/received
+  paymentDate?:  string;       // YYYY-MM-DD — set only when status flips to "paid"; this is the journal entryDate
   sourceId?:     string;
   sourceRef?:    string;
   certStatus:    WHTCertStatus;
   notes?:        string;
   createdAt:     string;
   createdBy:     string;
+  _journalPosted?: boolean;
+  _journalError?:  string | null;
 }
 
 /* ── PAYE Records ───────────────────────────────────────────── */

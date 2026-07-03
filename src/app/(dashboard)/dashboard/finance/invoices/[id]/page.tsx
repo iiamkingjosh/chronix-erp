@@ -4,18 +4,18 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { getInvoice, reopenInvoice, deleteInvoice, updateInvoiceApproval, getPayments } from "@/lib/finance-service";
-import { db, auth } from "@/lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
-import { createWHTJournalEntry } from "@/lib/accounting/auto-journal";
+import { auth } from "@/lib/firebase";
 import { formatNaira, formatDate, COMPANY, APPROVAL_STATUS_STYLES, APPROVAL_STATUS_LABELS, today } from "@/types/finance";
 import type { Invoice, Payment } from "@/types/finance";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission, canDeleteUnpaidInvoice, isRootAdmin } from "@/types/roles";
 import { cn, round } from "@/lib/utils";
-import { getWHTRecords, createWHTRecord } from "@/lib/tax-service";
+import { getWHTRecords, createWHTRecord, markWHTPaid, deleteWHTRecord } from "@/lib/tax-service";
 import { generateWHTId } from "@/types/tax";
 import type { WHTRecord } from "@/types/tax";
+import { EXPENSE_CATEGORY_LABELS } from "@/types/expense";
+import type { ExpenseCategory } from "@/types/expense";
 
 export default function InvoiceViewPage() {
   const { id }      = useParams() as { id: string };
@@ -47,10 +47,13 @@ export default function InvoiceViewPage() {
   const [whtVendorName, setWhtVendorName] = useState("");
   const [whtInvoiceAmount, setWhtInvoiceAmount] = useState("");
   const [whtRate, setWhtRate]             = useState("5");
-  const [whtPaymentDate, setWhtPaymentDate] = useState(today());
+  const [whtCategory, setWhtCategory]     = useState<ExpenseCategory>("other");
+  const [whtBillDate, setWhtBillDate]     = useState(today());
   const [whtNotes, setWhtNotes]           = useState("");
   const [whtSubmitting, setWhtSubmitting] = useState(false);
   const [whtError, setWhtError]           = useState<string | null>(null);
+  const [whtPayingId, setWhtPayingId]     = useState<string | null>(null);
+  const [whtDeletingId, setWhtDeletingId] = useState<string | null>(null);
 
   const canManage  = profile ? hasPermission(profile.role, "manage:finance") : false;
   const canDelete  = profile ? canDeleteUnpaidInvoice(profile.role) : false;
@@ -150,7 +153,9 @@ export default function InvoiceViewPage() {
         invoiceAmount: amount,
         whtRate:       rate,
         whtAmount:     round(amount * rate / 100),
-        paymentDate:   whtPaymentDate,
+        category:      whtCategory,
+        status:        "pending",
+        billDate:      whtBillDate,
         sourceId:      invoice.id,
         sourceRef:     invoice.invoiceNumber,
         certStatus:    "pending",
@@ -158,14 +163,9 @@ export default function InvoiceViewPage() {
         createdAt:     new Date().toISOString(),
         createdBy:     profile.uid,
       });
-      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: record.id, entityRef: record.whtId, details: `WHT of ₦${record.whtAmount.toLocaleString()} logged for invoice ${invoice.invoiceNumber}`, timestamp: new Date().toISOString() });
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "create", module: "invoices", entityId: record.id, entityRef: record.whtId, details: `WHT bill logged (unpaid): ₦${record.whtAmount.toLocaleString()} WHT for invoice ${invoice.invoiceNumber}`, timestamp: new Date().toISOString() });
 
-      try {
-        await createWHTJournalEntry(record, profile.uid, { invoiceNumber: invoice.invoiceNumber });
-        updateDoc(doc(db, "withholding_tax", record.id), { _journalPosted: true }).catch(() => {});
-      } catch (e) {
-        console.error("[WHT] journal entry failed:", e);
-      }
+      // No journal entry here — see handleWhtMarkPaid, the only place one posts.
 
       setWhtRecords((prev) => [record, ...prev]);
       setShowWhtForm(false);
@@ -173,6 +173,35 @@ export default function InvoiceViewPage() {
       setWhtError(err instanceof Error ? err.message : "Failed to save WHT record");
     } finally { setWhtSubmitting(false); }
   }
+
+  async function handleWhtMarkPaid(rec: WHTRecord) {
+    if (!profile || !invoice || rec.status === "paid") return;
+    setWhtPayingId(rec.id);
+    try {
+      await markWHTPaid(rec.id, profile.uid, { invoiceNumber: invoice.invoiceNumber });
+      const paymentDate = new Date().toISOString().split("T")[0];
+      setWhtRecords((prev) => prev.map((r) => r.id === rec.id ? { ...r, status: "paid", paymentDate } : r));
+      logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "update", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT bill marked paid — ₦${rec.whtAmount.toLocaleString()} withheld from ${rec.vendorName}`, timestamp: new Date().toISOString() });
+    } catch (err) {
+      console.error("[WHT] mark paid failed:", err);
+    } finally { setWhtPayingId(null); }
+  }
+
+  async function handleWhtDelete(rec: WHTRecord) {
+    if (rec.status === "paid") return;
+    if (!confirm(`Delete this WHT bill for ${rec.vendorName}? This cannot be undone.`)) return;
+    setWhtDeletingId(rec.id);
+    try {
+      await deleteWHTRecord(rec.id);
+      setWhtRecords((prev) => prev.filter((r) => r.id !== rec.id));
+      if (profile && invoice) {
+        logAuditEvent({ actorUid: profile.uid, actorName: profile.displayName ?? profile.email, actorRole: profile.role, action: "delete", module: "invoices", entityId: rec.id, entityRef: rec.whtId, details: `WHT bill for ${rec.vendorName} deleted (was never paid — no ledger impact)`, timestamp: new Date().toISOString() });
+      }
+    } catch (err) {
+      console.error("[WHT] delete failed:", err);
+    } finally { setWhtDeletingId(null); }
+  }
+
 
   function handlePrint() {
     if (!invoice) return;
@@ -456,12 +485,43 @@ export default function InvoiceViewPage() {
 
       {invoice.status === "paid" && !isVatDirect && (
         whtLogged ? (
-          <div className="mb-5 flex items-center gap-3 px-4 py-3 bg-emerald-500/8 border border-emerald-500/20 rounded-xl animate-fade-in">
-            <span className="text-emerald-400 text-base shrink-0">✓</span>
-            <p className="text-emerald-300 text-sm font-helvetica font-semibold">WHT Logged</p>
-            <p className="text-emerald-300/60 text-xs font-helvetica">
-              A Withholding Tax record has been filed for this invoice.
-            </p>
+          <div className="mb-5 space-y-2 animate-fade-in">
+            {whtRecords.filter((r) => r.sourceId === id).map((rec) => (
+              <div key={rec.id} className={cn("flex items-center gap-3 px-4 py-3 border rounded-xl",
+                rec.status === "paid" ? "bg-emerald-500/8 border-emerald-500/20" : "bg-white/[0.03] border-white/10"
+              )}>
+                <span className={cn("text-base shrink-0", rec.status === "paid" ? "text-emerald-400" : "text-white/40")}>
+                  {rec.status === "paid" ? "✓" : "○"}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className={cn("text-sm font-helvetica font-semibold", rec.status === "paid" ? "text-emerald-300" : "text-white/70")}>
+                    WHT {rec.status === "paid" ? "logged and paid" : "logged — not yet paid"}
+                  </p>
+                  <p className={cn("text-xs font-helvetica", rec.status === "paid" ? "text-emerald-300/60" : "text-white/40")}>
+                    {formatNaira(rec.whtAmount)} withheld from {rec.vendorName}
+                    {rec.status === "pending" && " — nothing posted to the ledger yet."}
+                  </p>
+                </div>
+                {canManage && rec.status === "pending" && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => handleWhtMarkPaid(rec)}
+                      disabled={whtPayingId === rec.id}
+                      className="text-xs border px-2.5 py-1 rounded-lg font-helvetica transition-colors text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10 disabled:opacity-40"
+                    >
+                      {whtPayingId === rec.id ? "Posting…" : "Mark Paid"}
+                    </button>
+                    <button
+                      onClick={() => handleWhtDelete(rec)}
+                      disabled={whtDeletingId === rec.id}
+                      className="text-xs border px-2.5 py-1 rounded-lg font-helvetica transition-colors text-red-400 border-red-500/20 hover:bg-red-500/10 disabled:opacity-40"
+                    >
+                      {whtDeletingId === rec.id ? "Deleting…" : "Delete"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         ) : (
           <div className="mb-5 bg-amber-500/8 border border-amber-500/20 rounded-xl animate-fade-in overflow-hidden">
@@ -532,13 +592,26 @@ export default function InvoiceViewPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="field-label">Payment Date</label>
+                      <label className="field-label">Expense Category</label>
+                      <select
+                        value={whtCategory}
+                        onChange={(e) => setWhtCategory(e.target.value as ExpenseCategory)}
+                        className="input-field"
+                      >
+                        {Object.entries(EXPENSE_CATEGORY_LABELS).map(([value, label]) => (
+                          <option key={value} value={value} className="bg-primary-dark">{label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="field-label">Bill Date</label>
                       <input
                         type="date"
-                        value={whtPaymentDate}
-                        onChange={(e) => setWhtPaymentDate(e.target.value)}
+                        value={whtBillDate}
+                        onChange={(e) => setWhtBillDate(e.target.value)}
                         className="input-field"
                       />
+                      <p className="mt-1 text-[10px] text-white/20 font-helvetica">Logging doesn&apos;t touch the books — only Mark Paid does.</p>
                     </div>
                     <div>
                       <label className="field-label">Notes (optional)</label>
@@ -559,7 +632,7 @@ export default function InvoiceViewPage() {
                     disabled={whtSubmitting}
                     className="btn-primary text-xs px-5 disabled:opacity-50"
                   >
-                    {whtSubmitting ? "Saving…" : "Save WHT Record"}
+                    {whtSubmitting ? "Saving…" : "Log WHT Bill"}
                   </button>
                 </form>
               </div>
