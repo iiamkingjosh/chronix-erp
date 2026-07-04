@@ -130,7 +130,7 @@ export async function voidJournalEntry(
       accountName: l.accountName,
       debit:       l.credit,
       credit:      l.debit,
-      description: l.description,
+      ...(l.description !== undefined && { description: l.description }),
     }));
     const totalDebit  = round(reversedLines.reduce((s, l) => s + l.debit,  0));
     const totalCredit = round(reversedLines.reduce((s, l) => s + l.credit, 0));

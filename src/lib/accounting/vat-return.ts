@@ -49,7 +49,8 @@ export async function generateVATReturn(month: string, userId: string): Promise<
   const lastDay    = new Date(parseInt(year), parseInt(mm), 0).getDate();
   const endDate    = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
 
-  const entries = await getJournalEntriesByDateRange(startDate, endDate);
+  const entries = (await getJournalEntriesByDateRange(startDate, endDate))
+    .filter((e) => e.status === "posted");
 
   const collected: VATReturn["vatCollected"] = {
     itServices: 0, hardwareSales: 0, branding: 0, other: 0, total: 0,
