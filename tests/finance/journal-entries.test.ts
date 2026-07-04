@@ -54,7 +54,6 @@ describe("Invariant #1 — double-entry balance is enforced (baseline: this one 
 
 describe("FIXED: DEVIATION D8 — createWHTJournalEntry() is now a canonical, shared helper, matching every other transaction type", () => {
   it("auto-journal.ts now exports createWHTJournalEntry alongside every other transaction type's helper", () => {
-    expect(typeof autoJournal.createInvoiceJournalEntry).toBe("function");
     expect(typeof autoJournal.createCashBasisPaymentJournalEntry).toBe("function");
     expect(typeof autoJournal.createExpenseJournalEntry).toBe("function");
     expect(typeof autoJournal.createPayrollJournalEntry).toBe("function");

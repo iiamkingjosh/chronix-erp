@@ -39,63 +39,6 @@ function revenueAccount(itemName: string): { code: string; name: string } {
   return { code: "4010", name: "IT Consulting Services Revenue" };
 }
 
-/* ── Invoice created ─────────────────────────────────────────────────────── */
-/*
- *  Debit  1100  Accounts Receivable   (full invoice total)
- *  Credit 40XX  Revenue               (subtotal, net of VAT)
- *  Credit 2100  VAT Payable           (7.5% VAT)
- */
-export async function createInvoiceJournalEntry(
-  invoice: Invoice,
-  userId: string
-): Promise<JournalEntry> {
-
-  const lineItems: JournalLineItem[] = [
-    // Debit: Full amount owed to us
-    {
-      accountCode: "1100",
-      accountName: "Accounts Receivable",
-      debit:  round(invoice.total),
-      credit: 0,
-      description: `Invoice to ${invoice.client.name}`,
-    },
-  ];
-
-  // Credit: Revenue broken down by each item
-  for (const item of invoice.items) {
-    const rev = revenueAccount(item.name);
-    lineItems.push({
-      accountCode: rev.code,
-      accountName: rev.name,
-      debit:  0,
-      credit: round(item.lineTotal),
-      description: item.name,
-    });
-  }
-
-  // Credit: VAT collected
-  lineItems.push({
-    accountCode: "2100",
-    accountName: "VAT Payable (7.5%)",
-    debit:  0,
-    credit: round(invoice.vatAmount),
-    description: "VAT 7.5% collected",
-  });
-
-  return createJournalEntry({
-    entryDate:     invoice.invoiceDate,
-    description:   `Invoice ${invoice.invoiceNumber} — ${invoice.client.name}`,
-    reference:     invoice.invoiceNumber,
-    referenceType: "invoice",
-    referenceId:   invoice.id,
-    lineItems,
-    status:    "posted",
-    createdBy: userId,
-    postedBy:  userId,
-    postedAt:  new Date().toISOString(),
-  });
-}
-
 /* ── Payment received (cash basis) ──────────────────────────────────────── */
 /*
  * Cash-basis: revenue is recognised when cash is received, not at invoicing.
