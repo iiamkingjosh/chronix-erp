@@ -116,11 +116,11 @@ export default function FinanceDashboard() {
         />
         <StatCard
           label="Net Profit"
-          value={formatNaira(Math.abs(netProfit))}
+          value={netProfit < 0 ? `-${formatNaira(Math.abs(netProfit))}` : formatNaira(netProfit)}
           sub={netProfit >= 0 ? "profit · year-to-date" : "loss · year-to-date"}
           icon={<BalanceIcon />}
-          iconClass={netProfit >= 0 ? "bg-secondary/10 border-secondary/20 text-secondary" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}
-          valueClass={netProfit >= 0 ? "text-secondary" : "text-amber-400"}
+          iconClass={netProfit >= 0 ? "bg-secondary/10 border-secondary/20 text-secondary" : "bg-red-500/10 border-red-500/20 text-red-400"}
+          valueClass={netProfit >= 0 ? "text-secondary" : "text-red-400"}
         />
         <StatCard
           label="Pending"
