@@ -59,29 +59,25 @@ export async function generateVATReturn(month: string, userId: string): Promise<
   };
 
   for (const entry of entries) {
-    const desc = entry.description.toLowerCase();
     for (const line of entry.lineItems) {
-      // Output VAT — account 2100 credits
+      // Output VAT — account 2100 credits: classify by the revenue account code
+      // (4xxx) on the same journal entry, not by description keywords.
       if (line.accountCode === "2100" && line.credit > 0) {
-        if (desc.includes("hardware") || desc.includes("laptop") ||
-            desc.includes("ssd")      || desc.includes("ups"))
-          collected.hardwareSales += line.credit;
-        else if (desc.includes("brand") || desc.includes("design"))
-          collected.branding      += line.credit;
-        else if (desc.includes("consulting") || desc.includes("network") ||
-                 desc.includes("software"))
-          collected.itServices    += line.credit;
-        else
-          collected.other         += line.credit;
+        const revCode = entry.lineItems.find((l) => l.accountCode.startsWith("4"))?.accountCode ?? "";
+        if      (revCode === "4030") collected.hardwareSales += line.credit;
+        else if (revCode === "4040") collected.branding      += line.credit;
+        else if (revCode === "4010" || revCode === "4020" || revCode === "4050")
+                                     collected.itServices    += line.credit;
+        else                         collected.other         += line.credit;
       }
-      // Input VAT — account 1110 debits (VAT Recoverable asset account)
+      // Input VAT — account 1110 debits: classify by the cost account code
+      // (5xxx → purchases, 6xxx → operating expenses) on the same entry.
       if (line.accountCode === "1110" && line.debit > 0) {
-        if (desc.includes("purchase") || desc.includes("inventory"))
-          paid.purchases          += line.debit;
-        else if (desc.includes("equipment") || desc.includes("furniture"))
-          paid.capital            += line.debit;
-        else
-          paid.operatingExpenses  += line.debit;
+        const costCode = entry.lineItems.find(
+          (l) => l.accountCode.startsWith("5") || l.accountCode.startsWith("6")
+        )?.accountCode ?? "";
+        if (costCode.startsWith("5")) paid.purchases         += line.debit;
+        else                          paid.operatingExpenses += line.debit;
       }
     }
   }
