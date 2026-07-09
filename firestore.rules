@@ -681,6 +681,27 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
+    /* ── Staff Loans ─────────────────────────────────── */
+    match /staff_loans/{loanId} {
+      allow read: if isAuth() && (
+        isCEO() || isRootAdmin() || isHR() ||
+        resource.data.employeeUid == request.auth.uid
+      );
+      allow create: if isAuth();
+      allow update: if isAuth() && (isCEO() || isRootAdmin());
+      allow delete: if false;
+    }
+
+    /* ── Staff Loan Repayments ────────────────────────── */
+    match /staff_loan_repayments/{repaymentId} {
+      allow read: if isAuth() && (
+        isCEO() || isRootAdmin() || isHR() ||
+        resource.data.employeeUid == request.auth.uid
+      );
+      allow create: if isAuth() && (isCEO() || isRootAdmin());
+      allow update, delete: if false;
+    }
+
     /* ── Personal Tasks ──────────────────────────────── */
     // The first genuinely zero-override collection in this app: scoped
     // entirely to createdBy == the signed-in user, with no manager,
