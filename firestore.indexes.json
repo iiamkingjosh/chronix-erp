@@ -169,6 +169,22 @@
         { "fieldPath": "createdBy", "order": "ASCENDING" },
         { "fieldPath": "order",     "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "staff_loans",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "employeeUid", "order": "ASCENDING" },
+        { "fieldPath": "status",      "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "staff_loan_repayments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "loanId",        "order": "ASCENDING"  },
+        { "fieldPath": "repaymentDate", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
