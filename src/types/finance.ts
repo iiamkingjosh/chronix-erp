@@ -157,7 +157,7 @@ export interface JournalEntry {
   entryDate: string;
   description: string;
   reference?: string;
-  referenceType?: "invoice" | "payment" | "expense" | "payroll" | "manual";
+  referenceType?: "invoice" | "payment" | "expense" | "payroll" | "manual" | "loan_disbursement" | "loan_repayment";
   referenceId?: string;
   lineItems: JournalLineItem[];
   totalDebit: number;

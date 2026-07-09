@@ -62,8 +62,9 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
       // not from account 1100 (which receives no new entries under cash-basis).
       accountsReceivable: outstandingAR,
       vatRecoverable:     g("1110"),
-      inventory:          g("1200"),
-      prepaidExpenses:    g("1300"),
+      inventory:            g("1200"),
+      staffLoansReceivable: g("1250"),
+      prepaidExpenses:      g("1300"),
       total: 0,
     },
     fixedAssets: {
@@ -77,7 +78,8 @@ export async function generateBalanceSheet(asOfDate: string, userId: string) {
     assets.currentAssets.cash         + assets.currentAssets.pettyCash +
     // accountsReceivable intentionally excluded — memo only, see comment above
     assets.currentAssets.vatRecoverable +
-    assets.currentAssets.inventory    + assets.currentAssets.prepaidExpenses;
+    assets.currentAssets.inventory    + assets.currentAssets.staffLoansReceivable +
+    assets.currentAssets.prepaidExpenses;
   assets.fixedAssets.total =
     assets.fixedAssets.officeEquipment + assets.fixedAssets.computerEquipment;
   assets.total = assets.currentAssets.total + assets.fixedAssets.total;

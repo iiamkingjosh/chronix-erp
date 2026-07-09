@@ -4,6 +4,7 @@ import type { Expense as ExpenseClaim } from "@/types/expense";
 import type { PayrollRun } from "@/types/hr";
 import type { PurchaseOrder, VendorCategory } from "@/types/procurement";
 import type { WHTRecord } from "@/types/tax";
+import type { StaffLoan } from "@/types/loans";
 import { round } from "@/lib/utils";
 
 /* ── Expense account lookup ───────────────────────────────────────────────── */
@@ -355,6 +356,58 @@ export async function createPOJournalEntry(
     referenceType: "manual",
     referenceId:   po.id,
     lineItems,
+    status:    "posted",
+    createdBy: userId,
+    postedBy:  userId,
+    postedAt:  new Date().toISOString(),
+  });
+}
+
+/* ── Loan disbursed ───────────────────────────────────────────────────────── */
+/*
+ *  Debit  1250  Staff Loans Receivable  (loan.amount)
+ *  Credit 1010  Cash in Bank            (loan.amount)
+ */
+export async function createLoanDisbursementJournalEntry(
+  loan: StaffLoan,
+  userId: string,
+): Promise<JournalEntry> {
+  return createJournalEntry({
+    entryDate:     new Date().toISOString().slice(0, 10),
+    description:   `Loan disbursed — ${loan.employeeName}`,
+    referenceType: "loan_disbursement",
+    referenceId:   loan.id,
+    lineItems: [
+      { accountCode: "1250", accountName: "Staff Loans Receivable",    debit: round(loan.amount), credit: 0,                  description: `Loan to ${loan.employeeName}` },
+      { accountCode: "1010", accountName: "Cash in Bank — Fidelity",  debit: 0,                  credit: round(loan.amount), description: `Loan disbursement — ${loan.employeeName}` },
+    ],
+    status:    "posted",
+    createdBy: userId,
+    postedBy:  userId,
+    postedAt:  new Date().toISOString(),
+  });
+}
+
+/* ── Loan early repayment received ───────────────────────────────────────── */
+/*
+ *  Debit  1010  Cash in Bank            (amount)
+ *  Credit 1250  Staff Loans Receivable  (amount)
+ */
+export async function createEarlyRepaymentJournalEntry(
+  amount: number,
+  loanId: string,
+  employeeName: string,
+  userId: string,
+): Promise<JournalEntry> {
+  return createJournalEntry({
+    entryDate:     new Date().toISOString().slice(0, 10),
+    description:   `Loan early repayment — ${employeeName}`,
+    referenceType: "loan_repayment",
+    referenceId:   loanId,
+    lineItems: [
+      { accountCode: "1010", accountName: "Cash in Bank — Fidelity",  debit: round(amount), credit: 0,            description: `Early repayment — ${employeeName}` },
+      { accountCode: "1250", accountName: "Staff Loans Receivable",   debit: 0,             credit: round(amount), description: `Loan settled — ${employeeName}` },
+    ],
     status:    "posted",
     createdBy: userId,
     postedBy:  userId,
