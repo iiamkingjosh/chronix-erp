@@ -179,7 +179,8 @@ export async function createExpenseJournalEntry(
  */
 export async function createPayrollJournalEntry(
   run: PayrollRun,
-  userId: string
+  userId: string,
+  loanDeductions?: { employeeUid: string; amount: number }[],
 ): Promise<JournalEntry> {
   const mm         = String(run.month).padStart(2, "0");
   const lastDay    = new Date(run.year, run.month, 0).getDate();
@@ -189,8 +190,11 @@ export async function createPayrollJournalEntry(
   const totalPension = round(run.entries.reduce((s, e) => s + (e.employeePension ?? 0), 0));
   const totalNHF     = round(run.entries.reduce((s, e) => s + (e.nhf             ?? 0), 0));
   const totalOther   = round(run.entries.reduce((s, e) => s + (e.deductions      ?? 0), 0));
-  const totalNet     = round(totalGross - totalPAYE - totalPension - totalNHF - totalOther);
-  const totalDeductions = round(totalPension + totalNHF + totalOther);
+  const totalDeductions    = round(totalPension + totalNHF + totalOther);
+  const totalLoanDeductions = loanDeductions && loanDeductions.length > 0
+    ? round(loanDeductions.reduce((s, d) => s + d.amount, 0))
+    : 0;
+  const totalNet = round(totalGross - totalPAYE - totalDeductions - totalLoanDeductions);
 
   const MONTH_NAMES = [
     "January","February","March","April","May","June",
@@ -231,6 +235,16 @@ export async function createPayrollJournalEntry(
       debit:  0,
       credit: round(totalDeductions),
       description: `Pension, NHF & other deductions withheld ${mm}/${run.year}`,
+    });
+  }
+
+  if (totalLoanDeductions > 0) {
+    lineItems.push({
+      accountCode: "1250",
+      accountName: "Staff Loans Receivable",
+      debit:  0,
+      credit: round(totalLoanDeductions),
+      description: `Loan repayments deducted from payroll ${mm}/${run.year}`,
     });
   }
 

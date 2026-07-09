@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
       const year   = run.year   as number;
       const empNum = employeeNumber ?? uid.slice(-4).toUpperCase();
 
+      type LoanDeductionRecord = { loanId: string; amountDeducted: number; shortfall: number; remainingBalance: number };
       summaries.push({
         month,
         year,
@@ -61,6 +62,7 @@ export async function GET(req: NextRequest) {
         employeePension:    entry.employeePension   as number | undefined,
         nhf:                entry.nhf               as number | undefined,
         deductionItems:     entry.deductionItems    as { label: string; amount: number }[] | undefined,
+        loanDeduction:      entry.loanDeduction     as LoanDeductionRecord | undefined,
         netPay:             (entry.netPay           as number) ?? 0,
         status:             (entry.status as "pending" | "paid") ?? "pending",
         paidAt:             entry.paidAt as string | undefined,

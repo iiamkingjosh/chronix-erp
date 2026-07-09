@@ -138,6 +138,18 @@ export function PayslipPDFDocument({
           <Text style={[S.tValue, { fontFamily: "Helvetica-Bold" }]}>{`−${naira(totalDed)}`}</Text>
         </View>
 
+        {/* Staff loan balance (informational — Loan Repayment deduction already in deductionItems above) */}
+        {summary.loanDeduction && summary.loanDeduction.remainingBalance > 0 && (
+          <>
+            <View style={S.thinLine} />
+            <Text style={[S.secTitle, { color: "#888888" }]}>Loan Information</Text>
+            <View style={S.tableRow}>
+              <Text style={[S.tLabel, { color: "#888888" }]}>Remaining Loan Balance</Text>
+              <Text style={[S.tValue, { color: "#888888" }]}>{naira(summary.loanDeduction.remainingBalance)}</Text>
+            </View>
+          </>
+        )}
+
         {/* Employer Pension (informational — not a deduction from employee) */}
         {(summary.employeePension ?? 0) > 0 && (
           <>
@@ -275,6 +287,17 @@ export function BulkPayslipPDFDocument({
               <Text style={[S.tLabel, { fontFamily: "Helvetica-Bold" }]}>Total Deductions</Text>
               <Text style={[S.tValue, { fontFamily: "Helvetica-Bold" }]}>{`−${naira(totalDed)}`}</Text>
             </View>
+
+            {summary.loanDeduction && summary.loanDeduction.remainingBalance > 0 && (
+              <>
+                <View style={S.thinLine} />
+                <Text style={[S.secTitle, { color: "#888888" }]}>Loan Information</Text>
+                <View style={S.tableRow}>
+                  <Text style={[S.tLabel, { color: "#888888" }]}>Remaining Loan Balance</Text>
+                  <Text style={[S.tValue, { color: "#888888" }]}>{naira(summary.loanDeduction.remainingBalance)}</Text>
+                </View>
+              </>
+            )}
 
             {(summary.employeePension ?? 0) > 0 && (
               <>

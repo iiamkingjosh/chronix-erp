@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import "../helpers/admin-emulator";
 import { connectEmulators, clearAll, teardownEmulators, signInAs, readDocAsAdmin, queryAsAdmin, signOutCurrent, seedUserRole } from "../helpers/emulator";
-import { createPayrollRun, markAllPaid, getPayrollRun } from "@/lib/hr-service";
+import { createPayrollRun, markAllPaid, markEntryPaid, getPayrollRun } from "@/lib/hr-service";
 import { getDocs, collection, query } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { GET as payslipRoute } from "@/app/api/payslip/route";
@@ -338,5 +338,53 @@ describe("FIXED: DEVIATION D2 — migrate-employee-numbers now honors legacy rol
 
     // Sanity: the caller itself shouldn't collide with the reserved slots.
     expect(assigned?.uid).not.toBe(callerUid);
+  });
+});
+
+describe("Phase 3 regression — employees without loans are completely unaffected", () => {
+  it("markAllPaid for a no-loan employee produces identical journal entry (no 1250 credit line)", async () => {
+    const { uid } = await signInAs("System Admin");
+    const run = await createPayrollRun({
+      month: 7, year: 2026, status: "draft",
+      entries: [makeEntry({ baseSalary: 300_000 })],
+      totalGross: 0, totalDeductions: 0, totalNet: 0,
+      generatedAt: new Date().toISOString(), generatedBy: uid, generatedByName: "Test Admin",
+    });
+
+    await markAllPaid(run.id, run.entries, uid);
+
+    const jeList = await queryAsAdmin("journal_entries", "referenceId", run.id);
+    expect(jeList).toHaveLength(1);
+
+    // No 1250 (Staff Loans Receivable) credit line — no loans exist
+    const je = jeList[0] as { lineItems?: Array<{ accountCode: string }> };
+    const has1250 = (je.lineItems ?? []).some((l) => l.accountCode === "1250");
+    expect(has1250).toBe(false);
+
+    // Status and journal flag unchanged from pre-Phase-3 behaviour
+    const persisted = await readDocAsAdmin<Record<string, unknown>>("payroll_runs", run.id);
+    expect(persisted?.status).toBe("completed");
+    expect(persisted?._journalPosted).toBe(true);
+  });
+
+  it("markEntryPaid for a no-loan employee — backward-compatible signature, no loan fields on entry", async () => {
+    const { uid } = await signInAs("System Admin");
+    const run = await createPayrollRun({
+      month: 8, year: 2026, status: "draft",
+      entries: [makeEntry({ uid: "emp-solo", baseSalary: 200_000 })],
+      totalGross: 0, totalDeductions: 0, totalNet: 0,
+      generatedAt: new Date().toISOString(), generatedBy: uid, generatedByName: "Test Admin",
+    });
+
+    await markEntryPaid(run.id, "emp-solo", run.entries, uid);
+
+    const persisted = await readDocAsAdmin<Record<string, unknown>>("payroll_runs", run.id);
+    expect(persisted?.status).toBe("completed");
+    expect(persisted?._journalPosted).toBe(true);
+
+    // No loanDeduction field written on the entry
+    const entries = (persisted?.entries ?? []) as Array<Record<string, unknown>>;
+    const entry = entries.find((e) => e.uid === "emp-solo");
+    expect(entry?.loanDeduction).toBeUndefined();
   });
 });

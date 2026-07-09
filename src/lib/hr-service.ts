@@ -7,6 +7,7 @@ import { auth } from "./firebase";
 import type { Employee, PayrollRun, PayrollEntry, PerformanceNote } from "@/types/hr";
 import { computeMonthlyPAYE } from "@/types/tax";
 import { createPayrollJournalEntry } from "@/lib/accounting/auto-journal";
+import { getActiveLoanForEmployee, processLoanDeduction } from "@/lib/loans-service";
 import { logAuditEvent } from "@/lib/audit-service";
 import { hasPermission } from "@/types/roles";
 
@@ -345,9 +346,38 @@ export async function markEntryPaid(
   currentEntries: PayrollEntry[],
   userId: string,
 ): Promise<void> {
-  const now     = new Date().toISOString();
+  const now = new Date().toISOString();
+
+  // Try to apply a loan deduction for this employee — errors are non-fatal
+  // and must never block payroll for any employee without an active loan.
+  let loanPatch: Partial<PayrollEntry> = {};
+  try {
+    const loan = await getActiveLoanForEmployee(uid);
+    if (loan && loan.status === "active") {
+      const target = currentEntries.find((e) => e.uid === uid);
+      if (target) {
+        const result = await processLoanDeduction(loan.id, runId, target.netPay, userId);
+        loanPatch = {
+          netPay: target.netPay - result.amountDeducted,
+          deductionItems: [
+            ...(target.deductionItems ?? []),
+            { label: "Loan Repayment", amount: result.amountDeducted },
+          ],
+          loanDeduction: {
+            loanId:           loan.id,
+            amountDeducted:   result.amountDeducted,
+            shortfall:        result.shortfall,
+            remainingBalance: Math.max(0, loan.balance - result.amountDeducted),
+          },
+        };
+      }
+    }
+  } catch (err) {
+    console.error(`[loans] deduction failed for ${uid}:`, err);
+  }
+
   const updated = currentEntries.map((e) =>
-    e.uid === uid ? { ...e, status: "paid" as const, paidAt: now } : e
+    e.uid === uid ? { ...e, status: "paid" as const, paidAt: now, ...loanPatch } : e
   );
   const allPaid = updated.every((e) => e.status === "paid");
   await updateDoc(doc(db, PAY, runId), {
@@ -360,9 +390,15 @@ export async function markEntryPaid(
     const run = await getPayrollRun(runId);
     if (run) {
       const fullRun = { ...run, entries: updated };
+      const entryLoanDeductions = updated.flatMap((e) =>
+        e.loanDeduction ? [{ employeeUid: e.uid, amount: e.loanDeduction.amountDeducted }] : []
+      );
       if (!(run as unknown as Record<string, unknown>)._journalPosted) {
         try {
-          await createPayrollJournalEntry(fullRun, userId);
+          await createPayrollJournalEntry(
+            fullRun, userId,
+            entryLoanDeductions.length > 0 ? entryLoanDeductions : undefined,
+          );
           await updateDoc(doc(db, PAY, runId), { _journalPosted: true, _journalError: null });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
@@ -379,8 +415,41 @@ export async function markAllPaid(
   currentEntries: PayrollEntry[],
   userId: string,
 ): Promise<void> {
-  const now     = new Date().toISOString();
-  const updated = currentEntries.map((e) => ({ ...e, status: "paid" as const, paidAt: now }));
+  const now = new Date().toISOString();
+
+  // Process loan deductions per employee concurrently.
+  // Errors in any individual deduction are caught and logged — payroll must
+  // complete for all employees regardless of loan-check failures.
+  const runLoanDeductions: { employeeUid: string; amount: number }[] = [];
+  const updated = await Promise.all(
+    currentEntries.map(async (e) => {
+      const base = { ...e, status: "paid" as const, paidAt: now };
+      try {
+        const loan = await getActiveLoanForEmployee(e.uid);
+        if (!loan || loan.status !== "active") return base;
+        const result = await processLoanDeduction(loan.id, runId, e.netPay, userId);
+        runLoanDeductions.push({ employeeUid: e.uid, amount: result.amountDeducted });
+        return {
+          ...base,
+          netPay: e.netPay - result.amountDeducted,
+          deductionItems: [
+            ...(e.deductionItems ?? []),
+            { label: "Loan Repayment", amount: result.amountDeducted },
+          ],
+          loanDeduction: {
+            loanId:           loan.id,
+            amountDeducted:   result.amountDeducted,
+            shortfall:        result.shortfall,
+            remainingBalance: Math.max(0, loan.balance - result.amountDeducted),
+          },
+        };
+      } catch (err) {
+        console.error(`[loans] deduction failed for ${e.uid}:`, err);
+        return base;
+      }
+    })
+  );
+
   await updateDoc(doc(db, PAY, runId), {
     entries:     updated,
     status:      "completed",
@@ -392,7 +461,10 @@ export async function markAllPaid(
     const fullRun = { ...run, entries: updated };
     if (!(run as unknown as Record<string, unknown>)._journalPosted) {
       try {
-        await createPayrollJournalEntry(fullRun, userId);
+        await createPayrollJournalEntry(
+          fullRun, userId,
+          runLoanDeductions.length > 0 ? runLoanDeductions : undefined,
+        );
         await updateDoc(doc(db, PAY, runId), { _journalPosted: true, _journalError: null });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

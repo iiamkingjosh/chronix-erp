@@ -51,6 +51,7 @@ export interface PayrollEntry {
   employeePension?: number;   // monthly 8% pension contribution
   nhf?:             number;   // monthly 2.5% NHF contribution
   deductionItems?:  { label: string; amount: number }[];
+  loanDeduction?:   { loanId: string; amountDeducted: number; shortfall: number; remainingBalance: number };
   netPay:           number;
   status:           PayrollEntryStatus;
   paidAt?:          string;
@@ -80,6 +81,7 @@ export interface PayslipSummary {
   employeePension?:   number;           // monthly 8% employee pension
   nhf?:               number;           // monthly 2.5% NHF
   deductionItems?:    { label: string; amount: number }[];
+  loanDeduction?:     { loanId: string; amountDeducted: number; shortfall: number; remainingBalance: number };
   netPay:             number;
   status:             PayrollEntryStatus;
   paidAt?:            string;           // ISO 8601
