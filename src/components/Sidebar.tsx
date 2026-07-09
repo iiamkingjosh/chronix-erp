@@ -23,6 +23,7 @@ const ALL_NAV: NavItem[] = [
   { label: "Projects",      href: "/dashboard/projects",             icon: <ProjectsIcon /> },
   { label: "Vendors",       href: "/dashboard/procurement",          icon: <ProcureIcon /> },
   { label: "HR",            href: "/dashboard/hr",                   icon: <HRIcon /> },
+  { label: "Staff Loans",  href: "/dashboard/hr/loans",             icon: <LoansIcon /> },
   { label: "Assets",        href: "/dashboard/assets",               icon: <AssetIcon /> },
   { label: "Time Tracking", href: "/dashboard/time",                 icon: <ClockIcon /> },
   { label: "Subscriptions", href: "/dashboard/subscriptions",        icon: <SubIcon /> },
@@ -35,6 +36,7 @@ const ALL_NAV: NavItem[] = [
   { label: "Audit Log",     href: "/dashboard/audit",                icon: <AuditIcon /> },
   { label: "Notifications", href: "/dashboard/notifications",        icon: <BellIcon /> },
   { label: "My Tasks",      href: "/dashboard/my-tasks",             icon: <MyTasksIcon /> },
+  { label: "My Loan",       href: "/dashboard/my-loans",             icon: <LoansIcon /> },
   { label: "My Payslip",    href: "/dashboard/payslip",              icon: <PayslipIcon /> },
   { label: "Payroll Summary", href: "/dashboard/payroll-summary",    icon: <PayslipIcon /> },
   { label: "My Performance", href: "/dashboard/my-performance",       icon: <PerformanceIcon /> },
@@ -51,6 +53,8 @@ const NAV_GATE: Record<string, string[] | null> = {
   "/dashboard/projects":             ["view:projects", "manage:projects"],
   "/dashboard/procurement":          ["view:procurement", "manage:procurement"],
   "/dashboard/hr":                   ["view:hr", "manage:hr"],
+  "/dashboard/hr/loans":             ["manage:hr", "view:all"],
+  "/dashboard/my-loans":             null,
   "/dashboard/assets":               ["view:assets", "manage:assets"],
   "/dashboard/time":                 ["view:time", "manage:time"],
   "/dashboard/subscriptions":        ["view:subscriptions", "manage:subscriptions"],
@@ -272,6 +276,16 @@ function PayslipIcon() {
       <line x1="8" y1="13" x2="16" y2="13"/>
       <line x1="8" y1="17" x2="16" y2="17"/>
       <line x1="10" y1="9" x2="8" y2="9"/>
+    </svg>
+  );
+}
+
+function LoansIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M12 6v6l4 2"/>
+      <path d="M8 2l1 3M16 2l-1 3"/>
     </svg>
   );
 }

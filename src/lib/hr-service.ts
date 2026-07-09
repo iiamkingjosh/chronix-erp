@@ -257,6 +257,16 @@ export async function activateEmployee(uid: string): Promise<void> {
   });
 }
 
+export async function offboardEmployee(
+  uid: string,
+  status: "resigned" | "terminated",
+): Promise<void> {
+  await updateDoc(doc(db, EMP, uid), {
+    status,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 /** Permanently deletes the employee record from Firestore. */
 export async function deleteEmployee(uid: string): Promise<void> {
   const currentUser = auth.currentUser;

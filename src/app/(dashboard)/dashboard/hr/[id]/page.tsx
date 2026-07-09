@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getEmployee, updateEmployee, updateEmployeeSalary, addPerformanceNote, suspendEmployee, activateEmployee, deleteEmployee } from "@/lib/hr-service";
+import { getEmployee, updateEmployee, updateEmployeeSalary, addPerformanceNote, suspendEmployee, activateEmployee, deleteEmployee, offboardEmployee } from "@/lib/hr-service";
+import { getActiveLoanForEmployee } from "@/lib/loans-service";
 import { getTickets } from "@/lib/tickets-service";
 import { getProjects } from "@/lib/projects-service";
 import {
@@ -18,7 +19,7 @@ import { auth } from "@/lib/firebase";
 import { MONTHS } from "@/types/hr";
 import type { PayslipSummary } from "@/types/hr";
 import { logAuditEvent } from "@/lib/audit-service";
-import { hasPermission } from "@/types/roles";
+import { hasPermission, isRootAdmin } from "@/types/roles";
 import { ROLE_COLORS } from "@/types/roles";
 import type { Role } from "@/types/roles";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,12 @@ export default function EmployeeProfilePage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Offboarding
+  const [offboardTarget, setOffboardTarget] = useState<"resigned" | "terminated" | null>(null);
+  const [offboardLoan, setOffboardLoan]     = useState<{ balance: number } | null>(null);
+  const [offboardChecking, setOffboardChecking] = useState(false);
+  const [offboardErr, setOffboardErr]       = useState<string | null>(null);
+
   // Edit salary
   const [showSalaryEdit, setShowSalaryEdit] = useState(false);
   const [salaryAmount, setSalaryAmount]     = useState("");
@@ -62,6 +69,7 @@ export default function EmployeeProfilePage() {
   const [pdfDownloading, setPdfDownloading]   = useState(false);
 
   const canManage        = profile ? hasPermission(profile.role, "manage:hr") : false;
+  const canRootAdmin     = profile ? isRootAdmin(profile.role) : false;
   const isSelf           = profile?.uid === id;
   const canView          = canManage || isSelf;
   // CEO and Executive Assistant both have view:all but neither has
@@ -165,6 +173,54 @@ export default function EmployeeProfilePage() {
     } finally {
       setActionLoading(false);
       setShowDeleteConfirm(false);
+    }
+  }
+
+  async function handleInitiateOffboard(status: "resigned" | "terminated") {
+    if (!employee || !profile) return;
+    setOffboardChecking(true);
+    setOffboardErr(null);
+    try {
+      const loan = await getActiveLoanForEmployee(employee.uid);
+      setOffboardLoan(loan && (loan.status === "active" || loan.status === "approved") ? { balance: loan.balance } : null);
+      setOffboardTarget(status);
+    } catch {
+      setOffboardErr("Failed to check loan status. Please try again.");
+    } finally {
+      setOffboardChecking(false);
+    }
+  }
+
+  async function handleConfirmOffboard() {
+    if (!employee || !profile || !offboardTarget) return;
+    setActionLoading(true);
+    setOffboardErr(null);
+    try {
+      if (offboardLoan && !canRootAdmin) return;
+      await offboardEmployee(employee.uid, offboardTarget);
+      if (offboardLoan && canRootAdmin) {
+        logAuditEvent({
+          actorUid: profile.uid, actorName: profile.displayName ?? profile.email,
+          actorRole: profile.role, action: "update", module: "hr",
+          entityId: employee.uid, entityRef: employee.fullName,
+          details: `Root Admin override — offboarding with outstanding loan balance of ${formatNaira(offboardLoan.balance)}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      logAuditEvent({
+        actorUid: profile.uid, actorName: profile.displayName ?? profile.email,
+        actorRole: profile.role, action: "update", module: "hr",
+        entityId: employee.uid, entityRef: employee.fullName,
+        details: `Employee ${employee.fullName} marked as ${offboardTarget}`,
+        timestamp: new Date().toISOString(),
+      });
+      setEmployee((prev) => prev ? { ...prev, status: offboardTarget } : prev);
+      setOffboardTarget(null);
+      setOffboardLoan(null);
+    } catch (err) {
+      setOffboardErr(err instanceof Error ? err.message : "Offboarding failed.");
+    } finally {
+      setActionLoading(false);
     }
   }
 
@@ -332,6 +388,29 @@ export default function EmployeeProfilePage() {
                 >
                   {actionLoading ? "…" : employee.status === "suspended" ? "✓ Activate" : "⏸ Suspend"}
                 </button>
+
+                {/* Offboard */}
+                {(employee.status === "active" || employee.status === "suspended") && (
+                  <>
+                    <button
+                      onClick={() => handleInitiateOffboard("resigned")}
+                      disabled={actionLoading || offboardChecking}
+                      className="text-xs text-purple-400 border border-purple-500/20 hover:bg-purple-500/10 px-3 py-1.5 rounded-lg font-helvetica transition-colors disabled:opacity-40"
+                    >
+                      {offboardChecking ? "…" : "Resign"}
+                    </button>
+                    <button
+                      onClick={() => handleInitiateOffboard("terminated")}
+                      disabled={actionLoading || offboardChecking}
+                      className="text-xs text-red-400 border border-red-500/20 hover:bg-red-500/10 px-3 py-1.5 rounded-lg font-helvetica transition-colors disabled:opacity-40"
+                    >
+                      Terminate
+                    </button>
+                  </>
+                )}
+                {offboardErr && (
+                  <p className="w-full text-xs text-red-400 font-helvetica">{offboardErr}</p>
+                )}
 
                 {/* Delete */}
                 {!showDeleteConfirm ? (
@@ -640,8 +719,81 @@ export default function EmployeeProfilePage() {
           )}
         </div>
       )}
+
+      {/* Offboarding modal */}
+      {offboardTarget && employee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+          <div className="bg-primary-dark border border-white/10 rounded-2xl w-full max-w-md p-6 animate-slide-up">
+            {offboardLoan ? (
+              <>
+                <div className="flex items-start gap-3 mb-4">
+                  <WarnIcon />
+                  <div>
+                    <h2 className="font-orbitron text-base font-bold text-white mb-1">Warning: Outstanding Loan Balance</h2>
+                    <p className="text-sm text-white/60 font-helvetica">
+                      <span className="text-white font-semibold">{employee.fullName}</span> has an outstanding loan balance of{" "}
+                      <span className="text-amber-400 font-semibold font-orbitron">{formatNaira(offboardLoan.balance)}</span>.
+                      Company policy requires full repayment before offboarding. A Root Admin override is required to proceed.
+                    </p>
+                  </div>
+                </div>
+                {offboardErr && <p className="mb-4 text-xs text-red-400 font-helvetica">{offboardErr}</p>}
+                <div className="flex gap-3">
+                  {canRootAdmin ? (
+                    <button
+                      onClick={handleConfirmOffboard}
+                      disabled={actionLoading}
+                      className="flex-1 text-sm text-white bg-red-600 hover:bg-red-700 py-2.5 rounded-xl font-helvetica font-semibold transition-colors disabled:opacity-40"
+                    >
+                      {actionLoading ? "Processing…" : "Override and Proceed"}
+                    </button>
+                  ) : (
+                    <div className="flex-1 text-sm text-white/40 font-helvetica py-2.5 text-center border border-white/10 rounded-xl">
+                      Contact Root Admin to proceed
+                    </div>
+                  )}
+                  <button
+                    onClick={() => { setOffboardTarget(null); setOffboardLoan(null); setOffboardErr(null); }}
+                    className="text-sm text-white/40 hover:text-white font-helvetica px-3"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="font-orbitron text-base font-bold text-white mb-2">
+                  Confirm {offboardTarget === "resigned" ? "Resignation" : "Termination"}
+                </h2>
+                <p className="text-sm text-white/60 font-helvetica mb-6">
+                  Mark <span className="text-white font-semibold">{employee.fullName}</span> as{" "}
+                  <span className="capitalize font-semibold text-white">{offboardTarget}</span>?
+                  This will update their employment status.
+                </p>
+                {offboardErr && <p className="mb-4 text-xs text-red-400 font-helvetica">{offboardErr}</p>}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleConfirmOffboard}
+                    disabled={actionLoading}
+                    className="flex-1 text-sm text-white bg-red-600 hover:bg-red-700 py-2.5 rounded-xl font-helvetica font-semibold transition-colors disabled:opacity-40"
+                  >
+                    {actionLoading ? "Processing…" : `Yes, Mark as ${offboardTarget === "resigned" ? "Resigned" : "Terminated"}`}
+                  </button>
+                  <button
+                    onClick={() => { setOffboardTarget(null); setOffboardLoan(null); setOffboardErr(null); }}
+                    className="text-sm text-white/40 hover:text-white font-helvetica px-3"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function BackIcon() { return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6"/></svg>; }
+function WarnIcon()  { return <svg className="w-6 h-6 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>; }
